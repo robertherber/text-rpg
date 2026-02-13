@@ -474,7 +474,7 @@ The narrator is a **chaotic trickster** - playful, witty, occasionally misleadin
 
 ## Technical Considerations
 
-- **GPT Model:** Use `gpt-4o` for generation quality; consider `gpt-4o-mini` for simple validations
+- **GPT Model:** Use `gpt-5-mini` for all generation
 - **Token Management:** Keep context under 4000 tokens; summarize old history
 - **Structured Output:** Use GPT function calling / JSON mode for reliable parsing
 - **Race Conditions:** Queue image generation, don't block main flow
