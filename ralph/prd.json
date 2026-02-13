@@ -1,0 +1,941 @@
+{
+  "project": "Dragon's Bane - Open World Text RPG",
+  "branchName": "ralph/open-world-generation",
+  "description": "Transform the text RPG into a fully dynamic, AI-generated open world with persistence, NPCs with souls, free-form input, and emergent storylines",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "Create WorldState persistence file operations",
+      "description": "As a developer, I need functions to save and load world state from world-state.json.",
+      "acceptanceCriteria": [
+        "Create src/world/persistence.ts with saveWorldState(state: WorldState) function",
+        "Create loadWorldState() function that returns WorldState or null if file doesn't exist",
+        "Use Bun.file for file operations as per CLAUDE.md",
+        "JSON file saved at root as world-state.json",
+        "Typecheck passes"
+      ],
+      "priority": 1,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-002",
+      "title": "Create seed world data with Millbrook village",
+      "description": "As a developer, I need seed data for Millbrook village at coordinates (0,0).",
+      "acceptanceCriteria": [
+        "Create src/world/seedWorld.ts with createSeedWorld() function",
+        "Village square location at coordinates (0,0) with terrain 'village'",
+        "Include tavern, blacksmith, village square locations",
+        "Mark seed content as isCanonical: true",
+        "Return complete WorldState with locations, empty npcs/factions/quests",
+        "Typecheck passes"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-003",
+      "title": "Initialize world state on server startup",
+      "description": "As a developer, I need the server to load existing world state or create seed world on startup.",
+      "acceptanceCriteria": [
+        "Modify index.ts to call loadWorldState() on startup",
+        "If no save exists, call createSeedWorld() and save it",
+        "Store world state in a module-level variable for API access",
+        "Log whether loaded existing world or created new one",
+        "Typecheck passes"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-004",
+      "title": "Create seed NPCs with soul instructions",
+      "description": "As a developer, I need initial NPCs for Millbrook with soul instructions.",
+      "acceptanceCriteria": [
+        "Add 3-4 NPCs to seedWorld.ts: barkeep, blacksmith, village elder",
+        "Each NPC has soulInstruction paragraph covering background, goals, personality, speech patterns",
+        "NPCs placed at appropriate locations (barkeep at tavern, etc.)",
+        "NPCs marked as isCanonical: true",
+        "Typecheck passes"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-005",
+      "title": "Create OpenAI client wrapper for GPT calls",
+      "description": "As a developer, I need a wrapper for OpenAI GPT-5-mini calls with proper context management.",
+      "acceptanceCriteria": [
+        "Create src/world/gptService.ts",
+        "Create callGPT function that takes system prompt and user prompt",
+        "Use gpt-5-mini model (or fallback to gpt-4o-mini if not available)",
+        "Include narrator personality in system prompt (chaotic trickster, first person)",
+        "Return structured JSON responses using response_format",
+        "Typecheck passes"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-006",
+      "title": "Create GPT context builder for action resolution",
+      "description": "As a developer, I need a function to build GPT context from world state.",
+      "acceptanceCriteria": [
+        "Add buildActionContext function to gptService.ts",
+        "Include current location details in context",
+        "Include nearby NPCs and their brief descriptions",
+        "Include last 5 events from eventHistory",
+        "Include player inventory summary and stats",
+        "Keep context under 4000 tokens",
+        "Typecheck passes"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-007",
+      "title": "Create action resolution function",
+      "description": "As a developer, I need GPT to resolve player actions and return state changes.",
+      "acceptanceCriteria": [
+        "Add resolveAction(worldState, action: string) to gptService.ts",
+        "Call GPT with context and action description",
+        "Parse response into ActionResult type (narrative, stateChanges, suggestedActions)",
+        "Return ActionResult for further processing",
+        "Typecheck passes"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-008",
+      "title": "Create state change applier",
+      "description": "As a developer, I need a function to apply StateChange array to WorldState.",
+      "acceptanceCriteria": [
+        "Create src/world/stateManager.ts with applyStateChanges function",
+        "Handle move_player, add_item, remove_item, gold_change types",
+        "Handle player_damage, player_heal types",
+        "Handle add_knowledge type",
+        "Return new WorldState (immutable update)",
+        "Typecheck passes"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-009",
+      "title": "Add NPC state change handlers",
+      "description": "As a developer, I need state change handlers for NPC-related changes.",
+      "acceptanceCriteria": [
+        "Add handlers for move_npc, update_npc_attitude, npc_death",
+        "Add handlers for add_companion, remove_companion",
+        "Add handler for create_npc (for dynamically generated NPCs)",
+        "All handlers in stateManager.ts",
+        "Typecheck passes"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-010",
+      "title": "Add location and structure state change handlers",
+      "description": "As a developer, I need state change handlers for locations and structures.",
+      "acceptanceCriteria": [
+        "Add handlers for create_location, update_location",
+        "Add handlers for create_structure, destroy_structure",
+        "Locations get proper coordinates based on direction from current location",
+        "All handlers in stateManager.ts",
+        "Typecheck passes"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-011",
+      "title": "Create suggested actions generator",
+      "description": "As a developer, I need GPT to generate 3-6 contextual suggested actions.",
+      "acceptanceCriteria": [
+        "Add generateSuggestedActions(worldState) to gptService.ts",
+        "Returns array of SuggestedAction objects",
+        "Actions include movement, NPC interaction, item interaction options",
+        "Movement options include 'step carefully' and 'travel to known location'",
+        "Typecheck passes"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-012",
+      "title": "Create API endpoint for world state",
+      "description": "As a developer, I need an API to get current world state and suggested actions.",
+      "acceptanceCriteria": [
+        "Add GET /api/world/state endpoint to index.ts",
+        "Returns current location, present NPCs, player stats, suggested actions",
+        "Generates suggested actions using gptService",
+        "Typecheck passes"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-013",
+      "title": "Create API endpoint for suggested action selection",
+      "description": "As a developer, I need an API to process when player selects a suggested action.",
+      "acceptanceCriteria": [
+        "Add POST /api/world/action endpoint",
+        "Accepts { actionId: string } in body",
+        "Calls resolveAction with the action text",
+        "Applies state changes and saves world state",
+        "Returns narrative and new suggested actions",
+        "Typecheck passes"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-014",
+      "title": "Create API endpoint for free-form text input",
+      "description": "As a player, I want to type custom actions beyond suggested choices.",
+      "acceptanceCriteria": [
+        "Add POST /api/world/freeform endpoint",
+        "Accepts { text: string } in body",
+        "Calls resolveAction with the free-form text",
+        "Applies state changes and saves world state",
+        "Returns narrative and new suggested actions",
+        "Typecheck passes"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-015",
+      "title": "Add player knowledge tracking",
+      "description": "As a developer, I need to track what the player knows about the world.",
+      "acceptanceCriteria": [
+        "Player starts with knowledge of current village name and visible surroundings",
+        "Knowledge gained via add_knowledge state change",
+        "Add validateKnowledge(worldState, reference: string) function",
+        "Returns true if player knows about the referenced location/NPC/item",
+        "Typecheck passes"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-016",
+      "title": "Add knowledge validation to free-form input",
+      "description": "As a player, I should only be able to reference things I've learned about.",
+      "acceptanceCriteria": [
+        "Modify /api/world/freeform to validate references in player input",
+        "Unknown references get playful narrator rejection",
+        "Known references proceed to action resolution",
+        "Narrator response matches chaotic trickster personality",
+        "Typecheck passes"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-017",
+      "title": "Create dynamic location generator",
+      "description": "As a player, I want to discover new locations when exploring unknown areas.",
+      "acceptanceCriteria": [
+        "Add generateLocation(worldState, direction, fromLocation) to gptService.ts",
+        "Generated location has coordinates based on direction from current location",
+        "Location includes name, description, imagePrompt, terrain, dangerLevel",
+        "Location inherits context from departure point",
+        "Typecheck passes"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-018",
+      "title": "Create dynamic NPC generator",
+      "description": "As a developer, I need GPT to generate new NPCs when needed.",
+      "acceptanceCriteria": [
+        "Add generateNPC(worldState, context: string) to gptService.ts",
+        "Generated NPC has soulInstruction paragraph",
+        "NPC has appropriate knowledge based on context",
+        "NPC placed at specified location",
+        "Typecheck passes"
+      ],
+      "priority": 18,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-019",
+      "title": "Create conversation system with memory",
+      "description": "As a player, I want to have extended conversations with NPCs who remember past talks.",
+      "acceptanceCriteria": [
+        "Add handleConversation(worldState, npcId, playerMessage) to gptService.ts",
+        "Include NPC soul instruction and past conversation summaries in context",
+        "NPC responses reflect their personality from soul instruction",
+        "Store conversation summary after exchange",
+        "Typecheck passes"
+      ],
+      "priority": 19,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-020",
+      "title": "Add conversation API endpoint",
+      "description": "As a player, I want an API to talk to NPCs.",
+      "acceptanceCriteria": [
+        "Add POST /api/world/talk endpoint",
+        "Accepts { npcId: string, message: string }",
+        "Calls handleConversation and returns NPC response",
+        "Updates NPC conversationHistory and attitude",
+        "Saves world state after conversation",
+        "Typecheck passes"
+      ],
+      "priority": 20,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-021",
+      "title": "Create world simulation on location entry",
+      "description": "As a player, I want the world to feel alive with changes since my last visit.",
+      "acceptanceCriteria": [
+        "Add simulateLocationChanges(worldState, locationId) to gptService.ts",
+        "Calculate actions elapsed since lastVisitedAtAction",
+        "Higher action count = higher chance of changes",
+        "NPCs may have moved based on their soul instructions",
+        "Return description of changes woven into narrative",
+        "Typecheck passes"
+      ],
+      "priority": 21,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-022",
+      "title": "Add world image generation with NPCs present",
+      "description": "As a player, I want images that show the current location with NPCs present.",
+      "acceptanceCriteria": [
+        "Modify imageService.ts to include NPC descriptions in image prompt",
+        "Build prompt from location description + present NPC physical descriptions",
+        "Generate hash of current state for cache invalidation",
+        "Regenerate if state hash changed since last generation",
+        "Typecheck passes"
+      ],
+      "priority": 22,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-023",
+      "title": "Add background image pre-generation",
+      "description": "As a player, I want images ready when I arrive at suggested destinations.",
+      "acceptanceCriteria": [
+        "After generating suggested actions, queue image generation for movement destinations",
+        "Use Bun's background task capabilities",
+        "Store pre-generated images in image-cache with location+state hash key",
+        "Non-blocking - don't wait for pre-generation to complete",
+        "Typecheck passes"
+      ],
+      "priority": 23,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-024",
+      "title": "Create canvas map data structure",
+      "description": "As a developer, I need a data structure to render the explored map.",
+      "acceptanceCriteria": [
+        "Add getMapData(worldState) function returning visited locations with coordinates",
+        "Include terrain type for visual distinction",
+        "Include current player location for highlighting",
+        "Only return visited locations (from player knowledge)",
+        "Typecheck passes"
+      ],
+      "priority": 24,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-025",
+      "title": "Add map API endpoint",
+      "description": "As a developer, I need an API to get map data for rendering.",
+      "acceptanceCriteria": [
+        "Add GET /api/world/map endpoint",
+        "Returns array of { id, name, x, y, terrain, isCurrent }",
+        "Only includes visited/known locations",
+        "Typecheck passes"
+      ],
+      "priority": 25,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-026",
+      "title": "Create permadeath handler",
+      "description": "As a developer, I need to handle player death with world persistence.",
+      "acceptanceCriteria": [
+        "Add handlePlayerDeath(worldState, deathDescription) to stateManager.ts",
+        "Add current character to deceasedHeroes array",
+        "Record death location and major deeds",
+        "Items left at death location",
+        "Companions marked as scattered (no longer following)",
+        "Return modified WorldState ready for new character",
+        "Typecheck passes"
+      ],
+      "priority": 26,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-027",
+      "title": "Create new character generator after death",
+      "description": "As a player, I want to create a new character in the persistent world after death.",
+      "acceptanceCriteria": [
+        "Add generateNewCharacter(worldState, backstoryInput) to gptService.ts",
+        "GPT generates origin story based on player input",
+        "New character starts with fresh stats and empty inventory",
+        "Player knowledge resets to starting location only",
+        "NPCs who knew previous character may reference them",
+        "Typecheck passes"
+      ],
+      "priority": 27,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-028",
+      "title": "Add new character API endpoint",
+      "description": "As a player, I need an API to create a new character after death.",
+      "acceptanceCriteria": [
+        "Add POST /api/world/new-character endpoint",
+        "Accepts { backstory: string }",
+        "Calls generateNewCharacter and applies to world state",
+        "Returns new character info and starting location",
+        "Typecheck passes"
+      ],
+      "priority": 28,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-029",
+      "title": "Create quest tracking in world state",
+      "description": "As a player, I want NPCs to give me quests that are tracked.",
+      "acceptanceCriteria": [
+        "Add add_quest handler to stateManager.ts",
+        "Quests stored in worldState.quests",
+        "Quest has title, description, giver NPC, objectives",
+        "Add update_quest handler for marking objectives complete",
+        "Typecheck passes"
+      ],
+      "priority": 29,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-030",
+      "title": "Add journal API endpoint",
+      "description": "As a player, I want to view my quests and knowledge in a journal.",
+      "acceptanceCriteria": [
+        "Add GET /api/world/journal endpoint",
+        "Returns active quests, completed quests, failed quests",
+        "Returns known lore",
+        "Returns deceased heroes list",
+        "Typecheck passes"
+      ],
+      "priority": 30,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-031",
+      "title": "Create faction system in world state",
+      "description": "As a developer, I need seed factions and reputation tracking.",
+      "acceptanceCriteria": [
+        "Add seed factions to seedWorld.ts: thieves guild, merchant consortium, noble house",
+        "Each faction has playerReputation starting at 0",
+        "Add update_faction handler to stateManager.ts",
+        "Handler updates playerReputation for a faction",
+        "Typecheck passes"
+      ],
+      "priority": 31,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-032",
+      "title": "Add dynamic item generation",
+      "description": "As a developer, I need GPT to generate contextual items.",
+      "acceptanceCriteria": [
+        "Add generateItem(worldState, context: string, itemType?: string) to gptService.ts",
+        "Item value scaled with slight inflation based on player wealth",
+        "Items fit high fantasy theme",
+        "Item has name, description, type, effect, value",
+        "Typecheck passes"
+      ],
+      "priority": 32,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-033",
+      "title": "Add travel system with encounter chance",
+      "description": "As a player, I want to travel to known locations with potential encounters.",
+      "acceptanceCriteria": [
+        "Add handleTravel(worldState, destinationId) to gptService.ts",
+        "Calculate route danger from terrain types crossed",
+        "Roll for encounter based on danger level",
+        "If encounter, generate appropriate event (combat, discovery, NPC meeting)",
+        "If no encounter, move player to destination",
+        "Typecheck passes"
+      ],
+      "priority": 33,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-034",
+      "title": "Add travel API endpoint",
+      "description": "As a player, I want an API to fast travel to known locations.",
+      "acceptanceCriteria": [
+        "Add POST /api/world/travel endpoint",
+        "Accepts { destinationId: string }",
+        "Validates destination is in player knowledge",
+        "Calls handleTravel and processes result",
+        "Returns narrative (encounter or arrival) and new state",
+        "Typecheck passes"
+      ],
+      "priority": 34,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-035",
+      "title": "Create React frontend app shell",
+      "description": "As a developer, I need a React app structure for the new world UI.",
+      "acceptanceCriteria": [
+        "Create public/world.html as entry point",
+        "Create src/frontend/WorldApp.tsx as main component",
+        "Add route /world in index.ts serving world.html",
+        "Basic layout with panels for story, image, actions, map, journal",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 35,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-036",
+      "title": "Create story panel component",
+      "description": "As a player, I want to see the narrative text in the UI.",
+      "acceptanceCriteria": [
+        "Create src/frontend/StoryPanel.tsx",
+        "Displays narrative text from current game state",
+        "Scrollable panel for message history",
+        "New messages appear at bottom",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 36,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-037",
+      "title": "Create action buttons component",
+      "description": "As a player, I want to click suggested actions.",
+      "acceptanceCriteria": [
+        "Create src/frontend/ActionPanel.tsx",
+        "Renders suggested actions as clickable buttons",
+        "Clicking button calls /api/world/action",
+        "Updates story panel with result",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 37,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-038",
+      "title": "Create free-form text input component",
+      "description": "As a player, I want to type custom actions.",
+      "acceptanceCriteria": [
+        "Add text input to ActionPanel.tsx below buttons",
+        "Placeholder: 'Or type your own action...'",
+        "Submit on Enter or button click",
+        "Calls /api/world/freeform endpoint",
+        "Updates story panel with result",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 38,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-039",
+      "title": "Create image panel component",
+      "description": "As a player, I want to see the current location image.",
+      "acceptanceCriteria": [
+        "Create src/frontend/ImagePanel.tsx",
+        "Displays current location image from /api/game/image/:id",
+        "Shows loading state while image generates",
+        "Updates when location changes",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 39,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-040",
+      "title": "Create canvas map component",
+      "description": "As a player, I want to see a map of explored areas.",
+      "acceptanceCriteria": [
+        "Create src/frontend/MapPanel.tsx",
+        "Fetches data from /api/world/map",
+        "Renders locations on HTML canvas at their coordinates",
+        "Different colors for terrain types",
+        "Current location highlighted",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 40,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-041",
+      "title": "Create journal panel component",
+      "description": "As a player, I want to view my quests and knowledge.",
+      "acceptanceCriteria": [
+        "Create src/frontend/JournalPanel.tsx",
+        "Fetches data from /api/world/journal",
+        "Shows active quests with objectives",
+        "Shows completed/failed quests",
+        "Shows deceased heroes list",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 41,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-042",
+      "title": "Add NPC dialogue mode to UI",
+      "description": "As a player, I want to have conversations with NPCs in the UI.",
+      "acceptanceCriteria": [
+        "When talking to NPC, switch to conversation mode in ActionPanel",
+        "Show text input for dialogue",
+        "Show 'End conversation' button",
+        "Display NPC responses in story panel",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 42,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-043",
+      "title": "Add combat integration to world system",
+      "description": "As a player, I want combat to work with the new world system.",
+      "acceptanceCriteria": [
+        "When GPT initiates combat (via ActionResult.initiatesCombat), enter combat state",
+        "Combat uses NPC stats from worldState.npcs",
+        "Existing combat UI works with world state",
+        "On combat end, update NPC health or mark as dead",
+        "Save world state after combat",
+        "Typecheck passes"
+      ],
+      "priority": 43,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-044",
+      "title": "Add player stats panel to UI",
+      "description": "As a player, I want to see my character stats in the UI.",
+      "acceptanceCriteria": [
+        "Create src/frontend/StatsPanel.tsx",
+        "Shows health, gold, strength, defense, magic, level",
+        "Shows companion count if any",
+        "Updates when stats change",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 44,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-045",
+      "title": "Add inventory panel to UI",
+      "description": "As a player, I want to view and manage my inventory.",
+      "acceptanceCriteria": [
+        "Create src/frontend/InventoryPanel.tsx",
+        "Lists all items in player inventory",
+        "Shows item name, type, and description on hover",
+        "Can click item to use/equip if applicable",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 45,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-046",
+      "title": "Add home ownership to world state",
+      "description": "As a player, I want to claim a location as my home.",
+      "acceptanceCriteria": [
+        "Add homeLocationId to Player type (already exists)",
+        "Add 'claim_home' state change type",
+        "Player can store items at home",
+        "Companions can wait at home",
+        "Typecheck passes"
+      ],
+      "priority": 46,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-047",
+      "title": "Add crafting resolution to GPT",
+      "description": "As a player, I want to craft items when I have materials.",
+      "acceptanceCriteria": [
+        "Add handleCrafting(worldState, description) to gptService.ts",
+        "GPT judges if crafting is feasible given inventory",
+        "If feasible, removes materials and adds crafted item",
+        "If not feasible, returns playful rejection",
+        "Typecheck passes"
+      ],
+      "priority": 47,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-048",
+      "title": "Add building resolution to GPT",
+      "description": "As a player, I want to build structures in the world.",
+      "acceptanceCriteria": [
+        "Add handleBuilding(worldState, description) to gptService.ts",
+        "GPT judges if building is feasible given materials and location",
+        "If feasible, creates Structure at current location",
+        "Structure persists in location.structures",
+        "Typecheck passes"
+      ],
+      "priority": 48,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-049",
+      "title": "Add world decay simulation",
+      "description": "As a player, I want built structures to decay over time.",
+      "acceptanceCriteria": [
+        "In simulateLocationChanges, check structures for decay",
+        "Calculate decay based on actions since structure was built",
+        "Structures without maintenance eventually collapse",
+        "Items left behind may disappear or be taken",
+        "Typecheck passes"
+      ],
+      "priority": 49,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-050",
+      "title": "Add emergent storyline tracking",
+      "description": "As a developer, I need to track player behavior for emergent storylines.",
+      "acceptanceCriteria": [
+        "Update player.behaviorPatterns based on actions taken",
+        "Combat actions increase combat pattern",
+        "Dialogue actions increase social/diplomacy patterns",
+        "Stealth actions increase stealth pattern",
+        "GPT uses patterns to generate aligned story hooks",
+        "Typecheck passes"
+      ],
+      "priority": 50,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-051",
+      "title": "Add flashback system",
+      "description": "As a player, I want to discover my backstory through flashbacks.",
+      "acceptanceCriteria": [
+        "When GPT returns revealsFlashback in ActionResult, show flashback",
+        "Flashback reveals part of player.hiddenBackstory",
+        "Add revealed content to player.revealedBackstory",
+        "Flashbacks can reveal skills (add to player.knowledge.skills)",
+        "Typecheck passes"
+      ],
+      "priority": 51,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-052",
+      "title": "Add character creation flow",
+      "description": "As a player, I want to create my character with a backstory.",
+      "acceptanceCriteria": [
+        "Add POST /api/world/create-character endpoint",
+        "Accepts { name, backstoryHints }",
+        "GPT generates physical description and hidden backstory",
+        "Creates Player in fresh WorldState",
+        "Returns starting narrative and character info",
+        "Typecheck passes"
+      ],
+      "priority": 52,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-053",
+      "title": "Create character creation UI",
+      "description": "As a player, I want a UI to create my character.",
+      "acceptanceCriteria": [
+        "Create src/frontend/CharacterCreation.tsx",
+        "Input for character name",
+        "Textarea for backstory hints/preferences",
+        "Submit calls /api/world/create-character",
+        "On success, transitions to game UI",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 53,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-054",
+      "title": "Add death screen and new character flow",
+      "description": "As a player, I want to see a death screen and create a new character.",
+      "acceptanceCriteria": [
+        "Create src/frontend/DeathScreen.tsx",
+        "Shows death narrative with narrator flair",
+        "Shows deceased hero summary",
+        "Button to create new character",
+        "Option to start completely fresh world",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
+      ],
+      "priority": 54,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-055",
+      "title": "Add relationship tracking for NPCs",
+      "description": "As a developer, I need NPCs to track their relationship with player.",
+      "acceptanceCriteria": [
+        "NPC.attitude already tracks -100 to 100 attitude",
+        "Add relationship_change state change type",
+        "Attitude affects NPC dialogue tone and willingness to help",
+        "Marriage sets player.marriedToNpcId",
+        "Children added to player.childrenNpcIds",
+        "Typecheck passes"
+      ],
+      "priority": 55,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-056",
+      "title": "Add transformation system",
+      "description": "As a player, I want to be able to transform into other forms.",
+      "acceptanceCriteria": [
+        "Add player_transform state change handler",
+        "Transformation added to player.transformations array",
+        "Transformations affect player.physicalDescription",
+        "GPT considers transformations when resolving actions",
+        "Typecheck passes"
+      ],
+      "priority": 56,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-057",
+      "title": "Add curses and blessings system",
+      "description": "As a player, I want curses and blessings to affect my character.",
+      "acceptanceCriteria": [
+        "Add add_curse and add_blessing state change handlers",
+        "Stored in player.curses and player.blessings arrays",
+        "GPT considers curses/blessings when resolving actions",
+        "Curses can be removed through narrative means",
+        "Typecheck passes"
+      ],
+      "priority": 57,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-058",
+      "title": "Add skill practice tracking",
+      "description": "As a player, I want my skills to improve through practice.",
+      "acceptanceCriteria": [
+        "Add skill_practice state change handler",
+        "Skills stored in player.knowledge.skills as qualitative descriptions",
+        "GPT describes skill improvement narratively",
+        "Some skills require teachers to advance",
+        "Typecheck passes"
+      ],
+      "priority": 58,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-059",
+      "title": "Add rumor spreading system",
+      "description": "As a developer, I need player deeds to spread through NPC networks.",
+      "acceptanceCriteria": [
+        "Significant events marked with isSignificant: true in eventHistory",
+        "When entering location, check if NPCs have heard rumors",
+        "Rumors spread based on NPC connections and time passed",
+        "NPCs may reference player deeds they've heard about",
+        "Typecheck passes"
+      ],
+      "priority": 59,
+      "passes": false,
+      "notes": ""
+    },
+    {
+      "id": "US-060",
+      "title": "Add crime and consequences system",
+      "description": "As a player, I want stealing and crimes to have consequences.",
+      "acceptanceCriteria": [
+        "GPT detects criminal actions and rolls for detection",
+        "Caught crimes update NPC attitudes and faction reputation",
+        "Severe crimes can result in bounties",
+        "NPCs may refuse service to known criminals",
+        "Jail/escape handled narratively by GPT",
+        "Typecheck passes"
+      ],
+      "priority": 60,
+      "passes": false,
+      "notes": ""
+    }
+  ]
+}
