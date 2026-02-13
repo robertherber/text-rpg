@@ -1,0 +1,179 @@
+import index from "./public/index.html";
+import {
+  createInitialState,
+  getLocation,
+  processChoice,
+  processCombatAction,
+  checkRequirement,
+} from "./src/gameEngine";
+import { generateImage } from "./src/imageService";
+import type { GameState } from "./src/types";
+
+const server = Bun.serve({
+  port: 3000,
+
+  // Serve static files from image-cache directory
+  async fetch(req) {
+    const url = new URL(req.url);
+    if (url.pathname.startsWith("/image-cache/")) {
+      const filePath = `.${url.pathname}`;
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        return new Response(file, {
+          headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=31536000" },
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    }
+    // Let routes handle everything else
+    return undefined as any;
+  },
+
+  routes: {
+    "/": index,
+
+    // Start a new game
+    "/api/game/start": {
+      POST: async (req) => {
+        const body = await req.json();
+        const state = createInitialState();
+        state.character.name = body.playerName || "Hero";
+        return Response.json({ state });
+      },
+    },
+
+    // Get location info
+    "/api/game/location/:id": {
+      GET: (req) => {
+        const location = getLocation(req.params.id);
+        if (!location) {
+          return Response.json({ error: "Location not found" }, { status: 404 });
+        }
+        return Response.json({ location });
+      },
+    },
+
+    // Get the root image location ID (resolves parent chain)
+    "/api/game/image-location/:id": {
+      GET: (req) => {
+        let location = getLocation(req.params.id);
+        if (!location) {
+          return Response.json({ error: "Location not found" }, { status: 404 });
+        }
+
+        // If this location has a parent, find the root
+        while (location.parentLocationId) {
+          const parent = getLocation(location.parentLocationId);
+          if (parent) {
+            location = parent;
+          } else {
+            break;
+          }
+        }
+
+        return Response.json({ imageLocationId: location.id });
+      },
+    },
+
+    // Get image for location
+    "/api/game/image/:id": {
+      GET: async (req) => {
+        let location = getLocation(req.params.id);
+        if (!location) {
+          return Response.json({ error: "Location not found" }, { status: 404 });
+        }
+
+        // If this location has a parent, use the parent's image
+        while (location.parentLocationId) {
+          const parent = getLocation(location.parentLocationId);
+          if (parent) {
+            location = parent;
+          } else {
+            break;
+          }
+        }
+
+        if (!location.imagePrompt) {
+          return Response.json({ error: "No image for this location" }, { status: 404 });
+        }
+
+        const imageUrl = await generateImage(location.id, location.imagePrompt);
+        return Response.json({ imageUrl, imageLocationId: location.id });
+      },
+    },
+
+    // Get available choices for current location
+    "/api/game/choices": {
+      POST: async (req) => {
+        const body = await req.json();
+        const state: GameState = body.state;
+        const location = getLocation(state.currentLocationId);
+
+        if (!location) {
+          return Response.json({ choices: [] });
+        }
+
+        const choices = location.choices.map((choice) => ({
+          ...choice,
+          available: checkRequirement(state, choice),
+        }));
+
+        return Response.json({ choices });
+      },
+    },
+
+    // Process a player action/choice
+    "/api/game/action": {
+      POST: async (req) => {
+        const body = await req.json();
+        const state: GameState = body.state;
+        const choiceId: string = body.choiceId;
+
+        const location = getLocation(state.currentLocationId);
+        const choice = location?.choices.find((c) => c.id === choiceId);
+
+        if (!choice) {
+          return Response.json({ error: "Invalid choice" }, { status: 400 });
+        }
+
+        if (!checkRequirement(state, choice)) {
+          return Response.json({ error: "Requirements not met" }, { status: 400 });
+        }
+
+        const newState = processChoice(state, choice);
+        return Response.json({ state: newState });
+      },
+    },
+
+    // Process combat action
+    "/api/game/combat": {
+      POST: async (req) => {
+        const body = await req.json();
+        const state: GameState = body.state;
+        const action: "attack" | "defend" | "flee" | "usePotion" = body.action;
+
+        if (!state.combatState) {
+          return Response.json({ error: "Not in combat" }, { status: 400 });
+        }
+
+        const newState = processCombatAction(state, action);
+        return Response.json({ state: newState });
+      },
+    },
+  },
+
+  development: {
+    hmr: true,
+    console: true,
+  },
+});
+
+console.log(`
+🐉 Dragon's Bane - Text RPG Server
+================================
+Server running at: http://localhost:${server.port}
+
+${process.env.OPENAI_API_KEY ? "✅ OpenAI API key detected - AI images enabled!" : "⚠️  No OPENAI_API_KEY set - using placeholder images"}
+
+Press Ctrl+C to stop
+`);
