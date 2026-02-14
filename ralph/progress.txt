@@ -492,3 +492,22 @@
   - Action counter is incremented and world state saved after travel
   - Pre-generates images for movement destinations in background (non-blocking)
 ---
+
+## 2026-02-14 - US-035
+- What was implemented: Created React frontend app shell for the open world UI
+- Files changed:
+  - public/world.html (created - HTML entry point)
+  - public/worldMain.tsx (created - React bootstrap for WorldApp)
+  - src/frontend/WorldApp.tsx (created - main component with panels)
+  - src/frontend/worldStyles.css (created - styles for world UI)
+  - index.ts (modified - added /world route)
+- **Learnings for future iterations:**
+  - Pattern follows existing App.tsx setup: HTML imports TSX via script tag, TSX bootstraps React app
+  - WorldApp.tsx uses same type assertion pattern `(await response.json()) as Type` for typed API responses
+  - DOM-related TS errors (scrollTop, document, etc.) are pre-existing lib config issues - same as App.tsx
+  - Layout uses CSS Grid: 3 columns (image 400px, content 1fr, actions 350px)
+  - Panel tabs allow switching between Story/Map/Journal in center column
+  - Story messages have types: "narrative" (gold border), "action" (blue, player input), "system" (red, errors)
+  - NPCs panel shows present characters with companion badge for companions
+  - Free-form input placeholder added but TODO for implementation in US-038
+---
