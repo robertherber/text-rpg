@@ -909,3 +909,24 @@
   - Skill practice events are only marked as significant (isSignificant: true) when there's an actual level-up
   - Pre-existing type errors in stateManager.ts (lines 329-385) are documented in Codebase Patterns
 ---
+
+## 2026-02-14 - US-059
+- What was implemented: Added rumor spreading system for player deeds through NPC networks
+- Files changed:
+  - src/world/types.ts (modified - added Rumor interface and heardRumors field to NPC)
+  - src/world/gptService.ts (modified - added calculateRumorSpread, applyRumorSpreads, getNpcRumorsAboutPlayer, getNpcRumorsContext functions)
+  - src/world/seedWorld.ts (modified - added heardRumors: [] to all seed NPCs)
+  - src/world/stateManager.ts (modified - added heardRumors field to handleCreateNpc)
+  - index.ts (modified - integrated rumor spreading into /api/world/state endpoint)
+- **Learnings for future iterations:**
+  - `Rumor` interface has: eventId, content, heardAtAction, heardFromNpcId, accuracy ("accurate" | "embellished" | "distorted")
+  - `calculateRumorSpread(worldState, locationId)` is called when player enters a location to check if NPCs have heard rumors
+  - Rumor probability increases with: time passed since event, proximity to event location, shared factions, village/road terrain
+  - Rumor accuracy degrades over time: recent (<=5 actions) = accurate, medium (6-15) = mostly accurate, old (>30) = mostly distorted
+  - `applyRumorSpreads(worldState, rumorSpreads)` returns a new WorldState with NPC heardRumors updated (immutable)
+  - `getNpcRumorsAboutPlayer(worldState, npcId)` returns formatted rumor strings for use in conversation context
+  - NPCs forget rumors after 100 actions (heardAtAction + 100)
+  - Significant events (`isSignificant: true`) were already being tracked throughout the codebase
+  - The `handleConversation` function now includes RUMORS context section so NPCs can reference what they've heard
+  - Rumor accuracy affects how NPCs phrase things: accurate = fact, embellished = "they say...", distorted = "I heard a tale..."
+---
