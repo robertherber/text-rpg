@@ -13,6 +13,7 @@ import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
 import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge } from "./src/world/stateManager";
+import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
 
 // Module-level world state for API access
@@ -523,6 +524,14 @@ const server = Bun.serve({
             { status: 500 }
           );
         }
+      },
+    },
+
+    // Get map data for canvas rendering
+    "/api/world/map": {
+      GET: () => {
+        const mapData = getMapData(worldState);
+        return Response.json(mapData);
       },
     },
   },
