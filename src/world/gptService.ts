@@ -52,9 +52,60 @@ export interface GPTResponse<T = unknown> {
   tokensUsed: number;
 }
 
+// Retry configuration for GPT calls
+const MAX_RETRIES = 2;
+const RETRY_DELAYS = [500, 1500]; // Exponential backoff in milliseconds
+
+/**
+ * Sleep for a specified number of milliseconds
+ */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Make a single GPT API call (helper for retry logic)
+ */
+async function makeGPTCall(
+  model: string,
+  fullSystemPrompt: string,
+  userPrompt: string,
+  maxTokens: number,
+  jsonSchema?: Record<string, unknown>
+): Promise<OpenAI.Chat.Completions.ChatCompletion> {
+  if (jsonSchema) {
+    return await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: fullSystemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+      response_format: {
+        type: "json_schema",
+        json_schema: {
+          name: "response",
+          strict: true,
+          schema: jsonSchema,
+        },
+      },
+    });
+  } else {
+    return await openai.chat.completions.create({
+      model,
+      messages: [
+        { role: "system", content: fullSystemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+    });
+  }
+}
+
 /**
  * Call GPT with the narrator personality and optional JSON schema.
  * Uses gpt-5-mini with fallback to gpt-4o-mini if not available.
+ * Includes retry logic with exponential backoff for JSON parse failures.
  */
 export async function callGPT<T = string>(
   options: GPTCallOptions
@@ -68,102 +119,88 @@ export async function callGPT<T = string>(
 
   // Try primary model first, then fallback
   let modelToUse = PRIMARY_MODEL;
-  let response: OpenAI.Chat.Completions.ChatCompletion;
 
-  try {
-    if (jsonSchema) {
-      // Use structured output with JSON schema
-      response = await openai.chat.completions.create({
-        model: modelToUse,
-        messages: [
-          { role: "system", content: fullSystemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: maxTokens,
-        response_format: {
-          type: "json_schema",
-          json_schema: {
-            name: "response",
-            strict: true,
-            schema: jsonSchema,
-          },
-        },
-      });
-    } else {
-      // Plain text response
-      response = await openai.chat.completions.create({
-        model: modelToUse,
-        messages: [
-          { role: "system", content: fullSystemPrompt },
-          { role: "user", content: userPrompt },
-        ],
-        max_tokens: maxTokens,
-      });
-    }
-  } catch (error: unknown) {
-    // If primary model fails (model not found), try fallback
-    if (
-      error instanceof Error &&
-      (error.message.includes("model") || error.message.includes("not found"))
-    ) {
-      console.log(
-        `Model ${PRIMARY_MODEL} not available, falling back to ${FALLBACK_MODEL}`
-      );
-      modelToUse = FALLBACK_MODEL;
-
-      if (jsonSchema) {
-        response = await openai.chat.completions.create({
-          model: modelToUse,
-          messages: [
-            { role: "system", content: fullSystemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          max_tokens: maxTokens,
-          response_format: {
-            type: "json_schema",
-            json_schema: {
-              name: "response",
-              strict: true,
-              schema: jsonSchema,
-            },
-          },
-        });
-      } else {
-        response = await openai.chat.completions.create({
-          model: modelToUse,
-          messages: [
-            { role: "system", content: fullSystemPrompt },
-            { role: "user", content: userPrompt },
-          ],
-          max_tokens: maxTokens,
-        });
+  // Attempt GPT call with model fallback
+  const attemptCall = async (): Promise<OpenAI.Chat.Completions.ChatCompletion> => {
+    try {
+      return await makeGPTCall(modelToUse, fullSystemPrompt, userPrompt, maxTokens, jsonSchema);
+    } catch (error: unknown) {
+      // If primary model fails (model not found), try fallback
+      if (
+        error instanceof Error &&
+        (error.message.includes("model") || error.message.includes("not found"))
+      ) {
+        console.log(
+          `Model ${PRIMARY_MODEL} not available, falling back to ${FALLBACK_MODEL}`
+        );
+        modelToUse = FALLBACK_MODEL;
+        return await makeGPTCall(modelToUse, fullSystemPrompt, userPrompt, maxTokens, jsonSchema);
       }
-    } else {
       throw error;
     }
+  };
+
+  // For non-JSON responses, no retry needed for parsing
+  if (!jsonSchema) {
+    const response = await attemptCall();
+    const content = response.choices[0]?.message?.content ?? "";
+    const tokensUsed = response.usage?.total_tokens ?? 0;
+    return {
+      content: content as T,
+      model: modelToUse,
+      tokensUsed,
+    };
   }
 
-  const content = response.choices[0]?.message?.content ?? "";
-  const tokensUsed = response.usage?.total_tokens ?? 0;
+  // For JSON responses, implement retry logic with exponential backoff
+  let lastError: Error | null = null;
+  let attempt = 0;
 
-  // Parse JSON if schema was provided
-  if (jsonSchema) {
+  while (attempt <= MAX_RETRIES) {
     try {
-      return {
-        content: JSON.parse(content) as T,
-        model: modelToUse,
-        tokensUsed,
-      };
-    } catch {
-      throw new Error(`Failed to parse GPT JSON response: ${content}`);
+      const response = await attemptCall();
+      const content = response.choices[0]?.message?.content ?? "";
+      const tokensUsed = response.usage?.total_tokens ?? 0;
+
+      // Attempt to parse JSON
+      try {
+        return {
+          content: JSON.parse(content) as T,
+          model: modelToUse,
+          tokensUsed,
+        };
+      } catch (parseError) {
+        // Log the parse failure
+        console.error(
+          `GPT JSON parse failure (attempt ${attempt + 1}/${MAX_RETRIES + 1}):`,
+          parseError instanceof Error ? parseError.message : parseError
+        );
+        console.error(`Raw response content:`, content.substring(0, 500));
+
+        lastError = new Error(
+          `Failed to parse GPT JSON response after ${attempt + 1} attempt(s). The AI returned an invalid response. Please try again.`
+        );
+
+        // If we have retries left, wait and try again
+        if (attempt < MAX_RETRIES) {
+          const delay = RETRY_DELAYS[attempt] ?? 1000;
+          console.log(`Retrying GPT call in ${delay}ms...`);
+          await sleep(delay);
+          attempt++;
+        } else {
+          // No more retries
+          break;
+        }
+      }
+    } catch (apiError) {
+      // API-level errors (not parse errors) - don't retry, throw immediately
+      console.error(`GPT API error:`, apiError);
+      throw apiError;
     }
   }
 
-  return {
-    content: content as T,
-    model: modelToUse,
-    tokensUsed,
-  };
+  // All retries exhausted
+  throw lastError || new Error("GPT call failed after all retries");
 }
 
 /**
