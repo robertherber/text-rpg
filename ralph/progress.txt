@@ -115,3 +115,19 @@
   - NPC IDs follow pattern `npc_{name}_{role}` (e.g., `npc_marta_barkeep`, `npc_pip_stablehand`)
 ---
 
+## 2026-02-14 - US-010
+- What was implemented: Added location and structure state change handlers
+- Files changed:
+  - src/world/stateManager.ts (modified - added 4 new handlers + helper function)
+- **Learnings for future iterations:**
+  - `create_location`: Accepts optional `direction` and `fromLocationId` to auto-calculate coordinates
+  - Direction mapping: north=(0,1), south=(0,-1), east=(1,0), west=(-1,0), and diagonals combine these
+  - `calculateCoordinatesFromDirection` helper function handles all 8 cardinal/ordinal directions
+  - `update_location`: Prevents changing `id` and `coordinates` for safety - use create_location for new locations
+  - `create_structure`: Defaults to player's current location if `locationId` not provided
+  - `destroy_structure`: Also defaults to current location, validates structure exists before removal
+  - Dynamically created locations get `isCanonical: false` like NPCs
+  - Structure types: "camp", "shelter", "house", "fort", "trap", "marker", "grave"
+  - `builtAtAction` defaults to current `state.actionCounter` when not provided
+---
+
