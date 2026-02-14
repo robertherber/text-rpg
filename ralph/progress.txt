@@ -410,3 +410,18 @@
   - Quest type already existed in types.ts with: id, title, description, giverNpcId, status, objectives, completedObjectives, rewards
 ---
 
+## 2026-02-14 - US-030
+- What was implemented: Added GET /api/world/journal endpoint for viewing quests, lore, and deceased heroes
+- Files changed:
+  - index.ts (modified - added /api/world/journal endpoint)
+- **Learnings for future iterations:**
+  - `/api/world/journal` returns: activeQuests, completedQuests, failedQuests, knownLore, deceasedHeroes
+  - Quests are categorized by filtering on `status` field: "active", "completed", "failed" or "impossible"
+  - Active quests include full objectives array for UI to show checklist
+  - Completed quests include rewards field for display
+  - Failed quests grouped with "impossible" status quests
+  - Known lore comes directly from `player.knowledge.lore` string array
+  - Deceased heroes are mapped to display-friendly format (excludes sensitive fields like itemsLeftBehind details)
+  - No new type errors introduced - endpoint uses properly typed worldState properties
+---
+
