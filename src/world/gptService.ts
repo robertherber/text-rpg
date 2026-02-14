@@ -317,6 +317,7 @@ const ACTION_RESULT_SCHEMA = {
               "add_blessing",
               "skill_practice",
               "gold_change",
+              "reveal_flashback",
             ],
           },
           data: {
@@ -416,6 +417,16 @@ export async function resolveAction(
 ): Promise<ActionResult> {
   const context = buildActionContext(worldState);
 
+  // Build flashback context if player has hidden backstory
+  const flashbackContext = worldState.player.hiddenBackstory
+    ? `
+HIDDEN BACKSTORY (player doesn't know this yet - reveal through flashbacks):
+${worldState.player.hiddenBackstory}
+
+ALREADY REVEALED BACKSTORY:
+${worldState.player.revealedBackstory.length > 0 ? worldState.player.revealedBackstory.join("\n") : "Nothing yet revealed"}`
+    : "";
+
   const systemPrompt = `You are resolving player actions in a fantasy medieval RPG.
 
 Given the current game context and the player's attempted action, determine:
@@ -432,6 +443,16 @@ RULES:
 - NPCs can only be talked to if they're present at the current location
 - Generate unique IDs for new suggested actions using simple lowercase strings like "action_1", "action_2"
 
+FLASHBACK SYSTEM:
+- Flashbacks reveal pieces of the player's hidden backstory
+- Trigger a flashback when: discovering a familiar location, meeting someone from the past, using a specific skill, experiencing emotional intensity, or encountering meaningful objects
+- Use revealsFlashback field with the flashback narrative (formatted dramatically, past tense, describing a memory)
+- Flashbacks should feel like sudden vivid memories intruding on the present
+- Include a reveal_flashback state change with: { flashbackContent: "the memory", revealedSkill?: { name: "skill", level: "description" } }
+- Only reveal skills that make sense from the backstory (e.g., if backstory mentions sword training, can reveal "swordsmanship")
+- Don't reveal more than one flashback per action - they should feel special and rare
+${flashbackContext}
+
 STATE CHANGE TYPES:
 - move_player: { locationId: string } - Move player to a location
 - add_item: { item: WorldItem } - Add item to player inventory
@@ -445,6 +466,7 @@ STATE CHANGE TYPES:
 - npc_death: { npcId: string, description: string } - Kill an NPC
 - add_companion: { npcId: string } - Add NPC as companion
 - remove_companion: { npcId: string } - Remove NPC as companion
+- reveal_flashback: { flashbackContent: string, revealedSkill?: { name: string, level: string } } - Reveal a flashback memory
 
 SUGGESTED ACTION TYPES:
 - move: Walk to an adjacent location

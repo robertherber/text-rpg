@@ -230,6 +230,9 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "companion_rejoin":
       return handleCompanionRejoin(state, change.data);
 
+    case "reveal_flashback":
+      return handleRevealFlashback(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -2207,4 +2210,97 @@ export function getDominantPatterns(
     .filter(([, value]) => value > threshold && value > 3) // Must be above threshold AND have at least 3 actions
     .sort((a, b) => b[1] - a[1])
     .map(([name]) => name);
+}
+
+// ===== Flashback System =====
+
+/**
+ * Handle reveal_flashback state change.
+ * Processes a flashback that reveals part of the player's hidden backstory.
+ *
+ * data: {
+ *   flashbackContent: string,      // The revealed flashback narrative
+ *   revealedSkill?: {              // Optional skill revealed through the flashback
+ *     name: string,                // Skill name
+ *     level: string                // Skill level description
+ *   }
+ * }
+ *
+ * This handler:
+ * - Adds the flashback content to player.revealedBackstory
+ * - If a skill is revealed, adds it to player.knowledge.skills
+ * - Creates a discovery event in eventHistory
+ */
+function handleRevealFlashback(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { flashbackContent, revealedSkill } = data;
+
+  if (!flashbackContent || typeof flashbackContent !== "string") {
+    console.warn("reveal_flashback: invalid flashbackContent");
+    return state;
+  }
+
+  // Add flashback to revealed backstory (avoid duplicates)
+  let newRevealedBackstory = [...state.player.revealedBackstory];
+  if (!newRevealedBackstory.includes(flashbackContent)) {
+    newRevealedBackstory.push(flashbackContent);
+  }
+
+  // Handle skill revelation if present
+  let newSkills = { ...state.player.knowledge.skills };
+  if (revealedSkill && typeof revealedSkill === "object") {
+    const { name, level } = revealedSkill;
+    if (name && typeof name === "string") {
+      // Add or upgrade the skill
+      newSkills[name] = level || "remembered";
+    }
+  }
+
+  // Create a discovery event for the flashback
+  const flashbackEvent: import("./types").WorldEvent = {
+    id: `event_flashback_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: `A memory from the past was revealed: ${flashbackContent.slice(0, 100)}${flashbackContent.length > 100 ? "..." : ""}`,
+    type: "discovery",
+    involvedNpcIds: [],
+    locationId: state.player.currentLocationId,
+    isSignificant: true,
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      revealedBackstory: newRevealedBackstory,
+      knowledge: {
+        ...state.player.knowledge,
+        skills: newSkills,
+      },
+    },
+    eventHistory: [...state.eventHistory, flashbackEvent],
+  };
+}
+
+/**
+ * Process a flashback revelation triggered by GPT's revealsFlashback field.
+ *
+ * This function is called by the API endpoints when actionResult.revealsFlashback
+ * is populated. It creates the appropriate state change and applies it.
+ *
+ * @param state - The current world state
+ * @param flashbackContent - The flashback narrative content from GPT
+ * @param revealedSkill - Optional skill that the flashback reveals
+ * @returns The new WorldState with the flashback applied
+ */
+export function processFlashbackRevelation(
+  state: WorldState,
+  flashbackContent: string,
+  revealedSkill?: { name: string; level: string }
+): WorldState {
+  return handleRevealFlashback(state, {
+    flashbackContent,
+    revealedSkill,
+  });
 }

@@ -245,7 +245,8 @@ export interface StateChange {
     | "store_item_at_home"
     | "retrieve_item_from_home"
     | "companion_wait_at_home"
-    | "companion_rejoin";
+    | "companion_rejoin"
+    | "reveal_flashback";
   data: Record<string, any>;
 }
 
