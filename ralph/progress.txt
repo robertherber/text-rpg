@@ -425,3 +425,20 @@
   - No new type errors introduced - endpoint uses properly typed worldState properties
 ---
 
+## 2026-02-14 - US-031
+- What was implemented: Created faction system with seed factions and reputation tracking
+- Files changed:
+  - src/world/seedWorld.ts (modified - added 3 seed factions and NPC faction affiliations)
+  - src/world/stateManager.ts (modified - added handleUpdateFaction handler)
+- **Learnings for future iterations:**
+  - `Faction` type already existed in types.ts with `playerReputation` field (line 91-99)
+  - `update_faction` was already in StateChange type union (line 238) - just needed handler implementation
+  - Seed factions created: The Shadow Hand (thieves guild), The Golden Scale Consortium (merchant consortium), House Valdris (noble house)
+  - Faction IDs follow pattern: `faction_{name}` (e.g., `faction_shadow_hand`, `faction_golden_scale`)
+  - `update_faction` handler supports both relative (`reputationChange`) and absolute (`reputation`) updates
+  - Reputation clamped to -100 to 100 range, same as NPC attitude
+  - NPCs have `factionIds: string[]` array for faction membership, and factions have `memberNpcIds: string[]`
+  - Marta the Barkeep is a Golden Scale member, Elder Bramwell represents House Valdris
+  - Pre-existing type errors in seedWorld.ts lines 291-294 about "Object is possibly undefined" for location access - these are documented in Codebase Patterns
+---
+
