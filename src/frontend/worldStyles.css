@@ -407,8 +407,14 @@ body {
   border-top: 1px solid var(--border-color);
 }
 
+.freeform-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
 .freeform-input {
-  width: 100%;
+  flex: 1;
   padding: 0.75rem 1rem;
   background: var(--bg-secondary);
   border: 1px solid var(--border-color);
@@ -425,6 +431,32 @@ body {
 
 .freeform-input:disabled {
   opacity: 0.5;
+}
+
+.freeform-submit {
+  padding: 0.75rem 1rem;
+  background: var(--accent-gold);
+  border: none;
+  border-radius: 0.5rem;
+  color: var(--bg-primary);
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.freeform-submit:hover:not(:disabled) {
+  background: #d4a843;
+  transform: scale(1.05);
+}
+
+.freeform-submit:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.freeform-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
 }
 
 /* Responsive design */

@@ -153,6 +153,56 @@ export default function WorldApp() {
     }
   };
 
+  const handleFreeformSubmit = async (text: string) => {
+    if (isProcessing) return;
+
+    setIsProcessing(true);
+    addStoryMessage(`> ${text}`, "action");
+
+    try {
+      const response = await fetch("/api/world/freeform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text }),
+      });
+
+      const data = (await response.json()) as {
+        error?: string;
+        narrative?: string;
+        knowledgeRejection?: boolean;
+        unknownReferences?: string[];
+      };
+
+      if (data.error) {
+        addStoryMessage(data.error, "system");
+      } else if (data.knowledgeRejection && data.narrative) {
+        // Knowledge rejection - playful narrator rejection
+        addStoryMessage(data.narrative, "narrative");
+      } else if (data.narrative) {
+        addStoryMessage(data.narrative, "narrative");
+      }
+
+      // Update world state with new suggested actions
+      if (worldState) {
+        // Re-fetch world state to get updated location
+        const stateResponse = await fetch("/api/world/state");
+        const newState = (await stateResponse.json()) as WorldStateResponse;
+
+        // Check if location changed
+        if (newState.currentLocation.id !== worldState.currentLocation.id) {
+          loadLocationImage(newState.currentLocation.id);
+        }
+
+        setWorldState(newState);
+      }
+    } catch (err) {
+      addStoryMessage("Something went wrong...", "system");
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="world-loading">
@@ -303,28 +353,13 @@ export default function WorldApp() {
             </div>
           )}
 
-          {/* Suggested actions */}
+          {/* Suggested actions with free-form input */}
           <ActionPanel
             actions={worldState.suggestedActions}
             onActionSelect={handleAction}
+            onFreeformSubmit={handleFreeformSubmit}
             isProcessing={isProcessing}
           />
-
-          {/* Free-form input placeholder */}
-          <div className="freeform-section">
-            <input
-              type="text"
-              placeholder="Or type your own action..."
-              className="freeform-input"
-              disabled={isProcessing}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && e.currentTarget.value.trim()) {
-                  // TODO: Implement free-form action handling
-                  e.currentTarget.value = "";
-                }
-              }}
-            />
-          </div>
         </section>
       </main>
     </div>
