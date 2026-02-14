@@ -244,6 +244,14 @@ const server = Bun.serve({
           experience: player.experience,
           companionCount: player.companionIds.length,
           inventoryCount: player.inventory.length,
+          inventory: player.inventory.map((item) => ({
+            id: item.id,
+            name: item.name,
+            description: item.description,
+            type: item.type,
+            effect: item.effect,
+            value: item.value,
+          })),
         };
 
         // Build combat state if in combat

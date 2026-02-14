@@ -6,6 +6,7 @@ import ImagePanel from "./ImagePanel";
 import MapPanel from "./MapPanel";
 import JournalPanel from "./JournalPanel";
 import StatsPanel from "./StatsPanel";
+import InventoryPanel, { type InventoryItem } from "./InventoryPanel";
 
 // Types for world state data
 interface WorldLocation {
@@ -41,6 +42,7 @@ interface PlayerStats {
   experience: number;
   companionCount: number;
   inventoryCount: number;
+  inventory: InventoryItem[];
 }
 
 // SuggestedAction type imported from ActionPanel
@@ -264,6 +266,46 @@ export default function WorldApp() {
     }
   };
 
+  const handleUseItem = async (itemId: string) => {
+    if (isProcessing) return;
+
+    // Find the item in inventory
+    const item = worldState?.playerStats.inventory.find((i) => i.id === itemId);
+    if (!item) return;
+
+    setIsProcessing(true);
+    addStoryMessage(`> Use ${item.name}`, "action");
+
+    try {
+      const response = await fetch("/api/world/freeform", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: `use ${item.name} from my inventory` }),
+      });
+
+      const data = (await response.json()) as {
+        error?: string;
+        narrative?: string;
+      };
+
+      if (data.error) {
+        addStoryMessage(data.error, "system");
+      } else if (data.narrative) {
+        addStoryMessage(data.narrative, "narrative");
+      }
+
+      // Re-fetch world state to get updated inventory
+      const stateResponse = await fetch("/api/world/state");
+      const newState = (await stateResponse.json()) as WorldStateResponse;
+      setWorldState(newState);
+    } catch (err) {
+      addStoryMessage("Something went wrong...", "system");
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="world-loading">
@@ -373,6 +415,13 @@ export default function WorldApp() {
             conversationMode={conversationState}
             onConversationMessage={handleConversationMessage}
             onEndConversation={handleEndConversation}
+          />
+
+          {/* Inventory panel */}
+          <InventoryPanel
+            items={worldState.playerStats.inventory}
+            onUseItem={handleUseItem}
+            isProcessing={isProcessing}
           />
         </section>
       </main>
