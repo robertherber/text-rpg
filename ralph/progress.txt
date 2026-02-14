@@ -458,3 +458,22 @@
   - Generated items get `isCanonical: false` to distinguish from seed content
   - WorldItem type imported from types.ts (don't redefine locally)
 ---
+
+## 2026-02-14 - US-033
+- What was implemented: Added travel system with encounter chance for fast travel
+- Files changed:
+  - src/world/gptService.ts (modified - added handleTravel function, TravelResult interface, TravelEncounterData interface, TRAVEL_ENCOUNTER_SCHEMA, helper functions)
+- **Learnings for future iterations:**
+  - `handleTravel(worldState, destinationId)` returns `TravelResult` with narrative, arrived flag, finalLocationId, encounter details, and stateChanges
+  - `calculateRouteDanger(worldState, from, to)` calculates average danger from locations along the route using bounding box approach
+  - Encounter chance formula: `0.15 + baseDangerChance * 0.4 + distanceModifier + terrainModifier` (capped at 5%-90%)
+  - `TERRAIN_DANGER_MODIFIER` object maps terrain types to danger adjustments: village=-2, road=-1, plains=0, forest=+1, dungeon=+4, etc.
+  - Four encounter types: combat, discovery, npc_meeting, environmental - each handled differently
+  - Combat encounters spawn hostile NPC at departure point and block travel (continueToDestination=false)
+  - Discovery encounters may find items and continue to destination
+  - NPC meeting encounters generate friendly travelers and add them to player knowledge
+  - Environmental hazards can cause damage but usually allow continuing
+  - If already at destination, returns immediately with humorous narrative
+  - Uses existing `generateNPC` function to create encounter NPCs dynamically
+  - `generateSimpleTravelNarrative` creates atmospheric text for uneventful journeys
+---
