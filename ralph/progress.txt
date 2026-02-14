@@ -874,3 +874,21 @@
   - Example transformations mentioned in GPT prompt: vampire, werewolf, ghost, lich, demon, fae, elemental, werebear, harpy
   - Pre-existing type errors in stateManager.ts (lines 314-370) are documented in Codebase Patterns
 ---
+
+## 2026-02-14 - US-057
+- What was implemented: Added curses and blessings system with state change handlers
+- Files changed:
+  - src/world/types.ts (modified - added "remove_curse" and "remove_blessing" to StateChange type union)
+  - src/world/stateManager.ts (modified - added 4 new handlers: handleAddCurse, handleAddBlessing, handleRemoveCurse, handleRemoveBlessing)
+  - src/world/gptService.ts (modified - added remove_curse/remove_blessing to schema, added CURSES AND BLESSINGS SYSTEM prompt section)
+- **Learnings for future iterations:**
+  - `player.curses` and `player.blessings` arrays already existed in Player type (lines 154-155 of types.ts)
+  - `add_curse` and `add_blessing` were already in StateChange type union (lines 240-241) and ACTION_RESULT_SCHEMA (lines 316-317)
+  - Curses/blessings are already passed to GPT in buildActionContext() (lines 236-237) via PLAYER STATUS section
+  - Handlers support optional `source` and `effects` fields for narrative richness (e.g., "marked by shadow (from the witch)")
+  - Use partial matching with `.includes()` for remove handlers since curses/blessings may include source info
+  - Curse/blessing entries are normalized (lowercase, trimmed) before storage
+  - All curse/blessing changes create significant events in eventHistory for rumor spreading
+  - Added comprehensive GPT prompt section with examples of curses (marked by shadow, blood debt, cursed tongue) and blessings (favored by fortune, protected by spirits, blessed sight)
+  - Pre-existing type errors in codebase are unchanged - new code introduces no new type errors
+---
