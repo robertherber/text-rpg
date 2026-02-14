@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction, Location } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location, NPC } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -896,4 +896,261 @@ Return the location details as JSON.`;
   };
 
   return newLocation;
+}
+
+// JSON Schema for generated NPC response from GPT
+const GENERATED_NPC_SCHEMA = {
+  type: "object",
+  properties: {
+    name: {
+      type: "string",
+      description: "The NPC's full name (e.g., 'Marta Ironwood', 'Grimjaw the Smith')",
+    },
+    description: {
+      type: "string",
+      description: "A brief description of who this NPC is and their role (1-2 sentences)",
+    },
+    physicalDescription: {
+      type: "string",
+      description: "Detailed physical appearance for image generation (hair, build, clothing, distinguishing features)",
+    },
+    soulInstruction: {
+      type: "string",
+      description: "A comprehensive paragraph covering: background/history, goals and motivations, personality traits, speech patterns, and how gullible/trusting they are. This drives all NPC behavior.",
+    },
+    knowledge: {
+      type: "array",
+      items: { type: "string" },
+      description: "Things this NPC knows about (locations, people, lore, rumors, skills they can teach)",
+    },
+    attitude: {
+      type: "number",
+      description: "Initial attitude toward the player (-100 hostile to 100 very friendly). Most NPCs start neutral (0-30).",
+    },
+    isAnimal: {
+      type: "boolean",
+      description: "Whether this is an animal rather than a humanoid",
+    },
+    factionIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "IDs of factions this NPC belongs to (can be empty)",
+    },
+    stats: {
+      type: "object",
+      properties: {
+        health: { type: "number", description: "Current health points" },
+        maxHealth: { type: "number", description: "Maximum health points" },
+        strength: { type: "number", description: "Combat strength (typically 5-20)" },
+        defense: { type: "number", description: "Defense rating (typically 3-15)" },
+      },
+      required: ["health", "maxHealth", "strength", "defense"],
+      additionalProperties: false,
+    },
+    inventory: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string", description: "Item name" },
+          description: { type: "string", description: "Item description" },
+          type: {
+            type: "string",
+            enum: ["weapon", "armor", "potion", "food", "key", "misc", "material", "book", "magic"],
+          },
+          value: { type: "number", description: "Gold value of the item" },
+        },
+        required: ["name", "description", "type", "value"],
+        additionalProperties: false,
+      },
+      description: "Items the NPC is carrying or has for sale",
+    },
+    potentialQuests: {
+      type: "array",
+      items: { type: "string" },
+      description: "Brief descriptions of quests this NPC might give (1-3 quest hooks)",
+    },
+  },
+  required: [
+    "name",
+    "description",
+    "physicalDescription",
+    "soulInstruction",
+    "knowledge",
+    "attitude",
+    "isAnimal",
+    "factionIds",
+    "stats",
+    "inventory",
+    "potentialQuests",
+  ],
+  additionalProperties: false,
+};
+
+export interface GeneratedNPCData {
+  name: string;
+  description: string;
+  physicalDescription: string;
+  soulInstruction: string;
+  knowledge: string[];
+  attitude: number;
+  isAnimal: boolean;
+  factionIds: string[];
+  stats: {
+    health: number;
+    maxHealth: number;
+    strength: number;
+    defense: number;
+  };
+  inventory: Array<{
+    name: string;
+    description: string;
+    type: "weapon" | "armor" | "potion" | "food" | "key" | "misc" | "material" | "book" | "magic";
+    value: number;
+  }>;
+  potentialQuests: string[];
+}
+
+/**
+ * Generate a new NPC dynamically based on context.
+ *
+ * @param worldState - The current world state
+ * @param context - Description of why/where this NPC is needed (e.g., "a mysterious traveler at the tavern", "a bandit ambushing on the road")
+ * @param locationId - Optional specific location to place the NPC (defaults to player's current location)
+ * @returns A complete NPC object ready to be added to worldState
+ */
+export async function generateNPC(
+  worldState: WorldState,
+  context: string,
+  locationId?: string
+): Promise<NPC> {
+  const targetLocationId = locationId || worldState.player.currentLocationId;
+  const targetLocation = worldState.locations[targetLocationId];
+
+  if (!targetLocation) {
+    throw new Error(`generateNPC: target location not found: ${targetLocationId}`);
+  }
+
+  // Gather context about the location and nearby NPCs
+  const presentNpcs = targetLocation.presentNpcIds
+    .map((id) => worldState.npcs[id])
+    .filter((npc): npc is NPC => npc !== undefined && npc.isAlive);
+
+  // Get nearby locations for knowledge context
+  const nearbyLocations = Object.values(worldState.locations).filter((loc) => {
+    const dx = Math.abs(loc.coordinates.x - targetLocation.coordinates.x);
+    const dy = Math.abs(loc.coordinates.y - targetLocation.coordinates.y);
+    return dx <= 2 && dy <= 2;
+  });
+
+  // Get existing factions for potential membership
+  const existingFactions = Object.values(worldState.factions).map(
+    (f) => `${f.name} (${f.id})`
+  );
+
+  // Build context about the current situation
+  const recentEvents = worldState.eventHistory
+    .slice(-3)
+    .map((e) => e.description)
+    .join(" ");
+
+  const systemPrompt = `You are generating a new NPC for a fantasy medieval RPG world.
+
+CONTEXT FOR NPC GENERATION: ${context}
+
+LOCATION CONTEXT:
+- Location: ${targetLocation.name} (${targetLocation.terrain})
+- Description: ${targetLocation.description}
+- Danger Level: ${targetLocation.dangerLevel}/10
+- Present NPCs: ${presentNpcs.length > 0 ? presentNpcs.map((n) => n.name).join(", ") : "None"}
+
+NEARBY AREAS (for knowledge):
+${nearbyLocations.map((loc) => `- ${loc.name} (${loc.terrain})`).join("\n")}
+
+EXISTING FACTIONS (NPC can belong to if appropriate):
+${existingFactions.length > 0 ? existingFactions.join(", ") : "No established factions yet"}
+
+SOUL INSTRUCTION GUIDELINES:
+The soulInstruction is the most important field - it should be a comprehensive paragraph (4-6 sentences) covering:
+1. BACKGROUND: Where they come from, their history, how they ended up here
+2. GOALS: What they want in life, short-term and long-term
+3. PERSONALITY: Their temperament, quirks, fears, values
+4. SPEECH: How they talk (formal, casual, accent, verbal tics, education level)
+5. TRUST: How gullible/suspicious they are, what would make them trust or distrust someone
+
+GUIDELINES:
+- Create a unique, memorable character that fits the context
+- Name should fit high fantasy medieval setting
+- Physical description should be vivid and distinctive for image generation
+- Knowledge should include nearby locations and relevant lore they'd know
+- Stats should reflect their role (merchant = low stats, guard = higher stats, etc.)
+- Attitude should make sense for their personality and the context
+- Inventory should fit their role (merchant has wares, traveler has supplies, etc.)
+- If they could give quests, include 1-3 potential quest hooks
+- Keep high fantasy tone - no modern elements
+
+IMPORTANT:
+- The soulInstruction MUST be a single coherent paragraph, not bullet points
+- Make the NPC feel like a real person with depth
+- Their knowledge should be believable for who they are`;
+
+  const userPrompt = `Generate an NPC for this context: "${context}"
+
+The NPC will be placed at "${targetLocation.name}" (${targetLocation.terrain}).
+
+Recent events nearby: ${recentEvents || "Nothing notable recently"}
+
+Create a unique, believable character with a compelling soul instruction that will drive their behavior in conversations and interactions.
+
+Return the NPC details as JSON.`;
+
+  const response = await callGPT<GeneratedNPCData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: GENERATED_NPC_SCHEMA,
+    maxTokens: 1500,
+  });
+
+  const generatedData = response.content;
+
+  // Generate a unique ID for the NPC
+  const npcId = `npc_${generatedData.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")}_${Date.now().toString(36)}`;
+
+  // Convert inventory items to WorldItem format with IDs
+  const inventoryItems = generatedData.inventory.map((item, index) => ({
+    id: `item_${npcId}_${index}`,
+    name: item.name,
+    description: item.description,
+    type: item.type,
+    value: item.value,
+    isCanonical: false,
+  }));
+
+  // Construct the complete NPC object
+  const newNPC: NPC = {
+    id: npcId,
+    name: generatedData.name,
+    description: generatedData.description,
+    physicalDescription: generatedData.physicalDescription,
+    soulInstruction: generatedData.soulInstruction,
+    currentLocationId: targetLocationId,
+    homeLocationId: targetLocationId, // They live where they were generated
+    knowledge: generatedData.knowledge,
+    conversationHistory: [],
+    attitude: Math.max(-100, Math.min(100, generatedData.attitude)), // Clamp to -100 to 100
+    isCompanion: false,
+    isAnimal: generatedData.isAnimal,
+    inventory: inventoryItems,
+    stats: {
+      health: Math.max(1, generatedData.stats.health),
+      maxHealth: Math.max(1, generatedData.stats.maxHealth),
+      strength: Math.max(1, generatedData.stats.strength),
+      defense: Math.max(1, generatedData.stats.defense),
+    },
+    isAlive: true,
+    isCanonical: false, // Dynamically generated
+    factionIds: generatedData.factionIds,
+  };
+
+  return newNPC;
 }
