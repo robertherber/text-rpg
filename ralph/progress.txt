@@ -892,3 +892,20 @@
   - Added comprehensive GPT prompt section with examples of curses (marked by shadow, blood debt, cursed tongue) and blessings (favored by fortune, protected by spirits, blessed sight)
   - Pre-existing type errors in codebase are unchanged - new code introduces no new type errors
 ---
+
+## 2026-02-14 - US-058
+- What was implemented: Added skill practice tracking system for improving skills through practice
+- Files changed:
+  - src/world/stateManager.ts (modified - added handleSkillPractice handler and SKILL_LEVEL_PROGRESSION constant)
+  - src/world/gptService.ts (modified - added SKILL PRACTICE SYSTEM section to GPT prompt)
+- **Learnings for future iterations:**
+  - `skill_practice` was already in StateChange type union (line 244 of types.ts) and ACTION_RESULT_SCHEMA (line 320)
+  - `player.knowledge.skills` is `Record<string, string>` where key is skill name and value is qualitative level description
+  - SKILL_LEVEL_PROGRESSION constant defines qualitative levels: novice, apprentice, journeyman, adept, expert, master
+  - Handler supports both automatic level progression and explicit newLevel override
+  - Some skill advancements require teachers (requiresTeacher flag + teacherNpcId for validation)
+  - Level-up detection uses Boolean() wrapper to ensure proper boolean type for isSignificant
+  - Use nullish coalescing (`??`) to satisfy TypeScript when accessing array indices that might be undefined
+  - Skill practice events are only marked as significant (isSignificant: true) when there's an actual level-up
+  - Pre-existing type errors in stateManager.ts (lines 329-385) are documented in Codebase Patterns
+---
