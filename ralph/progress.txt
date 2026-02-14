@@ -820,3 +820,22 @@
   - CSS uses radial gradient background and gold accent styling consistent with game theme
   - Submit button shows spinner animation during character creation process
 ---
+
+## 2026-02-14 - US-054
+- What was implemented: Created death screen UI with new character flow
+- Files changed:
+  - src/frontend/DeathScreen.tsx (created - death screen component)
+  - src/frontend/WorldApp.tsx (modified - integrated DeathScreen, added death state handling)
+  - src/frontend/worldStyles.css (modified - added death screen CSS styles)
+  - index.ts (modified - added /api/world/reset endpoint, updated /api/world/state and /api/world/combat for death state)
+- **Learnings for future iterations:**
+  - Death state detection: player has no name after `handlePlayerDeath` is called - check `!player.name || player.name.trim() === ""`
+  - DeathScreen component follows same pattern as CharacterCreation - full-screen overlay with form
+  - `DeceasedHeroDisplay` interface exported from DeathScreen.tsx for type reuse
+  - `/api/world/reset` endpoint creates fresh seed world and clears lastSuggestedActions
+  - Death narrative returned from combat includes narrator flair: "Alas, {name} has fallen..."
+  - Fresh world reset requires confirmation dialog due to destructive nature (erases ALL progress)
+  - WorldApp state machine: loading -> (deathState? -> DeathScreen) -> (needsCharacterCreation? -> CharacterCreation) -> game UI
+  - API returns `deceasedHero` object with majorDeeds array for memorial card display
+  - Use `worldState.deceasedHeroes[worldState.deceasedHeroes.length - 1]` to get most recent fallen hero
+---
