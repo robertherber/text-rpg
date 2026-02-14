@@ -192,3 +192,17 @@
   - Player starting knowledge already set up in seedWorld.ts with all village locations, Pip (visible NPC), and basic lore
 ---
 
+## 2026-02-14 - US-016
+- What was implemented: Added knowledge validation to free-form input with playful narrator rejections
+- Files changed:
+  - index.ts (modified - added knowledge validation to /api/world/freeform endpoint)
+  - src/world/gptService.ts (modified - added extractReferences and generateNarratorRejection functions)
+- **Learnings for future iterations:**
+  - `extractReferences(text)` uses heuristics to find entity references: capitalized words, quoted text, phrases after keywords like "go to", "talk to"
+  - Common words are filtered out (directions, articles, pronouns) to avoid false positives
+  - `generateNarratorRejection(unknownRefs, originalText)` uses GPT to create chaotic trickster rejection messages
+  - Endpoint returns `knowledgeRejection: true` and `unknownReferences: []` array when rejecting
+  - New suggested actions are generated even on rejection so player has valid options
+  - Reference extraction doesn't catch generic words like "tavern" - player must use proper names like "The Rusty Tankard"
+---
+
