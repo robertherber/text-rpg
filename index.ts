@@ -307,6 +307,46 @@ const server = Bun.serve({
         });
       },
     },
+
+    // Process free-form text input from player
+    "/api/world/freeform": {
+      POST: async (req) => {
+        const body = await req.json() as { text?: string };
+        const { text } = body;
+
+        if (!text || typeof text !== "string" || text.trim().length === 0) {
+          return Response.json(
+            { error: "text is required and must be a non-empty string" },
+            { status: 400 }
+          );
+        }
+
+        // Resolve the free-form action using GPT
+        const actionResult = await resolveAction(worldState, text.trim());
+
+        // Apply state changes
+        worldState = applyStateChanges(worldState, actionResult.stateChanges);
+
+        // Increment action counter
+        worldState = {
+          ...worldState,
+          actionCounter: worldState.actionCounter + 1,
+        };
+
+        // Save the updated world state
+        await saveWorldState(worldState);
+
+        // Store the new suggested actions for next action lookup
+        lastSuggestedActions = actionResult.suggestedActions;
+
+        return Response.json({
+          narrative: actionResult.narrative,
+          suggestedActions: actionResult.suggestedActions,
+          initiatesCombat: actionResult.initiatesCombat,
+          revealsFlashback: actionResult.revealsFlashback,
+        });
+      },
+    },
   },
 
   development: {
