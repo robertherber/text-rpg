@@ -733,3 +733,18 @@
   - Structure ID format: `structure_{name_snake_case}_{timestamp_base36}`
   - Returns `create_structure` state change for the caller to apply to worldState
 ---
+
+## 2026-02-14 - US-049
+- What was implemented: Added world decay simulation for structures and items
+- Files changed:
+  - src/world/gptService.ts (modified - added decay rules to simulateLocationChanges)
+- **Learnings for future iterations:**
+  - `decayedStructures` array added to `LocationSimulationResult` with fields: structureId, reason, severity
+  - Decay severity levels: "minor_damage", "major_damage", "collapsed"
+  - Structure decay rates by type: camp (30-50 actions), shelter (80-120), trap (20-40), marker (100-200), house/fort (150-300), grave (300+)
+  - Canonical structures (`isCanonical: true`) do NOT decay - only player-built structures decay
+  - Terrain affects decay: swamp/water terrain = faster decay, caves/dungeons = slower decay
+  - Item decay rules: food spoils (10-20 actions), low-value items (<5 gold) may be taken, valuable items attract thieves
+  - Structure info now includes `actionsSinceBuilt` calculation for GPT context
+  - Location details expanded to show item type/value for decay decisions
+---
