@@ -83,3 +83,29 @@
 
 ---
 
+## 2026-02-14 - US-007
+- What was implemented: Added GPT retry logic with exponential backoff for JSON parse failures
+- Files changed:
+  - src/world/gptService.ts - Added MAX_RETRIES (2) and RETRY_DELAYS ([500, 1500]) constants, added sleep() helper, refactored GPT call into makeGPTCall() helper, implemented retry loop in callGPT() for JSON responses with logging and user-friendly error messages
+- **Learnings for future iterations:**
+  - The callGPT function handles both JSON and non-JSON responses - retry logic only applies to JSON parsing failures
+  - API-level errors (network, auth, model not found) are not retried - only JSON parse errors
+  - The makeGPTCall helper reduces duplication for the primary/fallback model logic
+  - Error messages should be user-friendly since they may be displayed in the UI (US-008 will handle this)
+
+---
+
+## 2026-02-14 - US-008
+- What was implemented: Added error handling UI with retry capability for failed API requests
+- Files changed:
+  - src/frontend/WorldApp.tsx - Added LastAction union type to track last action for retry, added actionError and lastAction state, added handleRetry function that re-executes based on action type, updated all action handlers (handleAction, handleFreeformSubmit, handleConversationMessage, handleUseItem) to track lastAction and set actionError on catch
+  - src/frontend/StoryPanel.tsx - Added actionError and onRetry props, displays error message with "Try again" button at bottom of story panel
+  - src/frontend/worldStyles.css - Added .story-message.error, .error-text, and .error-retry-button styles with red theme
+- **Learnings for future iterations:**
+  - Error handling uses a union type (LastAction) to track what kind of action failed so it can be retried correctly
+  - StoryPanel is the ideal place to show inline errors since it maintains scroll context with messages
+  - Error state is cleared on success OR when starting a new action, so errors don't persist unnecessarily
+  - The retry button re-calls the same handler function, so all retry logic is centralized in handleRetry
+
+---
+

@@ -105,8 +105,8 @@
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Implemented retry logic with MAX_RETRIES=2, RETRY_DELAYS=[500,1500], refactored callGPT to use makeGPTCall helper"
     },
     {
       "id": "US-008",
@@ -120,8 +120,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added actionError and lastAction state to WorldApp, LastAction union type tracks last action type for retry, StoryPanel displays error with retry button, styled error message in worldStyles.css"
     },
     {
       "id": "US-009",
