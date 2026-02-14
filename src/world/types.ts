@@ -234,6 +234,7 @@ export interface StateChange {
     | "create_npc"
     | "create_location"
     | "add_quest"
+    | "update_quest"
     | "update_faction"
     | "player_transform"
     | "add_curse"

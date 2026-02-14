@@ -1,6 +1,6 @@
 // State Manager for applying state changes to WorldState
 
-import type { WorldState, StateChange, WorldItem } from "./types";
+import type { WorldState, StateChange, WorldItem, Quest } from "./types";
 
 /**
  * Validates whether the player knows about a referenced entity (location, NPC, or item).
@@ -205,6 +205,12 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
 
     case "destroy_structure":
       return handleDestroyStructure(state, change.data);
+
+    case "add_quest":
+      return handleAddQuest(state, change.data);
+
+    case "update_quest":
+      return handleUpdateQuest(state, change.data);
 
     default:
       // Unknown state change type - return state unchanged
@@ -1213,5 +1219,126 @@ export function handlePlayerDeath(
     locations: newLocations,
     deceasedHeroes: [...worldState.deceasedHeroes, deceasedHero],
     eventHistory: [...worldState.eventHistory, deathEvent],
+  };
+}
+
+/**
+ * Handle add_quest state change
+ * data: { quest: Quest } (full Quest object) OR { title, description, giverNpcId, objectives, rewards? }
+ *
+ * Creates a new quest and stores it in worldState.quests
+ */
+function handleAddQuest(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { quest, title, description, giverNpcId, objectives, rewards } = data;
+
+  // Support both full quest object or individual fields
+  const questData = quest || { title, description, giverNpcId, objectives, rewards };
+
+  if (!questData.title || typeof questData.title !== "string") {
+    console.warn("add_quest: invalid or missing title");
+    return state;
+  }
+
+  if (!questData.giverNpcId || typeof questData.giverNpcId !== "string") {
+    console.warn("add_quest: invalid or missing giverNpcId");
+    return state;
+  }
+
+  if (!questData.objectives || !Array.isArray(questData.objectives) || questData.objectives.length === 0) {
+    console.warn("add_quest: invalid or missing objectives");
+    return state;
+  }
+
+  // Generate ID if not provided
+  const questId =
+    questData.id ||
+    `quest_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Don't add duplicate quests
+  if (state.quests[questId]) {
+    console.warn(`add_quest: quest already exists: ${questId}`);
+    return state;
+  }
+
+  // Create a complete Quest object
+  const newQuest: Quest = {
+    id: questId,
+    title: questData.title,
+    description: questData.description || "",
+    giverNpcId: questData.giverNpcId,
+    status: "active",
+    objectives: questData.objectives,
+    completedObjectives: [],
+    rewards: questData.rewards,
+  };
+
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      [questId]: newQuest,
+    },
+  };
+}
+
+/**
+ * Handle update_quest state change
+ * data: { questId: string, status?: Quest["status"], completedObjectives?: string[] }
+ *
+ * Updates an existing quest's status and/or marks objectives as complete
+ */
+function handleUpdateQuest(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { questId, status, completedObjectives } = data;
+
+  if (!questId || typeof questId !== "string") {
+    console.warn("update_quest: invalid questId");
+    return state;
+  }
+
+  const existingQuest = state.quests[questId];
+  if (!existingQuest) {
+    console.warn(`update_quest: quest not found: ${questId}`);
+    return state;
+  }
+
+  // Build updated quest
+  let updatedQuest = { ...existingQuest };
+
+  // Update status if provided
+  if (status && ["active", "completed", "failed", "impossible"].includes(status)) {
+    updatedQuest.status = status;
+  }
+
+  // Add completed objectives if provided (without duplicates)
+  if (completedObjectives && Array.isArray(completedObjectives)) {
+    const newCompletedObjectives = [...updatedQuest.completedObjectives];
+    for (const objective of completedObjectives) {
+      if (typeof objective === "string" && !newCompletedObjectives.includes(objective)) {
+        newCompletedObjectives.push(objective);
+      }
+    }
+    updatedQuest.completedObjectives = newCompletedObjectives;
+
+    // Auto-complete quest if all objectives are completed
+    if (
+      updatedQuest.status === "active" &&
+      updatedQuest.objectives.every((obj) => newCompletedObjectives.includes(obj))
+    ) {
+      updatedQuest.status = "completed";
+    }
+  }
+
+  return {
+    ...state,
+    quests: {
+      ...state.quests,
+      [questId]: updatedQuest,
+    },
   };
 }
