@@ -46,6 +46,24 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "add_knowledge":
       return handleAddKnowledge(state, change.data);
 
+    case "move_npc":
+      return handleMoveNpc(state, change.data);
+
+    case "update_npc_attitude":
+      return handleUpdateNpcAttitude(state, change.data);
+
+    case "npc_death":
+      return handleNpcDeath(state, change.data);
+
+    case "add_companion":
+      return handleAddCompanion(state, change.data);
+
+    case "remove_companion":
+      return handleRemoveCompanion(state, change.data);
+
+    case "create_npc":
+      return handleCreateNpc(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -324,5 +342,340 @@ function handleAddKnowledge(
         [knowledgeKey]: [...currentKnowledge, value],
       },
     },
+  };
+}
+
+/**
+ * Handle move_npc state change
+ * data: { npcId: string, locationId: string }
+ */
+function handleMoveNpc(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId, locationId } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("move_npc: invalid npcId");
+    return state;
+  }
+
+  if (!locationId || typeof locationId !== "string") {
+    console.warn("move_npc: invalid locationId");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`move_npc: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  const oldLocationId = npc.currentLocationId;
+
+  // Update NPC's current location
+  const newNpcs = {
+    ...state.npcs,
+    [npcId]: {
+      ...npc,
+      currentLocationId: locationId,
+    },
+  };
+
+  // Update locations' presentNpcIds
+  const newLocations = { ...state.locations };
+
+  // Remove NPC from old location
+  if (oldLocationId && newLocations[oldLocationId]) {
+    newLocations[oldLocationId] = {
+      ...newLocations[oldLocationId],
+      presentNpcIds: newLocations[oldLocationId].presentNpcIds.filter(
+        (id) => id !== npcId
+      ),
+    };
+  }
+
+  // Add NPC to new location
+  if (newLocations[locationId]) {
+    const currentIds = newLocations[locationId].presentNpcIds;
+    if (!currentIds.includes(npcId)) {
+      newLocations[locationId] = {
+        ...newLocations[locationId],
+        presentNpcIds: [...currentIds, npcId],
+      };
+    }
+  }
+
+  return {
+    ...state,
+    npcs: newNpcs,
+    locations: newLocations,
+  };
+}
+
+/**
+ * Handle update_npc_attitude state change
+ * data: { npcId: string, change: number } OR { npcId: string, attitude: number }
+ */
+function handleUpdateNpcAttitude(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId, change, attitude } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("update_npc_attitude: invalid npcId");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`update_npc_attitude: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  let newAttitude: number;
+
+  if (typeof attitude === "number") {
+    // Set absolute attitude
+    newAttitude = attitude;
+  } else if (typeof change === "number") {
+    // Apply relative change
+    newAttitude = npc.attitude + change;
+  } else {
+    console.warn("update_npc_attitude: invalid change or attitude value");
+    return state;
+  }
+
+  // Clamp attitude to -100 to 100
+  newAttitude = Math.max(-100, Math.min(100, newAttitude));
+
+  return {
+    ...state,
+    npcs: {
+      ...state.npcs,
+      [npcId]: {
+        ...npc,
+        attitude: newAttitude,
+      },
+    },
+  };
+}
+
+/**
+ * Handle npc_death state change
+ * data: { npcId: string, deathDescription: string }
+ */
+function handleNpcDeath(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId, deathDescription } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("npc_death: invalid npcId");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`npc_death: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  const newNpcs = {
+    ...state.npcs,
+    [npcId]: {
+      ...npc,
+      isAlive: false,
+      deathDescription: deathDescription || "met an untimely end",
+      stats: {
+        ...npc.stats,
+        health: 0,
+      },
+    },
+  };
+
+  // If the NPC was a companion, remove them from companions
+  let newPlayer = state.player;
+  if (npc.isCompanion && state.player.companionIds.includes(npcId)) {
+    newPlayer = {
+      ...state.player,
+      companionIds: state.player.companionIds.filter((id) => id !== npcId),
+    };
+  }
+
+  return {
+    ...state,
+    npcs: newNpcs,
+    player: newPlayer,
+  };
+}
+
+/**
+ * Handle add_companion state change
+ * data: { npcId: string }
+ */
+function handleAddCompanion(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("add_companion: invalid npcId");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`add_companion: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  // Don't add if already a companion
+  if (state.player.companionIds.includes(npcId)) {
+    return state;
+  }
+
+  // Update NPC to be a companion
+  const newNpcs = {
+    ...state.npcs,
+    [npcId]: {
+      ...npc,
+      isCompanion: true,
+    },
+  };
+
+  // Add to player's companion list
+  const newPlayer = {
+    ...state.player,
+    companionIds: [...state.player.companionIds, npcId],
+  };
+
+  return {
+    ...state,
+    npcs: newNpcs,
+    player: newPlayer,
+  };
+}
+
+/**
+ * Handle remove_companion state change
+ * data: { npcId: string }
+ */
+function handleRemoveCompanion(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("remove_companion: invalid npcId");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`remove_companion: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  // Update NPC to no longer be a companion
+  const newNpcs = {
+    ...state.npcs,
+    [npcId]: {
+      ...npc,
+      isCompanion: false,
+    },
+  };
+
+  // Remove from player's companion list
+  const newPlayer = {
+    ...state.player,
+    companionIds: state.player.companionIds.filter((id) => id !== npcId),
+  };
+
+  return {
+    ...state,
+    npcs: newNpcs,
+    player: newPlayer,
+  };
+}
+
+/**
+ * Handle create_npc state change (for dynamically generated NPCs)
+ * data: { npc: NPC } (full NPC object)
+ */
+function handleCreateNpc(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npc } = data;
+
+  if (!npc || typeof npc !== "object") {
+    console.warn("create_npc: invalid npc data");
+    return state;
+  }
+
+  // Generate ID if not provided
+  const npcId = npc.id || `npc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Create a complete NPC with defaults for any missing fields
+  const newNpc: import("./types").NPC = {
+    id: npcId,
+    name: npc.name || "Unknown Stranger",
+    description: npc.description || "",
+    physicalDescription: npc.physicalDescription || "",
+    soulInstruction: npc.soulInstruction || "",
+    currentLocationId: npc.currentLocationId || state.player.currentLocationId,
+    homeLocationId: npc.homeLocationId,
+    knowledge: npc.knowledge || [],
+    conversationHistory: npc.conversationHistory || [],
+    playerNameKnown: npc.playerNameKnown,
+    attitude: npc.attitude ?? 0,
+    isCompanion: npc.isCompanion ?? false,
+    isAnimal: npc.isAnimal ?? false,
+    inventory: npc.inventory || [],
+    stats: npc.stats || {
+      health: 50,
+      maxHealth: 50,
+      strength: 5,
+      defense: 5,
+    },
+    isAlive: npc.isAlive ?? true,
+    deathDescription: npc.deathDescription,
+    burialLocationId: npc.burialLocationId,
+    isCanonical: false, // Dynamically created NPCs are not canonical
+    factionIds: npc.factionIds || [],
+  };
+
+  // Add NPC to state
+  const newNpcs = {
+    ...state.npcs,
+    [npcId]: newNpc,
+  };
+
+  // Add NPC to their current location's presentNpcIds
+  const locationId = newNpc.currentLocationId;
+  let newLocations = state.locations;
+
+  if (locationId && newLocations[locationId]) {
+    const currentIds = newLocations[locationId].presentNpcIds;
+    if (!currentIds.includes(npcId)) {
+      newLocations = {
+        ...newLocations,
+        [locationId]: {
+          ...newLocations[locationId],
+          presentNpcIds: [...currentIds, npcId],
+        },
+      };
+    }
+  }
+
+  return {
+    ...state,
+    npcs: newNpcs,
+    locations: newLocations,
   };
 }
