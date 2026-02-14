@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./worldStyles.css";
+import StoryPanel, { type StoryMessage } from "./StoryPanel";
 
 // Types for world state data
 interface WorldLocation {
@@ -52,11 +53,7 @@ interface WorldStateResponse {
   suggestedActions: SuggestedAction[];
 }
 
-interface StoryMessage {
-  id: number;
-  text: string;
-  type: "narrative" | "action" | "system";
-}
+// StoryMessage type imported from StoryPanel
 
 export default function WorldApp() {
   const [worldState, setWorldState] = useState<WorldStateResponse | null>(null);
@@ -68,19 +65,11 @@ export default function WorldApp() {
   const [locationImage, setLocationImage] = useState<string>("");
   const [isLoadingImage, setIsLoadingImage] = useState(false);
   const messageIdRef = useRef(0);
-  const storyPanelRef = useRef<HTMLDivElement>(null);
 
   // Fetch initial world state
   useEffect(() => {
     fetchWorldState();
   }, []);
-
-  // Scroll to bottom of story panel when new messages arrive
-  useEffect(() => {
-    if (storyPanelRef.current) {
-      storyPanelRef.current.scrollTop = storyPanelRef.current.scrollHeight;
-    }
-  }, [storyMessages]);
 
   const fetchWorldState = async () => {
     try {
@@ -284,13 +273,7 @@ export default function WorldApp() {
 
           {/* Story panel */}
           {activePanel === "story" && (
-            <div className="story-panel" ref={storyPanelRef}>
-              {storyMessages.map((msg) => (
-                <div key={msg.id} className={`story-message ${msg.type}`}>
-                  {msg.text}
-                </div>
-              ))}
-            </div>
+            <StoryPanel messages={storyMessages} />
           )}
 
           {/* Map panel placeholder */}
