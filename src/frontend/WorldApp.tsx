@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from "react";
 import "./worldStyles.css";
 import StoryPanel, { type StoryMessage } from "./StoryPanel";
 import ActionPanel, { type SuggestedAction } from "./ActionPanel";
+import ImagePanel from "./ImagePanel";
 
 // Types for world state data
 interface WorldLocation {
@@ -57,8 +58,6 @@ export default function WorldApp() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<"story" | "map" | "journal">("story");
-  const [locationImage, setLocationImage] = useState<string>("");
-  const [isLoadingImage, setIsLoadingImage] = useState(false);
   const messageIdRef = useRef(0);
 
   // Fetch initial world state
@@ -76,30 +75,12 @@ export default function WorldApp() {
       // Add initial location description as first story message
       addStoryMessage(data.currentLocation.description, "narrative");
 
-      // Load location image
-      loadLocationImage(data.currentLocation.id);
-
       setError(null);
     } catch (err) {
       setError("Failed to load world state");
       console.error(err);
     } finally {
       setIsLoading(false);
-    }
-  };
-
-  const loadLocationImage = async (locationId: string) => {
-    try {
-      setIsLoadingImage(true);
-      const response = await fetch(`/api/game/image/${locationId}`);
-      const data = (await response.json()) as { imageUrl?: string };
-      if (data.imageUrl) {
-        setLocationImage(data.imageUrl);
-      }
-    } catch (err) {
-      console.error("Failed to load image:", err);
-    } finally {
-      setIsLoadingImage(false);
     }
   };
 
@@ -136,12 +117,6 @@ export default function WorldApp() {
           // Re-fetch world state to get updated location
           const stateResponse = await fetch("/api/world/state");
           const newState = (await stateResponse.json()) as WorldStateResponse;
-
-          // Check if location changed
-          if (newState.currentLocation.id !== worldState.currentLocation.id) {
-            loadLocationImage(newState.currentLocation.id);
-          }
-
           setWorldState(newState);
         }
       }
@@ -187,12 +162,6 @@ export default function WorldApp() {
         // Re-fetch world state to get updated location
         const stateResponse = await fetch("/api/world/state");
         const newState = (await stateResponse.json()) as WorldStateResponse;
-
-        // Check if location changed
-        if (newState.currentLocation.id !== worldState.currentLocation.id) {
-          loadLocationImage(newState.currentLocation.id);
-        }
-
         setWorldState(newState);
       }
     } catch (err) {
@@ -271,26 +240,7 @@ export default function WorldApp() {
       {/* Main content area */}
       <main className="world-main">
         {/* Left column - Image panel */}
-        <section className="image-panel">
-          {isLoadingImage ? (
-            <div className="image-loading">
-              <div className="loading-spinner"></div>
-              <p>Generating scene...</p>
-            </div>
-          ) : locationImage ? (
-            <img src={locationImage} alt={worldState.currentLocation.name} className="location-image" />
-          ) : (
-            <div className="image-placeholder">
-              <span className="location-terrain">{worldState.currentLocation.terrain}</span>
-            </div>
-          )}
-          <div className="location-info">
-            <h2 className="location-name">{worldState.currentLocation.name}</h2>
-            <span className="location-coords">
-              ({worldState.currentLocation.coordinates.x}, {worldState.currentLocation.coordinates.y})
-            </span>
-          </div>
-        </section>
+        <ImagePanel location={worldState.currentLocation} />
 
         {/* Center column - Story/Map/Journal panels */}
         <section className="content-panel">
