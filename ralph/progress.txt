@@ -768,3 +768,20 @@
   - GPT context includes dominant patterns with instruction to generate aligned story hooks
   - Behavior patterns only appear in context once they become dominant (avoids noise early game)
 ---
+
+## 2026-02-14 - US-051
+- What was implemented: Added flashback system for revealing player backstory
+- Files changed:
+  - src/world/types.ts (modified - added "reveal_flashback" to StateChange type union)
+  - src/world/stateManager.ts (modified - added handleRevealFlashback handler and processFlashbackRevelation export)
+  - src/world/gptService.ts (modified - updated ACTION_RESULT_SCHEMA with reveal_flashback, added flashback instructions to system prompt)
+- **Learnings for future iterations:**
+  - `reveal_flashback` state change takes: { flashbackContent: string, revealedSkill?: { name: string, level: string } }
+  - GPT already has `revealsFlashback` field in ActionResult - this triggers flashback UI on frontend
+  - Player type has `hiddenBackstory` (string) and `revealedBackstory` (string[]) fields already
+  - GPT system prompt includes hidden backstory so it can generate appropriate flashbacks
+  - Flashback events are recorded in eventHistory with type "discovery" and isSignificant: true
+  - Flashback triggers: discovering familiar locations, meeting past acquaintances, using specific skills, emotional intensity, meaningful objects
+  - `processFlashbackRevelation` is exported for direct API use if needed (beyond state change mechanism)
+  - Skills revealed through flashbacks are added to player.knowledge.skills with qualitative level descriptions
+---
