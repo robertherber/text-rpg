@@ -15,19 +15,21 @@ const FALLBACK_MODEL = "gpt-4o-mini";
 const NARRATOR_PERSONALITY = `You are the narrator of Dragon's Bane, a fantasy medieval text RPG. You speak in first person as a chaotic trickster narrator - playful, witty, and occasionally breaking the fourth wall.
 
 Your personality traits:
-- Playful and mischievous, finding amusement in the player's choices
+- Playful and mischievous, finding amusement in the adventurer's choices
 - Witty and quick with wordplay and clever observations
 - Occasionally breaks the fourth wall with knowing winks to the audience
 - Provides comic rejections for impossible or absurd actions ("Ah, you wish to fly? How delightfully ambitious. Perhaps in your next life.")
 - Dramatic flair when describing combat and danger
-- Warm undertones - you're rooting for the player even while teasing them
+- Warm undertones - you're rooting for our hero even while teasing them
 
 Example voice:
 - "Ah, consulting your pack again? Let's see what treasures you've squirreled away..."
 - "The blacksmith eyes you with the warmth of a wet forge. I'd tread carefully, were I you."
 - "You push open the tavern door and the smell of... well, let's call it 'character' washes over you."
 
-Always respond in this narrator voice. Keep high fantasy tone - reject modern or sci-fi elements with playful dismissal.`;
+Always respond in this narrator voice. Keep high fantasy tone - reject modern or sci-fi elements with playful dismissal.
+
+IMPORTANT: Never use the word "player" when referring to the protagonist. Use immersive terms like "adventurer", "traveler", "stranger", "hero", "wanderer", or "you/your" instead.`;
 
 export interface GPTCallOptions {
   systemPrompt?: string;
@@ -551,25 +553,26 @@ ALREADY REVEALED BACKSTORY:
 ${worldState.player.revealedBackstory.length > 0 ? worldState.player.revealedBackstory.join("\n") : "Nothing yet revealed"}`
     : "";
 
-  const systemPrompt = `You are resolving player actions in a fantasy medieval RPG.
+  const systemPrompt = `You are resolving actions in a fantasy medieval RPG.
 
-Given the current game context and the player's attempted action, determine:
+Given the current game context and the adventurer's attempted action, determine:
 1. What happens as a result (narrate it dramatically in first person as the chaotic trickster narrator)
 2. What state changes occur in the world
-3. What actions the player might take next (3 suggestions)
+3. What actions the adventurer might take next (3 suggestions)
 
 RULES:
 - Almost anything is possible if it makes narrative sense within high fantasy
 - Be the arbiter of what's reasonable - reject absurd actions playfully
-- If an action would harm NPCs or steal, roll for success narratively (consider NPC vigilance, player stats)
+- If an action would harm NPCs or steal, roll for success narratively (consider NPC vigilance, adventurer stats)
 - Combat only initiates for direct hostile actions toward capable opponents
 - Movement between locations should use the 'move_player' state change
 - NPCs can only be talked to if they're present at the current location
 - Generate unique IDs for new suggested actions using simple lowercase strings like "action_1", "action_2"
 - When NPCs speak, let them speak for themselves in quotes - the narrator should describe their behavior and mannerisms but NEVER repeat or paraphrase what they said
+- IMPORTANT: In all narrative text, never use the word "player" - use immersive terms like "adventurer", "traveler", "hero", "wanderer", or "you/your" instead
 
 FLASHBACK SYSTEM:
-- Flashbacks reveal pieces of the player's hidden backstory
+- Flashbacks reveal pieces of the adventurer's hidden backstory
 - Trigger a flashback when: discovering a familiar location, meeting someone from the past, using a specific skill, experiencing emotional intensity, or encountering meaningful objects
 - Use revealsFlashback field with the flashback narrative (formatted dramatically, past tense, describing a memory)
 - Flashbacks should feel like sudden vivid memories intruding on the present
@@ -596,7 +599,7 @@ STATE CHANGE TYPES (set unused fields to null):
 
 TRANSFORMATION RULES:
 - Transformations can occur through story events: being bitten by a vampire/werewolf, powerful curses, magical rituals, consuming certain items, etc.
-- Consider the player's current transformations when resolving actions - they may grant special abilities or weaknesses
+- Consider the adventurer's current transformations when resolving actions - they may grant special abilities or weaknesses
 - Transformations should be dramatic and significant - rare, story-changing events
 - Examples: vampire, werewolf, ghost, lich, demon, fae, elemental, werebear, harpy
 
@@ -609,7 +612,7 @@ CURSES AND BLESSINGS SYSTEM:
 - Use add_blessing: { blessing: "blessing name", source?: "who blessed", effects?: "what it does" }
 - Blessings provide narrative benefits - protection, luck, guidance, enhanced abilities in certain situations
 - Blessings can fade, be used up, or be lost through unworthy actions - use remove_blessing: { blessing: "blessing name", reason?: "why lost" }
-- Consider the player's current curses/blessings when resolving actions - they affect what happens!
+- Consider the adventurer's current curses/blessings when resolving actions - they affect what happens!
 - Examples of curses: marked by shadow, blood debt, cursed tongue, unlucky, haunted, weakened, compelled, branded
 - Examples of blessings: favored by fortune, protected by spirits, blessed sight, divine protection, healer's touch, lucky
 
@@ -618,20 +621,20 @@ SKILL PRACTICE SYSTEM:
 - Use skill_practice: { skill: "skill name", improvement?: "description of what improved", newLevel?: "explicit level", requiresTeacher?: boolean, teacherNpcId?: "npc id" }
 - Skill practice happens through: repetitive actions, training, studying, learning from mistakes, or being taught
 - Describe skill improvement narratively (e.g., "your sword work flows more smoothly", "you notice patterns you missed before")
-- Some advancements require teachers (especially past journeyman level) - set requiresTeacher: true if the player needs a mentor
+- Some advancements require teachers (especially past journeyman level) - set requiresTeacher: true if the adventurer needs a mentor
 - Skills affect action resolution: higher skill levels mean better chances of success and more elegant outcomes
 - Examples of skills: swordsmanship, archery, lockpicking, herbalism, persuasion, stealth, tracking, blacksmithing, alchemy, healing, riding, swimming
-- Consider the player's existing skills when resolving actions - an expert swordsman should rarely fumble, while a novice might struggle with basic techniques
+- Consider the adventurer's existing skills when resolving actions - an expert swordsman should rarely fumble, while a novice might struggle with basic techniques
 
 CRIME AND CONSEQUENCES SYSTEM:
-- Detect when player actions are criminal: theft, assault, murder, trespassing, fraud, vandalism, smuggling
-- For criminal actions, roll for detection based on: NPC vigilance, witnesses present, player stealth skill, circumstances
+- Detect when actions are criminal: theft, assault, murder, trespassing, fraud, vandalism, smuggling
+- For criminal actions, roll for detection based on: NPC vigilance, witnesses present, stealth skill, circumstances
 - Use record_crime: { type: "theft"|"assault"|"murder"|"trespassing"|"fraud"|"vandalism"|"smuggling"|"other", description: string, victimNpcId?: string, witnessNpcIds?: string[], wasDetected: boolean, severity: "minor"|"moderate"|"severe", attitudeChanges?: [{npcId, change}], factionReputationChanges?: [{factionId, change}] }
 - Detection chance guidelines:
   * Village/public area: 60-90% base detection (many witnesses)
   * Private area with NPC: 30-60% (NPC awareness matters)
   * Abandoned/empty area: 10-30% (might be discovered later)
-  * Player has stealth skill: reduce chance by 10-30% based on level
+  * Adventurer has stealth skill: reduce chance by 10-30% based on level
 - Severity guidelines:
   * Minor: petty theft (<10 gold), trespassing without damage, minor vandalism
   * Moderate: significant theft (10-100 gold), assault without serious injury, fraud
@@ -642,14 +645,14 @@ CRIME AND CONSEQUENCES SYSTEM:
   * Faction reputations may drop if NPCs are faction members
   * Severe crimes should trigger add_bounty
 - When crimes are UNDETECTED:
-  * Still record the crime (player's criminal history)
+  * Still record the crime (criminal history)
   * Item can still be stolen/damage done
   * NPCs may investigate later and discover the truth
 - Use add_bounty: { issuedByFactionId?: string, issuedByNpcId?: string, reason: string, amount: number, crimeIds?: string[] }
 - Bounty amounts: minor crime 10-25g, moderate crime 25-75g, severe crime 75-200g+
 - NPCs may refuse service to known criminals (hostile attitude or faction reputation < -50)
-- Jail/escape handled narratively: guards may attempt arrest, player can resist/flee/surrender
-- Consider the player's current bounties and criminal history when NPCs react to them
+- Jail/escape handled narratively: guards may attempt arrest, adventurer can resist/flee/surrender
+- Consider the adventurer's current bounties and criminal history when NPCs react to them
 
 SUGGESTED ACTION TYPES:
 - move: Walk to an adjacent location
@@ -664,7 +667,7 @@ SUGGESTED ACTION TYPES:
 
   const userPrompt = `${context}
 
-PLAYER ACTION: ${action}
+ADVENTURER ACTION: ${action}
 
 Resolve this action and return the result as JSON.`;
 
@@ -823,21 +826,22 @@ export async function generateNarratorRejection(
 
   const systemPrompt = `Generate a short (1-3 sentences) playful rejection in your chaotic trickster narrator voice.
 
-The player has mentioned something they don't know about yet in the game world. Reject their action with humor and wit, hinting they need to discover this information through gameplay.
+The adventurer has mentioned something they don't know about yet in the game world. Reject their action with humor and wit, hinting they need to discover this information through gameplay.
 
 RULES:
 - Be playful, never harsh or mean
 - Use your chaotic trickster voice with dramatic flair
-- Gently tease the player for trying to know things they haven't discovered
+- Gently tease the adventurer for trying to know things they haven't discovered
 - Keep it brief (1-3 sentences max)
 - Don't explicitly tell them what they're missing or where to find it
+- Never use the word "player" - use "adventurer", "traveler", "you", etc.
 
 EXAMPLES:
 - "Ah, 'The Crimson Keep' you say? How curious that you speak of places as yet unknown to your mortal eyes. Perhaps stick to what you've actually seen, hmm?"
 - "My, my! Inventing locations now, are we? I admire the creativity, truly I do, but this tale follows what YOU discover, not what you dream up."
 - "Lord Vexmoor? *I* certainly haven't introduced you to any Lord Vexmoor. One might almost think you're peeking at someone else's adventure notes!"`;
 
-  const userPrompt = `The player tried to: "${originalText}"
+  const userPrompt = `The adventurer tried to: "${originalText}"
 
 They mentioned these unknown references: ${refsFormatted}
 
@@ -878,7 +882,7 @@ export async function generateSuggestedActions(
 
   const systemPrompt = `You are generating contextual action suggestions for a fantasy medieval RPG.
 
-Given the current game context, generate exactly 3 suggested actions the player might take.
+Given the current game context, generate exactly 3 suggested actions the adventurer might take.
 
 ACTION REQUIREMENTS:
 1. ALWAYS include at least one movement option:
@@ -904,7 +908,7 @@ Generate unique IDs like "action_1", "action_2", etc.`;
 
   const userPrompt = `${context}
 
-Generate exactly 3 contextual suggested actions for the player. Include movement, interaction, and any situationally appropriate options.`;
+Generate exactly 3 contextual suggested actions for the adventurer. Include movement, interaction, and any situationally appropriate options.`;
 
   const response = await callGPT<{ actions: SuggestedAction[] }>({
     systemPrompt,
@@ -1050,7 +1054,7 @@ export async function generateLocation(
 
   const systemPrompt = `You are generating a new location for a fantasy medieval RPG world.
 
-The player is exploring ${direction} from "${fromLocation.name}" (${fromLocation.terrain}).
+The adventurer is exploring ${direction} from "${fromLocation.name}" (${fromLocation.terrain}).
 Generate a location that makes sense geographically and thematically.
 
 CONTEXT FROM DEPARTURE POINT:
@@ -1068,7 +1072,7 @@ GUIDELINES:
 1. Terrain should make geographic sense (forests near forests, mountains near mountains, transitions should be gradual)
 2. Danger level should be similar to nearby areas (±2 levels), average nearby danger is ${avgNearbyDanger.toFixed(1)}
 3. Name should be evocative and fit high fantasy (e.g., "The Whispering Glade", "Broken Bridge Crossing", "Thornwick Dell")
-4. Description should be atmospheric and hint at what the player might find
+4. Description should be atmospheric and hint at what an adventurer might find
 5. Image prompt should be detailed for DALL-E generation, include lighting, mood, and key visual elements
 6. Features should include 2-4 interesting things to interact with or examine
 7. Possible encounters should hint at what creatures or events might occur
@@ -1391,7 +1395,7 @@ CHARACTER SOUL (this is who you ARE - follow this exactly):
 ${npc.soulInstruction}
 
 CURRENT STATE:
-- ${npc.name} is ${attitudeDesc} toward the player (attitude: ${npc.attitude}/100)
+- ${npc.name} is ${attitudeDesc} toward the adventurer (attitude: ${npc.attitude}/100)
 - ${playerKnownAs}
 - Physical description: ${npc.physicalDescription}
 - Current health: ${npc.stats.health}/${npc.stats.maxHealth}
@@ -1412,12 +1416,13 @@ CONVERSATION RULES:
 2. Use the speech patterns described in the soul instruction
 3. Only reveal information that ${npc.name} would actually know
 4. Attitude change should be small (-5 to +5 typically, up to ±20 for major events)
-5. If the player asks about something ${npc.name} doesn't know, admit ignorance or deflect naturally
-6. If the player is rude or threatening, respond according to ${npc.name}'s personality
+5. If the adventurer asks about something ${npc.name} doesn't know, admit ignorance or deflect naturally
+6. If the adventurer is rude or threatening, respond according to ${npc.name}'s personality
 7. Animals cannot speak (isAnimal: ${npc.isAnimal}) - they communicate through actions/sounds
 8. The narrator (narratorFrame) provides witty commentary in chaotic trickster voice - describe NPC behavior, mannerisms, expressions, but NEVER repeat or paraphrase what the NPC says
-9. Don't repeat the player's words back to them
+9. Don't repeat the adventurer's words back to them
 10. Be concise - tavern conversations are typically brief exchanges
+11. IMPORTANT: When addressing or referring to the protagonist, use immersive terms like "adventurer", "traveler", "stranger", "friend", or their name if known - NEVER use the word "player"
 
 RESPONSE STRUCTURE:
 - npcResponse: What ${npc.name} actually says OUT LOUD (dialogue only)
@@ -1425,7 +1430,7 @@ RESPONSE STRUCTURE:
 - narratorFrame: Brief narrator commentary describing body language, tone, or setting - NEVER quote or paraphrase the NPC's words (those go in npcResponse only)
 - conversationSummary: Brief summary for memory (1-2 sentences)`;
 
-  const userPrompt = `The player says to ${npc.name}: "${playerMessage}"
+  const userPrompt = `The adventurer says to ${npc.name}: "${playerMessage}"
 
 Generate ${npc.name}'s response, staying true to their soul instruction and current attitude.`;
 
@@ -1669,7 +1674,7 @@ export async function simulateLocationChanges(
 
   const systemPrompt = `You are simulating world changes at a location in a fantasy medieval RPG.
 
-The player is entering a location they haven't visited for ${actionsElapsed} actions (game turns).
+The adventurer is entering a location they haven't visited for ${actionsElapsed} actions (game turns).
 The world should feel alive - NPCs pursue their goals, items come and go, and the environment changes.
 
 SIMULATION RULES:
@@ -1681,10 +1686,10 @@ SIMULATION RULES:
 6. Items might disappear if NPCs took them or they spoiled/decayed
 7. The narrative should smoothly describe what changed since last visit
 8. If an NPC's home is this location, they're more likely to return here
-9. Companions (isCompanion: true) should NEVER move independently - they stay with the player
+9. Companions (isCompanion: true) should NEVER move independently - they stay with the adventurer
 
 STRUCTURE DECAY RULES:
-10. Structures decay over time without maintenance - especially player-built structures (isCanonical: false)
+10. Structures decay over time without maintenance - especially adventurer-built structures (isCanonical: false)
 11. Decay severity depends on age and structure type:
     - "camp" structures are temporary and collapse quickly (30-50 actions without maintenance)
     - "shelter" structures last longer but still need care (80-120 actions)
@@ -1694,7 +1699,7 @@ STRUCTURE DECAY RULES:
     - "grave" structures are very durable (300+ actions)
 12. Canonical structures (from the original world) do NOT decay - they are permanent
 13. Weather/terrain affects decay speed: swamp and water terrain causes faster decay, caves and dungeons preserve structures
-14. For each player-built structure, decide if it shows minor_damage, major_damage, or has collapsed
+14. For each adventurer-built structure, decide if it shows minor_damage, major_damage, or has collapsed
 15. If a structure collapses, items stored there might scatter to the location or disappear
 
 ITEM DECAY RULES:
@@ -2242,7 +2247,7 @@ ${recentDeceasedHeroes.map((hero) => `- ${hero.name || "Unknown Hero"}: ${hero.d
 
   const systemPrompt = `You are creating a new character for a fantasy medieval RPG after the previous character died.
 
-The player wants to create a new character and has provided some hints about their background.
+A new adventurer is being created based on hints about their background.
 
 WORLD CONTEXT:
 - Setting: High fantasy medieval world
@@ -2252,7 +2257,7 @@ WORLD CONTEXT:
 ${deceasedHeroesContext}
 
 CHARACTER CREATION RULES:
-1. Build upon the player's backstory hints to create a coherent character
+1. Build upon the backstory hints to create a coherent character
 2. Name should fit high fantasy medieval setting
 3. Physical description should be vivid and distinctive for image generation
 4. Origin should explain where they come from and hint at why they're in Millbrook
@@ -2266,7 +2271,7 @@ IMPORTANT:
 - The character should feel fresh but connected to the persistent world
 - The knownLore should be things the character would reasonably know from their background`;
 
-  const userPrompt = `Create a new character based on the player's background hints:
+  const userPrompt = `Create a new character based on these background hints:
 
 "${backstoryInput || "A traveler seeking adventure"}"
 
@@ -2946,10 +2951,10 @@ async function generateSimpleTravelNarrative(
   terrainsCrossed: string[]
 ): Promise<string> {
   const systemPrompt = `Generate a brief (2-3 sentences) travel narrative in chaotic trickster narrator voice.
-The player is traveling safely from one location to another. Make it atmospheric but uneventful.
-Keep high fantasy tone. Mention the terrain types crossed if relevant.`;
+The adventurer is traveling safely from one location to another. Make it atmospheric but uneventful.
+Keep high fantasy tone. Mention the terrain types crossed if relevant. Never use the word "player".`;
 
-  const userPrompt = `The player travels from "${from.name}" (${from.terrain}) to "${to.name}" (${to.terrain}).
+  const userPrompt = `The adventurer travels from "${from.name}" (${from.terrain}) to "${to.name}" (${to.terrain}).
 Terrains along the way: ${terrainsCrossed.join(", ")}.
 
 Generate a brief, atmospheric narrative describing the uneventful journey.`;
@@ -2989,13 +2994,13 @@ async function generateTravelEncounter(
 
   const systemPrompt = `You are generating a travel encounter for a fantasy medieval RPG.
 
-The player is traveling between two locations and something happens along the way.
+The adventurer is traveling between two locations and something happens along the way.
 Choose an encounter type that fits the danger level and terrain:
 
 ENCOUNTER TYPES:
-- combat: Bandits, wild beasts, monsters ambush the player (use for danger level 4+)
-- discovery: Player finds something interesting - a hidden item, secret path, old ruins (use for exploration)
-- npc_meeting: Player meets a traveler, merchant, or wanderer on the road (good for social/story)
+- combat: Bandits, wild beasts, monsters ambush the adventurer (use for danger level 4+)
+- discovery: Adventurer finds something interesting - a hidden item, secret path, old ruins (use for exploration)
+- npc_meeting: Adventurer meets a traveler, merchant, or wanderer on the road (good for social/story)
 - environmental: Weather hazard, dangerous terrain, natural obstacle (storms, rockslides, quicksand)
 - none: Nothing happens (only use if explicitly told)
 
@@ -3009,7 +3014,8 @@ GUIDELINES:
 7. The narrative should be in chaotic trickster narrator voice, dramatic but fun
 8. continueToDestination should be false for serious combat, true for everything else usually
 9. CRITICAL: Do NOT spawn the same type of creature that was recently killed in this area. Check SLAIN CREATURES list!
-10. If the player just killed something here, the area should feel safer for a while - corpse scares others away
+10. If the adventurer just killed something here, the area should feel safer for a while - corpse scares others away
+11. IMPORTANT: Never use the word "player" - use "adventurer", "traveler", "hero", etc.
 
 DANGER CONTEXT:
 - Average route danger: ${dangerLevel.toFixed(1)}/10
@@ -3035,7 +3041,7 @@ ${recentCombatEvents.length > 0 ? `Recent combat history: ${recentCombatEvents.j
 
 Recent events: ${recentEvents || "Nothing notable"}
 
-Player stats:
+Adventurer stats:
 - Health: ${worldState.player.health}/${worldState.player.maxHealth}
 - Strength: ${worldState.player.strength}, Defense: ${worldState.player.defense}
 - Level: ${worldState.player.level}
@@ -3344,19 +3350,19 @@ export async function handleCrafting(
 
   const systemPrompt = `You are evaluating a crafting attempt in a fantasy medieval RPG.
 
-THE PLAYER WANTS TO CRAFT: "${description}"
+THE ADVENTURER WANTS TO CRAFT: "${description}"
 
-PLAYER'S INVENTORY:
+ADVENTURER'S INVENTORY:
 ${inventoryContext || "Empty inventory"}
 
-PLAYER'S CRAFTING SKILLS: ${craftingSkills || "No formal crafting training"}
+ADVENTURER'S CRAFTING SKILLS: ${craftingSkills || "No formal crafting training"}
 KNOWN RECIPES: ${knownRecipes}
 ${locationContext}
 CRAFTING FACILITIES: ${craftingStructures}
 
 CRAFTING RULES:
 1. Be GENEROUS but LOGICAL about what can be crafted:
-   - If the player has reasonable materials, allow the craft
+   - If the adventurer has reasonable materials, allow the craft
    - Materials don't need to be exact - leather scraps can make a pouch, bones can make tools
    - Common sense crafting should work (combining herbs, basic woodworking, etc.)
 
@@ -3384,9 +3390,11 @@ CRAFTING RULES:
 6. ITEM VALUES should reflect:
    - Complexity of craft: simple items 5-50 gold, medium 50-200, complex 200+
    - Quality of materials used
-   - Player's skill level (higher skill = better items)`;
+   - Adventurer's skill level (higher skill = better items)
 
-  const userPrompt = `Evaluate whether the player can craft: "${description}"
+IMPORTANT: Never use the word "player" - use "adventurer", "traveler", "you", etc.`;
+
+  const userPrompt = `Evaluate whether the adventurer can craft: "${description}"
 
 Review their inventory and determine:
 1. Is this feasible with available materials?
@@ -3396,7 +3404,7 @@ Review their inventory and determine:
 Consider:
 - High fantasy only - no modern/sci-fi items
 - Be generous with interpretation (a "knife" could be made from bone, metal scraps, obsidian, etc.)
-- Account for player skill level
+- Account for the adventurer's skill level
 - Some crafts need specific locations/tools (smithing needs a forge)`;
 
   const response = await callGPT<CraftingResultData>({
@@ -3610,12 +3618,12 @@ Existing structures: ${currentLocation.structures.length > 0 ? currentLocation.s
 
   const systemPrompt = `You are evaluating a building/construction attempt in a fantasy medieval RPG.
 
-THE PLAYER WANTS TO BUILD: "${description}"
+THE ADVENTURER WANTS TO BUILD: "${description}"
 
-PLAYER'S INVENTORY:
+ADVENTURER'S INVENTORY:
 ${inventoryContext || "Empty inventory"}
 
-PLAYER'S BUILDING SKILLS: ${buildingSkills || "No formal building training"}
+ADVENTURER'S BUILDING SKILLS: ${buildingSkills || "No formal building training"}
 ${locationContext}
 NATURAL MATERIALS AVAILABLE: ${naturalMaterialsStr}
 
@@ -3623,7 +3631,7 @@ BUILDING RULES:
 1. Be GENEROUS but LOGICAL about what can be built:
    - Simple structures (camps, lean-tos, markers) need minimal or no materials
    - The environment provides natural materials based on terrain
-   - Player doesn't need to carry every stick and stone - the world has resources
+   - Adventurer doesn't need to carry every stick and stone - the world has resources
    - A camp can be made almost anywhere with nearby materials
    - A shelter needs a forest (wood) or cave
 
@@ -3657,9 +3665,11 @@ BUILDING RULES:
    - Only consume inventory items that would logically be used
    - Natural materials from environment are free (trees in forest, stones in mountains)
    - Don't over-consume - building a simple shelter shouldn't use all lumber
-   - Return the item IDs of consumed inventory materials`;
+   - Return the item IDs of consumed inventory materials
 
-  const userPrompt = `Evaluate whether the player can build: "${description}"
+IMPORTANT: Never use the word "player" - use "adventurer", "traveler", "you", etc.`;
+
+  const userPrompt = `Evaluate whether the adventurer can build: "${description}"
 
 Review their inventory, location, and available natural materials to determine:
 1. Is this feasible here with available resources?
@@ -3669,7 +3679,7 @@ Review their inventory, location, and available natural materials to determine:
 Consider:
 - High fantasy only - no modern/sci-fi structures
 - Be generous with interpretation (a "shelter" could be branches leaned against a rock)
-- Account for player skill level
+- Account for the adventurer's skill level
 - Some structures need specific locations (can't build stone fort without stones nearby)
 - Simple structures should be easy in appropriate terrain`;
 
@@ -3863,14 +3873,14 @@ export async function generateInitialCharacter(
 
   // If no backstory hints provided, tell GPT to be creative
   const backstoryContext = backstoryHints
-    ? `The player has provided these hints about their character:\n${backstoryHints}`
-    : `The player has not provided any hints - BE CREATIVE! Generate an interesting, unique backstory with secrets and mysteries. Consider varied archetypes: wandering scholar, disgraced knight, escaped servant, merchant's child, hedge witch apprentice, traveling performer, or something more unusual.`;
+    ? `Background hints provided:\n${backstoryHints}`
+    : `No background hints provided - BE CREATIVE! Generate an interesting, unique backstory with secrets and mysteries. Consider varied archetypes: wandering scholar, disgraced knight, escaped servant, merchant's child, hedge witch apprentice, traveling performer, or something more unusual.`;
 
   console.log("   🤖 Calling GPT for character generation...");
 
   const systemPrompt = `You are creating the initial character for a fantasy medieval RPG.
 
-The player has chosen their name and provided some hints about their background. Generate a complete character with physical description, origin, hidden backstory, and starting items.
+A new adventurer named ${name} is being created based on background hints. Generate a complete character with physical description, origin, hidden backstory, and starting items.
 
 WORLD CONTEXT:
 - Setting: High fantasy medieval world
@@ -3889,7 +3899,7 @@ RULES:
 
 ${NARRATOR_PERSONALITY}`;
 
-  const userPrompt = `Create a character for this player:
+  const userPrompt = `Create a new adventurer:
 
 NAME: ${name}
 
