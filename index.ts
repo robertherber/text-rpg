@@ -7,7 +7,7 @@ import {
   processCombatAction,
   checkRequirement,
 } from "./src/gameEngine";
-import { generateImage, preGenerateImagesForDestinations } from "./src/imageService";
+import { generateImage, generateWorldImage, preGenerateImagesForDestinations } from "./src/imageService";
 import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
@@ -727,6 +727,47 @@ const server = Bun.serve({
       GET: () => {
         const mapData = getMapData(worldState);
         return Response.json(mapData);
+      },
+    },
+
+    // Get image for a world location (uses dynamic world state, not static game data)
+    "/api/world/image/:id": {
+      GET: async (req) => {
+        const locationId = req.params.id;
+        const location = worldState.locations[locationId];
+
+        if (!location) {
+          return Response.json(
+            { error: "Location not found" },
+            { status: 404 }
+          );
+        }
+
+        // Check if location has an image prompt
+        if (!location.imagePrompt && !location.description) {
+          return Response.json(
+            { error: "No image available for this location" },
+            { status: 404 }
+          );
+        }
+
+        try {
+          // Generate world image with NPCs included
+          const { imageUrl, stateHash } = await generateWorldImage(worldState, locationId);
+
+          return Response.json({
+            imageUrl,
+            stateHash,
+            locationId: location.id,
+            locationName: location.name,
+          });
+        } catch (error) {
+          console.error(`Error generating world image for ${locationId}:`, error);
+          return Response.json(
+            { error: "Failed to generate image" },
+            { status: 500 }
+          );
+        }
       },
     },
 

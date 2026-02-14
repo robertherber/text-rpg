@@ -37,7 +37,7 @@ export default function ImagePanel({ location }: ImagePanelProps) {
     const loadImage = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch(`/api/game/image/${location.id}`);
+        const response = await fetch(`/api/world/image/${location.id}`);
         const data = (await response.json()) as { imageUrl?: string };
         if (data.imageUrl) {
           setImageUrl(data.imageUrl);
