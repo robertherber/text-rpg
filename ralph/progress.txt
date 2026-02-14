@@ -181,3 +181,16 @@
 
 ---
 
+
+## 2026-02-14 - US-014
+- What was implemented: Added fog of war to the map with soft blending edges for unexplored tiles
+- Files changed:
+  - src/world/mapService.ts - Added ExploredCoordinate type, MapData interface, calculateExploredTiles function (1-tile radius), addTilesAroundCoordinate helper, updated getMapData to return both locations and exploredTiles
+  - src/frontend/MapPanel.tsx - Added MapData interface, drawFogOfWar function with distance-based opacity gradients, cloud/mist texture effects, and "?" symbols in heavily fogged tiles
+- **Learnings for future iterations:**
+  - Fog of war uses Set<string> for O(1) lookup of explored tile coordinates ("x,y" format)
+  - Distance-based opacity creates soft edges: immediate neighbors get light fog (0.35), 1-2 tiles get medium (0.6), distant tiles get full (0.85)
+  - Canvas radial gradients and random cloud circles create natural-looking fog texture
+  - The exploredTiles are calculated from player.knowledge.locations - each visited location reveals 9 tiles (3x3 area)
+
+---

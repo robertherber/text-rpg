@@ -215,8 +215,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 14,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added exploredTiles tracking (1-tile radius per visited location), implemented drawFogOfWar function with soft edge blending based on distance to explored tiles, cloud/mist texture, and '?' symbols in heavy fog"
     },
     {
       "id": "US-015",
