@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player, WorldItem } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -1722,6 +1722,171 @@ Generate a complete character with name, appearance, origin, hidden backstory, a
     narrative,
     npcUpdates,
   };
+}
+
+// JSON Schema for generated Item response from GPT
+const GENERATED_ITEM_SCHEMA = {
+  type: "object",
+  properties: {
+    name: {
+      type: "string",
+      description: "The item's name (e.g., 'Moonfire Dagger', 'Potion of Minor Healing', 'Dusty Tome of Forgotten Lore')",
+    },
+    description: {
+      type: "string",
+      description: "A vivid description of the item's appearance and any notable qualities (2-3 sentences)",
+    },
+    type: {
+      type: "string",
+      enum: ["weapon", "armor", "potion", "food", "key", "misc", "material", "book", "magic"],
+      description: "The category of item",
+    },
+    hasEffect: {
+      type: "boolean",
+      description: "Whether this item provides a stat effect when used/equipped",
+    },
+    effectStat: {
+      type: "string",
+      description: "If hasEffect is true, which stat is affected (health, strength, defense, magic)",
+    },
+    effectValue: {
+      type: "number",
+      description: "If hasEffect is true, the numerical effect value (positive for buffs, negative for debuffs)",
+    },
+    baseValue: {
+      type: "number",
+      description: "The base gold value of the item before any economic adjustments (typically 1-500 for common items, 500-2000 for rare items)",
+    },
+  },
+  required: ["name", "description", "type", "hasEffect", "baseValue"],
+  additionalProperties: false,
+};
+
+export interface GeneratedItemData {
+  name: string;
+  description: string;
+  type: "weapon" | "armor" | "potion" | "food" | "key" | "misc" | "material" | "book" | "magic";
+  hasEffect: boolean;
+  effectStat?: string;
+  effectValue?: number;
+  baseValue: number;
+}
+
+/**
+ * Generate a contextual item dynamically.
+ *
+ * Item value is scaled with slight inflation based on player wealth,
+ * making the economy feel dynamic and responsive to player progression.
+ *
+ * @param worldState - The current world state
+ * @param context - Description of why/where this item is needed (e.g., "a treasure found in a dragon's hoard", "a potion sold by a traveling merchant")
+ * @param itemType - Optional specific item type to generate (weapon, armor, potion, etc.)
+ * @returns A complete WorldItem object ready to be added to inventory or location
+ */
+export async function generateItem(
+  worldState: WorldState,
+  context: string,
+  itemType?: string
+): Promise<WorldItem> {
+  const { player, locations } = worldState;
+  const currentLocation = locations[player.currentLocationId];
+
+  // Calculate wealth factor for value scaling
+  // Slight inflation based on player wealth - items become slightly more valuable as player accumulates wealth
+  // Formula: 1.0 + (playerWealth / 1000) * 0.1, capped at 1.5x multiplier
+  const playerWealth = player.gold + player.inventory.reduce((sum, item) => sum + item.value, 0);
+  const wealthFactor = Math.min(1.5, 1.0 + (playerWealth / 1000) * 0.1);
+
+  // Determine item type hint for the prompt
+  const typeHint = itemType
+    ? `The item MUST be of type: ${itemType}`
+    : "Choose an appropriate item type based on the context";
+
+  // Build context about the situation
+  const locationContext = currentLocation
+    ? `Current location: ${currentLocation.name} (${currentLocation.terrain}, danger level ${currentLocation.dangerLevel}/10)`
+    : "Unknown location";
+
+  const recentEvents = worldState.eventHistory
+    .slice(-3)
+    .map((e) => e.description)
+    .join(" ");
+
+  const systemPrompt = `You are generating an item for a fantasy medieval RPG world.
+
+CONTEXT FOR ITEM GENERATION: ${context}
+
+${locationContext}
+
+GUIDELINES:
+1. Item names should be evocative and fit high fantasy (e.g., "Silvervine Tonic", "Rusted Patrol Sword", "Enchanted Quill of Scribing")
+2. Descriptions should be vivid and hint at the item's purpose or history
+3. ${typeHint}
+4. Items should fit the context where they're found:
+   - Taverns: food, drinks, mundane supplies
+   - Dungeons: weapons, armor, magical items, keys
+   - Forests: herbs, materials, animal products
+   - Shops: varied goods at appropriate quality
+   - Quest rewards: valuable or unique items
+5. Base value should reflect the item's rarity and usefulness:
+   - Common items: 1-50 gold
+   - Uncommon items: 50-200 gold
+   - Rare items: 200-500 gold
+   - Very rare items: 500-2000 gold
+6. Effects should be reasonable:
+   - Potions typically heal 10-50 health or boost a stat temporarily
+   - Weapons might add 1-10 to strength
+   - Armor might add 1-8 to defense
+   - Magical items might affect any stat
+
+IMPORTANT:
+- Keep high fantasy tone - no modern or sci-fi elements
+- Make items feel authentic to the medieval fantasy setting
+- If hasEffect is true, you MUST provide effectStat and effectValue
+- Not every item needs an effect - mundane items (food, materials, misc) often have no effect`;
+
+  const userPrompt = `Generate an item based on this context: "${context}"
+
+Player wealth: ${playerWealth} gold (affects economy slightly)
+Recent events: ${recentEvents || "Nothing notable recently"}
+
+Create an item that feels natural for this situation. Return the item details as JSON.`;
+
+  const response = await callGPT<GeneratedItemData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: GENERATED_ITEM_SCHEMA,
+    maxTokens: 600,
+  });
+
+  const generatedData = response.content;
+
+  // Generate a unique ID for the item
+  const itemId = `item_${generatedData.name.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")}_${Date.now().toString(36)}`;
+
+  // Calculate final value with wealth inflation
+  const adjustedValue = Math.round(generatedData.baseValue * wealthFactor);
+
+  // Build the effect object if applicable
+  const effect = generatedData.hasEffect && generatedData.effectStat && generatedData.effectValue !== undefined
+    ? {
+        stat: generatedData.effectStat,
+        value: generatedData.effectValue,
+      }
+    : undefined;
+
+  // Construct the complete WorldItem object
+  const newItem: WorldItem = {
+    id: itemId,
+    name: generatedData.name,
+    description: generatedData.description,
+    type: generatedData.type,
+    effect,
+    value: adjustedValue,
+    isCanonical: false, // Dynamically generated
+  };
+
+  return newItem;
 }
 
 export async function generateNPC(
