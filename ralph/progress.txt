@@ -3,3 +3,115 @@
 # Branch: ralph/open-world-generation
 # Started: 2026-02-14
 
+## Codebase Patterns
+- Pre-existing type errors exist in index.ts, App.tsx, gameEngine.ts, imageService.ts - don't need to fix these for new features
+- Use `seedId(prefix, name)` helper to create consistent IDs for seed content
+- Location coordinates use (x, y) grid with village at (0, 0)
+- All seed content should have `isCanonical: true` flag
+
+---
+
+## 2026-02-14 - US-002
+- What was implemented: Created seed world data with Millbrook village
+- Files changed:
+  - src/world/seedWorld.ts (created)
+- **Learnings for future iterations:**
+  - The codebase has pre-existing type errors that should be ignored when running `tsc --noEmit`
+  - Can test individual files with `bun run tsc --noEmit <file>` to verify new code
+  - Use `bun -e "..."` for quick import/functionality tests
+  - Seed locations: village square (0,0), tavern (0,1), blacksmith (1,0), elder house (-1,0), gate (0,-1)
+---
+
+## 2026-02-14 - US-003
+- What was implemented: Initialize world state on server startup
+- Files changed:
+  - index.ts (modified - added world state initialization)
+- **Learnings for future iterations:**
+  - Bun supports top-level await, so `await initializeWorldState()` works before `Bun.serve()`
+  - Module-level `worldState` variable is exported implicitly and accessible for future API endpoints
+  - Server port 3000 may be in use during testing - can still verify initialization by checking console output
+  - World state file persists at `world-state.json` in project root
+---
+
+## 2026-02-14 - US-004
+- What was implemented: Created 4 seed NPCs with soul instructions
+- Files changed:
+  - src/world/seedWorld.ts (modified - added NPCs)
+- **Learnings for future iterations:**
+  - NPCs created: Marta (barkeep), Grimjaw (blacksmith), Elder Bramwell, Pip (stablehand)
+  - Each NPC has a detailed `soulInstruction` paragraph covering: background, goals, personality, speech patterns, gullibility
+  - NPCs are placed at locations via `locations[x].presentNpcIds` array
+  - Player starts with knowledge of NPCs they can see (Pip in village square)
+  - NPCs can have items in their `inventory` array (e.g., Grimjaw has a dagger for sale)
+  - Attitude scale: -100 to 100 (70 = very friendly, 10 = neutral/reserved, 50 = friendly)
+---
+
+## 2026-02-14 - US-005
+- What was implemented: Created OpenAI client wrapper for GPT calls
+- Files changed:
+  - src/world/gptService.ts (created)
+- **Learnings for future iterations:**
+  - OpenAI package is already installed in package.json
+  - `callGPT<T>` function is generic, allowing typed JSON responses when jsonSchema is provided
+  - Model fallback: tries gpt-5-mini first, falls back to gpt-4o-mini if not available
+  - Narrator personality is appended to every system prompt automatically
+  - Use `response_format: { type: "json_schema", json_schema: { name, strict, schema } }` for structured output
+  - `callGPTNarrative` is a convenience wrapper for simple text responses
+  - OPENAI_API_KEY environment variable is read automatically by Bun from .env
+---
+
+## 2026-02-14 - US-006
+- What was implemented: Created GPT context builder for action resolution
+- Files changed:
+  - src/world/gptService.ts (modified - added buildActionContext function)
+- **Learnings for future iterations:**
+  - `buildActionContext(worldState)` builds a structured text context for GPT prompts
+  - Context includes: current location details, present NPCs with attitude descriptions, last 5 events, player stats, inventory (max 10 items shown), and knowledge summary
+  - NPCs are filtered to only show those present at current location and alive
+  - Attitude is described qualitatively: very friendly (>=70), friendly (>=40), neutral (>=10), wary (>=-30), hostile (<-30)
+  - Use `bun -e "..."` for quick runtime validation of new functions
+  - Context is kept concise to stay under 4000 tokens - inventories and knowledge lists are truncated
+---
+
+## 2026-02-14 - US-007
+- What was implemented: Created action resolution function for GPT to resolve player actions
+- Files changed:
+  - src/world/gptService.ts (modified - added resolveAction function and ACTION_RESULT_SCHEMA)
+- **Learnings for future iterations:**
+  - `resolveAction(worldState, action)` is the main entry point for resolving player actions via GPT
+  - Use JSON schema with `response_format` for structured GPT responses that parse into ActionResult
+  - Schema must have `additionalProperties: false` for strict mode and all required fields specified
+  - The system prompt includes comprehensive rules for what GPT should return: state change types, suggested action types
+  - State change types are documented in the prompt so GPT knows what format to return
+  - Suggested action IDs should be simple like "action_1", "action_2" for uniqueness
+---
+
+## 2026-02-14 - US-008
+- What was implemented: Created state change applier to apply StateChange arrays to WorldState immutably
+- Files changed:
+  - src/world/stateManager.ts (created)
+- **Learnings for future iterations:**
+  - `applyStateChanges(state, changes)` iterates through changes and applies them sequentially
+  - Each handler returns a new WorldState object (immutable updates)
+  - move_player also updates the destination location's `lastVisitedAtAction`
+  - add_item/remove_item support optional `toLocation`/`fromLocation` and `toNpc`/`fromNpc` for flexible item movement
+  - add_knowledge supports both knowledge types (locations, npcs, lore, recipes) and skills
+  - Unknown state change types log a warning but don't crash - allows incremental handler additions
+  - Gold and health are clamped (gold >= 0, health between 0 and maxHealth)
+---
+
+## 2026-02-14 - US-009
+- What was implemented: Added NPC state change handlers for NPC-related game state modifications
+- Files changed:
+  - src/world/stateManager.ts (modified - added 6 new handlers)
+- **Learnings for future iterations:**
+  - `move_npc`: Updates NPC's currentLocationId AND syncs location.presentNpcIds arrays (removes from old, adds to new)
+  - `update_npc_attitude`: Supports both relative `change` and absolute `attitude` values, clamps to -100 to 100
+  - `npc_death`: Sets isAlive=false, health=0, deathDescription; also removes from player.companionIds if companion
+  - `add_companion`: Sets NPC.isCompanion=true and adds to player.companionIds (idempotent - won't duplicate)
+  - `remove_companion`: Sets NPC.isCompanion=false and removes from player.companionIds
+  - `create_npc`: Creates complete NPC with defaults for missing fields, auto-generates ID, adds to location.presentNpcIds
+  - Dynamically created NPCs get `isCanonical: false` to distinguish from seed content
+  - NPC IDs follow pattern `npc_{name}_{role}` (e.g., `npc_marta_barkeep`, `npc_pip_stablehand`)
+---
+
