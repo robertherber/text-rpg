@@ -6,7 +6,7 @@ import {
   processCombatAction,
   checkRequirement,
 } from "./src/gameEngine";
-import { generateImage } from "./src/imageService";
+import { generateImage, preGenerateImagesForDestinations } from "./src/imageService";
 import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
@@ -225,6 +225,9 @@ const server = Bun.serve({
         // Store for action lookup by ID
         lastSuggestedActions = suggestedActions;
 
+        // Pre-generate images for movement destinations in background (non-blocking)
+        preGenerateImagesForDestinations(worldState, suggestedActions);
+
         // Build player stats summary
         const playerStats = {
           name: player.name,
@@ -299,6 +302,9 @@ const server = Bun.serve({
         // Store the new suggested actions for next action lookup
         lastSuggestedActions = actionResult.suggestedActions;
 
+        // Pre-generate images for movement destinations in background (non-blocking)
+        preGenerateImagesForDestinations(worldState, actionResult.suggestedActions);
+
         return Response.json({
           narrative: actionResult.narrative,
           suggestedActions: actionResult.suggestedActions,
@@ -342,6 +348,9 @@ const server = Bun.serve({
           const suggestedActions = await generateSuggestedActions(worldState);
           lastSuggestedActions = suggestedActions;
 
+          // Pre-generate images for movement destinations in background (non-blocking)
+          preGenerateImagesForDestinations(worldState, suggestedActions);
+
           return Response.json({
             narrative: rejection,
             suggestedActions,
@@ -367,6 +376,9 @@ const server = Bun.serve({
 
         // Store the new suggested actions for next action lookup
         lastSuggestedActions = actionResult.suggestedActions;
+
+        // Pre-generate images for movement destinations in background (non-blocking)
+        preGenerateImagesForDestinations(worldState, actionResult.suggestedActions);
 
         return Response.json({
           narrative: actionResult.narrative,

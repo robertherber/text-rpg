@@ -195,3 +195,73 @@ export async function generateWorldImage(
 
   return { imageUrl, stateHash };
 }
+
+/**
+ * Pre-generate images for suggested movement destinations in the background.
+ * This is non-blocking - it queues image generation tasks and returns immediately.
+ *
+ * @param worldState - The current world state
+ * @param suggestedActions - Array of suggested actions from GPT
+ */
+export function preGenerateImagesForDestinations(
+  worldState: WorldState,
+  suggestedActions: Array<{ type: string; targetLocationId?: string }>
+): void {
+  // Extract unique destination location IDs from movement actions
+  const destinationIds = new Set<string>();
+
+  for (const action of suggestedActions) {
+    // Check for move or travel actions with target location
+    if ((action.type === "move" || action.type === "travel") && action.targetLocationId) {
+      destinationIds.add(action.targetLocationId);
+    }
+  }
+
+  if (destinationIds.size === 0) {
+    return;
+  }
+
+  console.log(`🖼️  Pre-generating images for ${destinationIds.size} destination(s) in background...`);
+
+  // Queue background image generation for each destination
+  // Convert Set to Array for iteration compatibility
+  const destinationArray = Array.from(destinationIds);
+  for (const locationId of destinationArray) {
+    const location = worldState.locations[locationId];
+
+    if (!location) {
+      console.log(`Pre-generation skipped: location ${locationId} not found`);
+      continue;
+    }
+
+    // Get present NPCs at destination (for accurate image)
+    const presentNpcs = location.presentNpcIds
+      .map(id => worldState.npcs[id])
+      .filter((npc): npc is NPC => npc !== undefined && npc.isAlive);
+
+    // Generate state hash for this destination
+    const stateHash = generateImageStateHash(location, presentNpcs);
+
+    // Check if already cached (avoid unnecessary work)
+    getCachedImage(locationId, stateHash).then(cached => {
+      if (cached) {
+        console.log(`Pre-generation skipped: ${location.name} already cached (hash: ${stateHash})`);
+        return;
+      }
+
+      // Build prompt and generate image in background (fire and forget)
+      const prompt = buildImagePromptWithNpcs(location, presentNpcs);
+
+      // Generate image without awaiting - runs in background
+      generateImage(locationId, prompt, stateHash)
+        .then(() => {
+          console.log(`✅ Pre-generated image for ${location.name} (hash: ${stateHash})`);
+        })
+        .catch(error => {
+          console.error(`❌ Pre-generation failed for ${location.name}:`, error);
+        });
+    }).catch(error => {
+      console.error(`Error checking cache for ${locationId}:`, error);
+    });
+  }
+}
