@@ -11,7 +11,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
@@ -532,6 +532,85 @@ const server = Bun.serve({
       GET: () => {
         const mapData = getMapData(worldState);
         return Response.json(mapData);
+      },
+    },
+
+    // Create a new character after death
+    "/api/world/new-character": {
+      POST: async (req) => {
+        const body = await req.json() as { backstory?: string };
+        const { backstory } = body;
+
+        if (!backstory || typeof backstory !== "string") {
+          return Response.json(
+            { error: "backstory is required and must be a string" },
+            { status: 400 }
+          );
+        }
+
+        try {
+          // Generate the new character
+          const result = await generateNewCharacter(worldState, backstory.trim());
+
+          // Apply the new player to world state
+          worldState = {
+            ...worldState,
+            player: result.player,
+          };
+
+          // Apply NPC knowledge updates
+          for (const update of result.npcUpdates) {
+            const npc = worldState.npcs[update.npcId];
+            if (npc) {
+              worldState = {
+                ...worldState,
+                npcs: {
+                  ...worldState.npcs,
+                  [update.npcId]: {
+                    ...npc,
+                    knowledge: [
+                      ...npc.knowledge,
+                      ...update.newKnowledge.filter(
+                        (k) => !npc.knowledge.includes(k)
+                      ),
+                    ],
+                  },
+                },
+              };
+            }
+          }
+
+          // Save the updated world state
+          await saveWorldState(worldState);
+
+          // Get starting location details
+          const startingLocation = worldState.locations[result.player.currentLocationId];
+
+          return Response.json({
+            player: {
+              name: result.player.name,
+              physicalDescription: result.player.physicalDescription,
+              origin: result.player.origin,
+              health: result.player.health,
+              maxHealth: result.player.maxHealth,
+              gold: result.player.gold,
+              level: result.player.level,
+            },
+            narrative: result.narrative,
+            startingLocation: startingLocation ? {
+              id: startingLocation.id,
+              name: startingLocation.name,
+              description: startingLocation.description,
+              terrain: startingLocation.terrain,
+            } : null,
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Character creation failed";
+          return Response.json(
+            { error: errorMessage },
+            { status: 500 }
+          );
+        }
       },
     },
   },
