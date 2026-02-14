@@ -56,3 +56,30 @@
 
 ---
 
+## 2026-02-14 - US-005
+- What was implemented: Added dialog response suggestions to handleConversation - GPT now generates 3 suggested responses (2 contextual + 1 generic) for the adventurer
+- Files changed:
+  - src/world/gptService.ts - Added SuggestedResponseType and SuggestedResponse exports, updated CONVERSATION_RESPONSE_SCHEMA with suggestedResponses array schema, updated ConversationResponse and ConversationResult interfaces, added SUGGESTED RESPONSES section to conversation system prompt, updated return to include suggestedResponses with unique IDs
+- **Learnings for future iterations:**
+  - Each suggestion has {id, text, type} where id is generated with Date.now() + index for uniqueness
+  - The type is either "contextual" (specific to conversation) or "generic" (fallback like farewell/rumors)
+  - Tone brackets format: "[Tone] Dialog text" - tones include Friendly, Curious, Suspicious, Aggressive, Grateful, Nervous, Confident, Playful, Serious, Dismissive
+  - US-006 will need to import SuggestedResponse and SuggestedResponseType from gptService.ts for the UI
+
+---
+
+## 2026-02-14 - US-006
+- What was implemented: Display dialog suggestions as clickable buttons in conversation UI
+- Files changed:
+  - index.ts - Added suggestedResponses to /api/world/talk response
+  - src/frontend/WorldApp.tsx - Added SuggestedResponse interface, extended ConversationState to include suggestedResponses, updated handleConversationMessage to store suggestions
+  - src/frontend/ActionPanel.tsx - Added SuggestedResponse interface and updated ConversationMode, added handleSuggestedResponseClick handler, rendered suggestion buttons below input
+  - src/frontend/worldStyles.css - Added .suggested-responses container, .suggested-response button styles with contextual/generic variants
+- **Learnings for future iterations:**
+  - ConversationState passes suggestions through the conversationMode prop to ActionPanel
+  - Clicking a suggestion extracts the dialog text (removing the [Tone] prefix) and sends it via onConversationMessage
+  - Suggestions update after each NPC response (stored in conversationState)
+  - The suggested-response buttons use visual distinction: contextual has green left border, generic has gray
+
+---
+

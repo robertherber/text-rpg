@@ -950,6 +950,51 @@ body {
   cursor: not-allowed;
 }
 
+/* Suggested responses in conversation mode */
+.suggested-responses {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.suggested-response {
+  width: 100%;
+  padding: 0.6rem 0.8rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border-color);
+  border-radius: 0.4rem;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.85rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.suggested-response:hover:not(:disabled) {
+  background: var(--bg-primary);
+  border-color: var(--accent-green);
+  transform: translateX(4px);
+}
+
+.suggested-response:active:not(:disabled) {
+  transform: translateX(2px);
+}
+
+.suggested-response:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.suggested-response.contextual {
+  border-left: 3px solid var(--accent-green);
+}
+
+.suggested-response.generic {
+  border-left: 3px solid var(--text-secondary);
+}
+
 /* Stats panel */
 .stats-panel {
   background: var(--bg-secondary);

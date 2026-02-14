@@ -75,8 +75,8 @@
         "Typecheck passes"
       ],
       "priority": 5,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added SuggestedResponse interface and type, updated CONVERSATION_RESPONSE_SCHEMA with suggestedResponses array, updated handleConversation prompt with SUGGESTED RESPONSES rules and return value"
     },
     {
       "id": "US-006",
@@ -90,8 +90,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added SuggestedResponse interface, updated conversationState to include suggestions, passed from API to WorldApp to ActionPanel, styled with contextual/generic variants"
     },
     {
       "id": "US-007",

@@ -59,10 +59,18 @@ interface WorldStateResponse {
 
 // StoryMessage type imported from StoryPanel
 
+// Suggested response type for conversation suggestions
+interface SuggestedResponse {
+  id: string;
+  text: string;
+  type: "contextual" | "generic";
+}
+
 // Conversation state type
 interface ConversationState {
   npcId: string;
   npcName: string;
+  suggestedResponses?: SuggestedResponse[];
 }
 
 // Death state type
@@ -329,6 +337,7 @@ export default function WorldApp() {
         newAttitude?: number;
         suggestsEndConversation?: boolean;
         newKnowledge?: string[];
+        suggestedResponses?: SuggestedResponse[];
       };
 
       if (data.error) {
@@ -350,6 +359,12 @@ export default function WorldApp() {
         if (data.suggestsEndConversation) {
           addStoryMessage(`${conversationState.npcName} seems to have nothing more to say.`, "narrative");
           setConversationState(null);
+        } else {
+          // Update conversation state with new suggested responses
+          setConversationState(prev => prev ? {
+            ...prev,
+            suggestedResponses: data.suggestedResponses || [],
+          } : null);
         }
       }
 

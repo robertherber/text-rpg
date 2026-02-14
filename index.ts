@@ -709,6 +709,7 @@ const server = Bun.serve({
             newAttitude,
             suggestsEndConversation: conversationResult.suggestsEndConversation,
             newKnowledge: conversationResult.newKnowledge,
+            suggestedResponses: conversationResult.suggestedResponses,
           });
         } catch (error) {
           // Handle errors from handleConversation

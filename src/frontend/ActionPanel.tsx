@@ -12,11 +12,21 @@ export interface SuggestedAction {
 }
 
 /**
+ * Suggested response type for dialog suggestions
+ */
+export interface SuggestedResponse {
+  id: string;
+  text: string;
+  type: "contextual" | "generic";
+}
+
+/**
  * Conversation mode state type
  */
 export interface ConversationMode {
   npcId: string;
   npcName: string;
+  suggestedResponses?: SuggestedResponse[];
 }
 
 /**
@@ -107,6 +117,14 @@ export default function ActionPanel({
     }
   };
 
+  // Handle clicking a suggested response
+  const handleSuggestedResponseClick = (suggestion: SuggestedResponse) => {
+    if (isProcessing || !onConversationMessage) return;
+    // Extract the dialog text without the tone bracket prefix
+    const dialogText = suggestion.text.replace(/^\[[^\]]+\]\s*/, "");
+    onConversationMessage(dialogText);
+  };
+
   // Render conversation mode UI when in conversation
   if (conversationMode) {
     return (
@@ -136,6 +154,22 @@ export default function ActionPanel({
             </button>
           </div>
         </div>
+
+        {/* Suggested responses */}
+        {conversationMode.suggestedResponses && conversationMode.suggestedResponses.length > 0 && (
+          <div className="suggested-responses">
+            {conversationMode.suggestedResponses.map((suggestion) => (
+              <button
+                key={suggestion.id}
+                className={`suggested-response ${suggestion.type}`}
+                onClick={() => handleSuggestedResponseClick(suggestion)}
+                disabled={isProcessing}
+              >
+                {suggestion.text}
+              </button>
+            ))}
+          </div>
+        )}
 
         {/* End conversation button */}
         <button
