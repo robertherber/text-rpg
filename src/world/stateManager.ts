@@ -1065,3 +1065,153 @@ function handleDestroyStructure(
     },
   };
 }
+
+/**
+ * Handle player death with world persistence.
+ *
+ * This function:
+ * - Adds the current character to the deceasedHeroes array
+ * - Records death location and major deeds
+ * - Leaves player's items at death location
+ * - Marks companions as scattered (no longer following)
+ * - Returns modified WorldState ready for a new character
+ *
+ * @param worldState - The current world state
+ * @param deathDescription - A narrative description of how the player died
+ * @returns A new WorldState with death processed
+ */
+export function handlePlayerDeath(
+  worldState: WorldState,
+  deathDescription: string
+): WorldState {
+  const { player, npcs, locations, eventHistory, actionCounter } = worldState;
+
+  // Gather major deeds from significant events
+  const majorDeeds: string[] = eventHistory
+    .filter(
+      (event) =>
+        event.isSignificant &&
+        (event.type === "combat" ||
+          event.type === "quest" ||
+          event.type === "discovery" ||
+          event.type === "relationship")
+    )
+    .map((event) => event.description)
+    .slice(-10); // Keep last 10 significant deeds
+
+  // Create the deceased hero record
+  const deceasedHero: import("./types").DeceasedHero = {
+    id: `hero_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    name: player.name,
+    physicalDescription: player.physicalDescription,
+    origin: player.origin,
+    diedAtAction: actionCounter,
+    deathDescription: deathDescription || "met an untimely end",
+    deathLocationId: player.currentLocationId,
+    majorDeeds,
+    itemsLeftBehind: [
+      {
+        locationId: player.currentLocationId,
+        items: [...player.inventory],
+      },
+    ],
+    knownByNpcIds: Object.keys(npcs).filter((npcId) => {
+      const npc = npcs[npcId];
+      return (
+        npc &&
+        npc.isAlive &&
+        (npc.conversationHistory.length > 0 ||
+          npc.playerNameKnown ||
+          npc.isCompanion)
+      );
+    }),
+    buriedBy: undefined,
+    graveLocationId: undefined,
+  };
+
+  // Leave player's items at death location
+  const deathLocation = locations[player.currentLocationId];
+  let newLocations = { ...locations };
+
+  if (deathLocation) {
+    newLocations[player.currentLocationId] = {
+      ...deathLocation,
+      items: [...deathLocation.items, ...player.inventory],
+    };
+  }
+
+  // Mark companions as scattered (no longer following)
+  let newNpcs = { ...npcs };
+  for (const companionId of player.companionIds) {
+    const companion = npcs[companionId];
+    if (companion && companion.isAlive) {
+      newNpcs[companionId] = {
+        ...companion,
+        isCompanion: false,
+        // Companions stay at their current location (which is player's death location)
+      };
+    }
+  }
+
+  // Add death event to history
+  const deathEvent: import("./types").WorldEvent = {
+    id: `event_death_${actionCounter}`,
+    actionNumber: actionCounter,
+    description: deathDescription || "The hero fell",
+    type: "death",
+    involvedNpcIds: [],
+    locationId: player.currentLocationId,
+    isSignificant: true,
+  };
+
+  // Create a fresh player state ready for new character creation
+  // This resets player stats but keeps the world intact
+  const freshPlayer: import("./types").Player = {
+    name: undefined,
+    physicalDescription: "",
+    hiddenBackstory: "",
+    revealedBackstory: [],
+    origin: "",
+    currentLocationId: "loc_village_square", // Start at village
+    homeLocationId: undefined,
+    health: 100,
+    maxHealth: 100,
+    strength: 10,
+    defense: 10,
+    magic: 5,
+    level: 1,
+    experience: 0,
+    gold: 0,
+    inventory: [],
+    companionIds: [],
+    knowledge: {
+      locations: ["loc_village_square"],
+      npcs: [],
+      lore: [],
+      recipes: [],
+      skills: {},
+    },
+    behaviorPatterns: {
+      combat: 0,
+      diplomacy: 0,
+      exploration: 0,
+      social: 0,
+      stealth: 0,
+      magic: 0,
+    },
+    transformations: [],
+    curses: [],
+    blessings: [],
+    marriedToNpcId: undefined,
+    childrenNpcIds: [],
+  };
+
+  return {
+    ...worldState,
+    player: freshPlayer,
+    npcs: newNpcs,
+    locations: newLocations,
+    deceasedHeroes: [...worldState.deceasedHeroes, deceasedHero],
+    eventHistory: [...worldState.eventHistory, deathEvent],
+  };
+}
