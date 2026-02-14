@@ -1,0 +1,20 @@
+# Ralph Progress Log
+Started: Sat Feb 14 00:59:09 CET 2026
+
+## Codebase Patterns
+- Use `Bun.file()` and `Bun.write()` for file operations instead of node:fs
+- WorldState types are in `src/world/types.ts`
+- JSON persistence files go at project root
+- Pre-existing TypeScript errors in codebase (index.ts, App.tsx, gameEngine.ts) - check new files individually with `bunx tsc --noEmit <file>`
+
+---
+
+## 2026-02-14 - US-001
+- Created `src/world/persistence.ts` with saveWorldState() and loadWorldState() functions
+- Uses Bun.file() for file reads and Bun.write() for file writes
+- Files changed: src/world/persistence.ts (new)
+- **Learnings for future iterations:**
+  - World state types already exist in src/world/types.ts - well-defined WorldState interface
+  - The codebase has pre-existing type errors that shouldn't block new feature work
+  - Bun.file().exists() is async and returns Promise<boolean>
+---
