@@ -45,8 +45,8 @@
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added explicit DIALOG RULES to NARRATOR_PERSONALITY, strengthened action resolution and conversation prompts with CRITICAL rule and WRONG/CORRECT examples"
     },
     {
       "id": "US-004",

@@ -34,3 +34,14 @@
 
 ---
 
+## 2026-02-14 - US-003
+- What was implemented: Added explicit instructions to prevent narrator from repeating NPC dialog
+- Files changed:
+  - src/world/gptService.ts - Added "IMPORTANT DIALOG RULES" section to NARRATOR_PERSONALITY, strengthened action resolution RULES with CRITICAL DIALOG RULE including WRONG/CORRECT examples, updated conversation RULES to emphasize dialog appears only in npcResponse
+- **Learnings for future iterations:**
+  - The NARRATOR_PERSONALITY constant affects ALL prompts globally, so it's the best place for universal rules
+  - Using explicit WRONG/CORRECT examples in prompts helps GPT understand the desired behavior better than just negative instructions
+  - The conversation system uses separate fields: npcResponse for dialog, narratorFrame for description - reinforcing this separation in rules prevents redundancy
+
+---
+
