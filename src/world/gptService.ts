@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction, Location, NPC } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -1019,6 +1019,225 @@ export interface GeneratedNPCData {
  * @param locationId - Optional specific location to place the NPC (defaults to player's current location)
  * @returns A complete NPC object ready to be added to worldState
  */
+// JSON Schema for conversation response from GPT
+const CONVERSATION_RESPONSE_SCHEMA = {
+  type: "object",
+  properties: {
+    npcResponse: {
+      type: "string",
+      description: "The NPC's spoken response in their voice and manner",
+    },
+    npcInternalThought: {
+      type: "string",
+      description: "What the NPC is thinking but not saying (for narrator color)",
+    },
+    attitudeChange: {
+      type: "number",
+      description: "How much the NPC's attitude toward player changed (-20 to +20, usually -5 to +5)",
+    },
+    topicsDiscussed: {
+      type: "array",
+      items: { type: "string" },
+      description: "Key topics or questions the player asked about",
+    },
+    informationRevealed: {
+      type: "array",
+      items: { type: "string" },
+      description: "New information the NPC revealed (locations, people, lore)",
+    },
+    conversationSummary: {
+      type: "string",
+      description: "Brief summary of this exchange for memory (1-2 sentences)",
+    },
+    suggestsEndConversation: {
+      type: "boolean",
+      description: "Whether the NPC wants to end the conversation",
+    },
+    narratorFrame: {
+      type: "string",
+      description: "Optional narrator commentary before/after the NPC speaks (in chaotic trickster voice)",
+    },
+  },
+  required: [
+    "npcResponse",
+    "npcInternalThought",
+    "attitudeChange",
+    "topicsDiscussed",
+    "informationRevealed",
+    "conversationSummary",
+    "suggestsEndConversation",
+    "narratorFrame",
+  ],
+  additionalProperties: false,
+};
+
+export interface ConversationResponse {
+  npcResponse: string;
+  npcInternalThought: string;
+  attitudeChange: number;
+  topicsDiscussed: string[];
+  informationRevealed: string[];
+  conversationSummary: string;
+  suggestsEndConversation: boolean;
+  narratorFrame: string;
+}
+
+export interface ConversationResult {
+  narrative: string; // Full narrative including narrator framing and NPC dialogue
+  npcResponse: string; // Just the NPC's spoken words
+  attitudeChange: number;
+  newKnowledge: string[];
+  conversationSummary: string;
+  suggestsEndConversation: boolean;
+}
+
+/**
+ * Handle an extended conversation with an NPC.
+ * Uses the NPC's soul instruction and past conversation history to generate
+ * contextually appropriate, personality-consistent responses.
+ *
+ * @param worldState - Current world state
+ * @param npcId - ID of the NPC being spoken to
+ * @param playerMessage - What the player says to the NPC
+ * @returns ConversationResult with narrative, response, and state changes
+ */
+export async function handleConversation(
+  worldState: WorldState,
+  npcId: string,
+  playerMessage: string
+): Promise<ConversationResult> {
+  const npc = worldState.npcs[npcId];
+
+  if (!npc) {
+    throw new Error(`handleConversation: NPC not found: ${npcId}`);
+  }
+
+  if (!npc.isAlive) {
+    throw new Error(`handleConversation: Cannot talk to dead NPC: ${npc.name}`);
+  }
+
+  // Check if NPC is present at player's location
+  const playerLocation = worldState.locations[worldState.player.currentLocationId];
+  if (!playerLocation?.presentNpcIds.includes(npcId)) {
+    throw new Error(`handleConversation: NPC ${npc.name} is not present at current location`);
+  }
+
+  // Build conversation context from past conversations with this NPC
+  const pastConversations = npc.conversationHistory.slice(-5); // Last 5 conversations
+  const conversationHistoryContext = pastConversations.length > 0
+    ? `PAST CONVERSATIONS WITH ${npc.name.toUpperCase()}:
+${pastConversations
+  .map((conv, index) => {
+    const actionsAgo = worldState.actionCounter - conv.actionNumber;
+    return `[${actionsAgo} actions ago] ${conv.summary}${conv.playerAsked?.length ? ` Player asked about: ${conv.playerAsked.join(", ")}` : ""}${conv.npcRevealed?.length ? ` ${npc.name} revealed: ${conv.npcRevealed.join(", ")}` : ""}`;
+  })
+  .join("\n")}`
+    : `PAST CONVERSATIONS: None - this is the first conversation with ${npc.name}`;
+
+  // Build player context
+  const playerKnownAs = npc.playerNameKnown
+    ? `The NPC knows the player as "${npc.playerNameKnown}".`
+    : "The NPC does not know the player's name yet.";
+
+  // Attitude description
+  const attitudeDesc =
+    npc.attitude >= 70
+      ? "very friendly and warm"
+      : npc.attitude >= 40
+        ? "friendly and receptive"
+        : npc.attitude >= 10
+          ? "neutral and businesslike"
+          : npc.attitude >= -30
+            ? "wary and guarded"
+            : "hostile and distrustful";
+
+  // Build context about what's happening
+  const locationContext = `LOCATION: ${playerLocation.name} - ${playerLocation.description}`;
+
+  // Recent events for context
+  const recentEvents = worldState.eventHistory
+    .slice(-3)
+    .filter((e) => e.involvedNpcIds.includes(npcId) || e.locationId === playerLocation.id)
+    .map((e) => e.description)
+    .join(" ");
+
+  const systemPrompt = `You are roleplaying as ${npc.name} in a fantasy medieval RPG.
+
+CHARACTER SOUL (this is who you ARE - follow this exactly):
+${npc.soulInstruction}
+
+CURRENT STATE:
+- ${npc.name} is ${attitudeDesc} toward the player (attitude: ${npc.attitude}/100)
+- ${playerKnownAs}
+- Physical description: ${npc.physicalDescription}
+- Current health: ${npc.stats.health}/${npc.stats.maxHealth}
+
+WHAT ${npc.name.toUpperCase()} KNOWS:
+${npc.knowledge.length > 0 ? npc.knowledge.join("\n") : "Nothing notable beyond common knowledge"}
+
+${conversationHistoryContext}
+
+${locationContext}
+
+${recentEvents ? `RECENT EVENTS: ${recentEvents}` : ""}
+
+CONVERSATION RULES:
+1. Stay COMPLETELY in character based on the soul instruction
+2. Use the speech patterns described in the soul instruction
+3. Only reveal information that ${npc.name} would actually know
+4. Attitude change should be small (-5 to +5 typically, up to ±20 for major events)
+5. If the player asks about something ${npc.name} doesn't know, admit ignorance or deflect naturally
+6. If the player is rude or threatening, respond according to ${npc.name}'s personality
+7. Animals cannot speak (isAnimal: ${npc.isAnimal}) - they communicate through actions/sounds
+8. The narrator (narratorFrame) provides witty commentary in chaotic trickster voice
+9. Don't repeat the player's words back to them
+10. Be concise - tavern conversations are typically brief exchanges
+
+RESPONSE STRUCTURE:
+- npcResponse: What ${npc.name} actually says OUT LOUD (dialogue only)
+- npcInternalThought: What they're thinking but not saying
+- narratorFrame: Brief narrator commentary (can be empty string if not needed)
+- conversationSummary: Brief summary for memory (1-2 sentences)`;
+
+  const userPrompt = `The player says to ${npc.name}: "${playerMessage}"
+
+Generate ${npc.name}'s response, staying true to their soul instruction and current attitude.`;
+
+  const response = await callGPT<ConversationResponse>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: CONVERSATION_RESPONSE_SCHEMA,
+    maxTokens: 1200,
+  });
+
+  const data = response.content;
+
+  // Build the full narrative with narrator framing
+  let narrative = "";
+
+  if (data.narratorFrame) {
+    narrative += data.narratorFrame + "\n\n";
+  }
+
+  // Add NPC's spoken response with attribution
+  narrative += `${npc.name} says, "${data.npcResponse}"`;
+
+  // Clamp attitude change to reasonable bounds
+  const clampedAttitudeChange = Math.max(-20, Math.min(20, data.attitudeChange));
+
+  // Convert revealed information to knowledge strings
+  const newKnowledge = data.informationRevealed.filter((info) => info.length > 0);
+
+  return {
+    narrative,
+    npcResponse: data.npcResponse,
+    attitudeChange: clampedAttitudeChange,
+    newKnowledge,
+    conversationSummary: data.conversationSummary,
+    suggestsEndConversation: data.suggestsEndConversation,
+  };
+}
+
 export async function generateNPC(
   worldState: WorldState,
   context: string,
