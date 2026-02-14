@@ -31,8 +31,8 @@
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Updated all GPT prompts to use 'adventurer' instead of 'player', added explicit instructions to never use 'player'"
     },
     {
       "id": "US-003",

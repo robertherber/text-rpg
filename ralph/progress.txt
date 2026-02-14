@@ -23,3 +23,14 @@
 
 ---
 
+## 2026-02-14 - US-002
+- What was implemented: Updated all GPT prompts to use immersive terminology ("adventurer", "traveler", "hero") instead of "player"
+- Files changed:
+  - src/world/gptService.ts - Updated NARRATOR_PERSONALITY, conversation system prompt, action resolution system prompt, rejection prompt, suggested actions prompt, location generation, world simulation, travel narratives, crafting/building prompts, and character creation prompts
+- **Learnings for future iterations:**
+  - The NARRATOR_PERSONALITY constant is prepended to all system prompts via `callGPT()`, so adding global instructions there affects all GPT outputs
+  - State change type names like `move_player`, `player_damage` are code identifiers and should NOT be changed - only narrative text should use "adventurer"
+  - Many prompts had "player" references that needed updating: action resolution, conversation, rejection, suggestions, travel, crafting, building, character creation, world simulation
+
+---
+
