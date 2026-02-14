@@ -540,70 +540,89 @@ body {
   align-items: center;
   justify-content: center;
   overflow: auto;
-  background: var(--bg-primary);
+  background: linear-gradient(
+    135deg,
+    #c9b896 0%,
+    #d4c4a8 25%,
+    #c4b39a 50%,
+    #b8a88c 75%,
+    #c9b896 100%
+  );
   border-radius: 0.5rem;
-  border: 1px solid var(--border-color);
+  border: 2px solid #8b7355;
+  box-shadow:
+    inset 0 2px 8px rgba(92, 77, 61, 0.3),
+    0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
 .map-canvas {
   display: block;
+  border-radius: 0.25rem;
 }
 
-/* Map tooltip */
+/* Map tooltip - parchment style */
 .map-tooltip {
   position: absolute;
   top: 1rem;
   right: 1rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--accent-gold);
+  background: linear-gradient(135deg, #e8dcc8 0%, #d4c4a8 100%);
+  border: 2px solid #8b7355;
   border-radius: 0.5rem;
   padding: 0.75rem 1rem;
   min-width: 150px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow:
+    0 4px 12px rgba(0, 0, 0, 0.3),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .tooltip-name {
-  color: var(--accent-gold);
+  color: #5c4d3d;
   font-size: 1rem;
   font-weight: bold;
   margin-bottom: 0.25rem;
 }
 
 .tooltip-terrain {
-  color: var(--text-primary);
+  color: #4a3a2a;
   font-size: 0.9rem;
   text-transform: capitalize;
 }
 
 .tooltip-coords {
-  color: var(--text-secondary);
+  color: #6b5a4a;
   font-size: 0.8rem;
   margin-top: 0.25rem;
 }
 
 .tooltip-current {
-  color: var(--accent-green);
+  color: #2d5a27;
   font-size: 0.8rem;
   font-style: italic;
   margin-top: 0.25rem;
 }
 
-/* Map legend */
+/* Map legend - parchment style */
 .map-legend {
   position: absolute;
   bottom: 1rem;
   left: 1rem;
-  background: var(--bg-tertiary);
-  border: 1px solid var(--border-color);
+  background: linear-gradient(135deg, #e8dcc8 0%, #d4c4a8 100%);
+  border: 2px solid #8b7355;
   border-radius: 0.5rem;
   padding: 0.5rem 0.75rem;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.2),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
 }
 
 .legend-title {
-  color: var(--accent-gold);
+  color: #5c4d3d;
   font-size: 0.75rem;
   font-variant: small-caps;
+  font-weight: bold;
   margin-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(92, 77, 61, 0.3);
+  padding-bottom: 0.25rem;
 }
 
 .legend-items {
@@ -617,7 +636,7 @@ body {
   align-items: center;
   gap: 0.4rem;
   font-size: 0.7rem;
-  color: var(--text-secondary);
+  color: #4a3a2a;
   text-transform: capitalize;
 }
 
@@ -625,7 +644,8 @@ body {
   width: 12px;
   height: 12px;
   border-radius: 3px;
-  border: 1px solid var(--border-color);
+  border: 1px solid #8b7355;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
 }
 
 /* Journal panel */
