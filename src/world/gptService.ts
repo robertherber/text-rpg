@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -1478,6 +1478,250 @@ Generate believable world changes and describe them in an atmospheric narrative.
   });
 
   return response.content;
+}
+
+// JSON Schema for new character generation response from GPT
+const NEW_CHARACTER_SCHEMA = {
+  type: "object",
+  properties: {
+    name: {
+      type: "string",
+      description: "The character's name (can be a full name or just a first name)",
+    },
+    physicalDescription: {
+      type: "string",
+      description: "Detailed physical appearance for image generation (hair, build, clothing, distinguishing features)",
+    },
+    origin: {
+      type: "string",
+      description: "A brief description of where the character comes from (e.g., 'a small fishing village to the south', 'the streets of a distant city')",
+    },
+    hiddenBackstory: {
+      type: "string",
+      description: "A hidden backstory paragraph (4-6 sentences) containing secrets, past events, and connections that can be revealed through flashbacks during gameplay",
+    },
+    startingNarrative: {
+      type: "string",
+      description: "An atmospheric narrator introduction (2-4 sentences) in chaotic trickster voice describing how this new hero arrives in Millbrook",
+    },
+    knownLore: {
+      type: "array",
+      items: { type: "string" },
+      description: "1-3 pieces of lore the character would know from their background",
+    },
+    connectionToFallenHeroes: {
+      type: "string",
+      description: "If there are deceased heroes, a brief description of any connection this character has to them (or empty string if none)",
+    },
+  },
+  required: [
+    "name",
+    "physicalDescription",
+    "origin",
+    "hiddenBackstory",
+    "startingNarrative",
+    "knownLore",
+    "connectionToFallenHeroes",
+  ],
+  additionalProperties: false,
+};
+
+export interface GeneratedCharacterData {
+  name: string;
+  physicalDescription: string;
+  origin: string;
+  hiddenBackstory: string;
+  startingNarrative: string;
+  knownLore: string[];
+  connectionToFallenHeroes: string;
+}
+
+export interface NewCharacterResult {
+  player: Player;
+  narrative: string;
+  npcUpdates: Array<{ npcId: string; newKnowledge: string[] }>;
+}
+
+/**
+ * Generate a new character after player death.
+ *
+ * GPT generates an origin story based on player input. The new character starts
+ * with fresh stats and empty inventory, and player knowledge resets to the
+ * starting location only. NPCs who knew the previous character may reference them.
+ *
+ * @param worldState - The current world state (should already have death processed via handlePlayerDeath)
+ * @param backstoryInput - Player's input about their character's background/hints
+ * @returns NewCharacterResult with the new Player object, narrative, and any NPC knowledge updates
+ */
+export async function generateNewCharacter(
+  worldState: WorldState,
+  backstoryInput: string
+): Promise<NewCharacterResult> {
+  // Gather info about deceased heroes for potential connections
+  const deceasedHeroes = worldState.deceasedHeroes;
+  const recentDeceasedHeroes = deceasedHeroes.slice(-3); // Last 3 fallen heroes
+
+  // Find NPCs who knew previous heroes
+  const npcsWhoKnewHeroes: Array<{ npc: NPC; knewHeroNames: string[] }> = [];
+  for (const hero of deceasedHeroes) {
+    for (const npcId of hero.knownByNpcIds) {
+      const npc = worldState.npcs[npcId];
+      if (npc && npc.isAlive) {
+        const existing = npcsWhoKnewHeroes.find((entry) => entry.npc.id === npcId);
+        if (existing) {
+          if (hero.name && !existing.knewHeroNames.includes(hero.name)) {
+            existing.knewHeroNames.push(hero.name);
+          }
+        } else {
+          npcsWhoKnewHeroes.push({
+            npc,
+            knewHeroNames: hero.name ? [hero.name] : [],
+          });
+        }
+      }
+    }
+  }
+
+  // Get the starting location info
+  const startingLocation = worldState.locations["loc_millbrook_square"] ||
+    worldState.locations["loc_village_square"] ||
+    Object.values(worldState.locations).find((loc) => loc.terrain === "village");
+
+  const startingLocationId = startingLocation?.id || "loc_village_square";
+  const startingLocationName = startingLocation?.name || "Millbrook Village Square";
+
+  // Build context about the world for GPT
+  const deceasedHeroesContext = recentDeceasedHeroes.length > 0
+    ? `FALLEN HEROES (your character may have heard of them or have connections):
+${recentDeceasedHeroes.map((hero) => `- ${hero.name || "Unknown Hero"}: ${hero.deathDescription}. Notable deeds: ${hero.majorDeeds.slice(0, 3).join("; ") || "none recorded"}. Died at ${worldState.locations[hero.deathLocationId]?.name || "unknown location"}.`).join("\n")}`
+    : "No fallen heroes in this world yet - you are among the first adventurers.";
+
+  const systemPrompt = `You are creating a new character for a fantasy medieval RPG after the previous character died.
+
+The player wants to create a new character and has provided some hints about their background.
+
+WORLD CONTEXT:
+- Setting: High fantasy medieval world
+- Starting location: ${startingLocationName} - a modest village at the edge of civilization
+- The world persists - NPCs remember previous heroes who fell
+
+${deceasedHeroesContext}
+
+CHARACTER CREATION RULES:
+1. Build upon the player's backstory hints to create a coherent character
+2. Name should fit high fantasy medieval setting
+3. Physical description should be vivid and distinctive for image generation
+4. Origin should explain where they come from and hint at why they're in Millbrook
+5. Hidden backstory should contain secrets that can be revealed through gameplay (lost memories, hidden powers, mysterious connections)
+6. Starting narrative should be in chaotic trickster narrator voice, describing their arrival
+7. If deceased heroes exist, consider creating a connection (relative seeking vengeance, someone who heard tales, etc.) - but only if it makes narrative sense
+8. Keep it high fantasy - no modern or sci-fi elements
+
+IMPORTANT:
+- The hiddenBackstory should NOT be immediately obvious - it's meant to be revealed through flashbacks
+- The character should feel fresh but connected to the persistent world
+- The knownLore should be things the character would reasonably know from their background`;
+
+  const userPrompt = `Create a new character based on the player's background hints:
+
+"${backstoryInput || "A traveler seeking adventure"}"
+
+Generate a complete character with name, appearance, origin, hidden backstory, and a dramatic arrival narrative in Millbrook.`;
+
+  const response = await callGPT<GeneratedCharacterData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: NEW_CHARACTER_SCHEMA,
+    maxTokens: 1500,
+  });
+
+  const characterData = response.content;
+
+  // Get starting location knowledge (all village locations)
+  const villageLocations = Object.values(worldState.locations)
+    .filter((loc) => loc.terrain === "village" || loc.id === startingLocationId)
+    .map((loc) => loc.id);
+
+  // Find NPCs visible at starting location
+  const visibleNpcs = startingLocation?.presentNpcIds
+    .filter((npcId) => {
+      const npc = worldState.npcs[npcId];
+      return npc && npc.isAlive;
+    }) || [];
+
+  // Create the new player
+  const newPlayer: Player = {
+    name: characterData.name,
+    physicalDescription: characterData.physicalDescription,
+    hiddenBackstory: characterData.hiddenBackstory,
+    revealedBackstory: [],
+    origin: characterData.origin,
+    currentLocationId: startingLocationId,
+    homeLocationId: undefined,
+    health: 100,
+    maxHealth: 100,
+    strength: 10,
+    defense: 10,
+    magic: 5,
+    level: 1,
+    experience: 0,
+    gold: 25, // Small starting gold
+    inventory: [],
+    companionIds: [],
+    knowledge: {
+      locations: villageLocations,
+      npcs: visibleNpcs,
+      lore: [
+        "Millbrook is a small village at the edge of the known world.",
+        ...characterData.knownLore,
+      ],
+      recipes: [],
+      skills: {},
+    },
+    behaviorPatterns: {
+      combat: 0,
+      diplomacy: 0,
+      exploration: 0,
+      social: 0,
+      stealth: 0,
+      magic: 0,
+    },
+    transformations: [],
+    curses: [],
+    blessings: [],
+    marriedToNpcId: undefined,
+    childrenNpcIds: [],
+  };
+
+  // Prepare NPC updates - add knowledge about the new hero to NPCs who knew fallen heroes
+  // This lets them potentially reference the connection
+  const npcUpdates: Array<{ npcId: string; newKnowledge: string[] }> = [];
+
+  if (characterData.connectionToFallenHeroes && characterData.connectionToFallenHeroes.length > 0) {
+    for (const { npc, knewHeroNames } of npcsWhoKnewHeroes) {
+      if (knewHeroNames.length > 0) {
+        npcUpdates.push({
+          npcId: npc.id,
+          newKnowledge: [
+            `A new traveler named ${characterData.name} has arrived. ${characterData.connectionToFallenHeroes}`,
+          ],
+        });
+      }
+    }
+  }
+
+  // Build the full narrative
+  let narrative = characterData.startingNarrative;
+
+  if (characterData.connectionToFallenHeroes && characterData.connectionToFallenHeroes.length > 0) {
+    narrative += `\n\n${characterData.connectionToFallenHeroes}`;
+  }
+
+  return {
+    player: newPlayer,
+    narrative,
+    npcUpdates,
+  };
 }
 
 export async function generateNPC(
