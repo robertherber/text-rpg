@@ -4,6 +4,7 @@ import StoryPanel, { type StoryMessage } from "./StoryPanel";
 import ActionPanel, { type SuggestedAction } from "./ActionPanel";
 import ImagePanel from "./ImagePanel";
 import MapPanel from "./MapPanel";
+import JournalPanel from "./JournalPanel";
 
 // Types for world state data
 interface WorldLocation {
@@ -277,11 +278,9 @@ export default function WorldApp() {
             <MapPanel />
           )}
 
-          {/* Journal panel placeholder */}
+          {/* Journal panel */}
           {activePanel === "journal" && (
-            <div className="journal-panel">
-              <p className="placeholder-text">Journal coming soon...</p>
-            </div>
+            <JournalPanel />
           )}
         </section>
 

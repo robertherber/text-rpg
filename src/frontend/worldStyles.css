@@ -401,6 +401,249 @@ body {
   justify-content: center;
 }
 
+.journal-panel.journal-content {
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.journal-loading,
+.journal-error {
+  flex-direction: column;
+  gap: 1rem;
+  color: var(--text-secondary);
+}
+
+.journal-error button {
+  padding: 0.5rem 1rem;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--accent-gold);
+  border-radius: 0.5rem;
+  color: var(--accent-gold);
+  cursor: pointer;
+  font-family: inherit;
+}
+
+/* Journal tabs */
+.journal-tabs {
+  display: flex;
+  background: var(--bg-primary);
+  border-bottom: 1px solid var(--border-color);
+  padding: 0.5rem;
+  gap: 0.5rem;
+}
+
+.journal-tab {
+  flex: 1;
+  padding: 0.5rem 0.75rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-family: inherit;
+  font-size: 0.85rem;
+  transition: all 0.2s ease;
+}
+
+.journal-tab:hover {
+  color: var(--text-primary);
+  background: var(--bg-tertiary);
+}
+
+.journal-tab.active {
+  color: var(--accent-gold);
+  background: var(--bg-tertiary);
+  border-color: var(--accent-gold);
+}
+
+.quest-count {
+  display: inline-block;
+  background: var(--accent-gold);
+  color: var(--bg-primary);
+  font-size: 0.7rem;
+  font-weight: bold;
+  padding: 0.1rem 0.4rem;
+  border-radius: 10px;
+  margin-left: 0.4rem;
+}
+
+/* Journal section content */
+.journal-section {
+  flex: 1;
+  padding: 1rem;
+  overflow-y: auto;
+}
+
+.journal-empty {
+  color: var(--text-secondary);
+  font-style: italic;
+  text-align: center;
+  padding: 2rem 1rem;
+}
+
+/* Quest styles */
+.quest-category {
+  margin-bottom: 1.5rem;
+}
+
+.category-title {
+  color: var(--accent-gold);
+  font-size: 0.9rem;
+  font-variant: small-caps;
+  margin-bottom: 0.75rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+}
+
+.quest-item {
+  background: var(--bg-tertiary);
+  border-radius: 0.5rem;
+  padding: 0.75rem 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.quest-item.active-quest {
+  border-left: 3px solid var(--accent-gold);
+}
+
+.quest-item.completed-quest {
+  border-left: 3px solid var(--accent-green);
+  opacity: 0.8;
+}
+
+.quest-item.failed-quest {
+  border-left: 3px solid var(--accent-red);
+  opacity: 0.7;
+}
+
+.quest-title {
+  color: var(--text-primary);
+  font-size: 0.95rem;
+  margin-bottom: 0.25rem;
+}
+
+.quest-description {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+.quest-objectives {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.quest-objective {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  padding: 0.25rem 0;
+}
+
+.quest-objective.completed {
+  color: var(--accent-green);
+  text-decoration: line-through;
+  opacity: 0.8;
+}
+
+.objective-marker {
+  font-weight: bold;
+  width: 1rem;
+  flex-shrink: 0;
+}
+
+.quest-rewards {
+  color: var(--accent-gold);
+  font-size: 0.8rem;
+  margin-top: 0.5rem;
+}
+
+.rewards-label {
+  font-weight: bold;
+}
+
+/* Lore styles */
+.lore-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.lore-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--bg-tertiary);
+}
+
+.lore-marker {
+  color: var(--accent-gold);
+  flex-shrink: 0;
+}
+
+/* Fallen heroes styles */
+.heroes-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.hero-memorial {
+  background: var(--bg-tertiary);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  border-left: 3px solid var(--accent-red);
+}
+
+.hero-name {
+  color: var(--accent-gold);
+  font-size: 1rem;
+  margin-bottom: 0.25rem;
+}
+
+.hero-origin {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  margin-bottom: 0.5rem;
+}
+
+.hero-death {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-bottom: 0.5rem;
+}
+
+.hero-deeds {
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.deeds-label {
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+.hero-deeds ul {
+  margin: 0.25rem 0 0 1rem;
+  padding: 0;
+}
+
+.hero-deeds li {
+  color: var(--text-secondary);
+  margin-bottom: 0.25rem;
+}
+
 .placeholder-text {
   color: var(--text-secondary);
   font-style: italic;
