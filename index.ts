@@ -11,7 +11,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge } from "./src/world/stateManager";
 import type { SuggestedAction } from "./src/world/types";
 
@@ -374,6 +374,143 @@ const server = Bun.serve({
           initiatesCombat: actionResult.initiatesCombat,
           revealsFlashback: actionResult.revealsFlashback,
         });
+      },
+    },
+
+    // Talk to an NPC with conversation memory
+    "/api/world/talk": {
+      POST: async (req) => {
+        const body = await req.json() as { npcId?: string; message?: string };
+        const { npcId, message } = body;
+
+        // Validate input
+        if (!npcId || typeof npcId !== "string") {
+          return Response.json(
+            { error: "npcId is required" },
+            { status: 400 }
+          );
+        }
+
+        if (!message || typeof message !== "string" || message.trim().length === 0) {
+          return Response.json(
+            { error: "message is required and must be a non-empty string" },
+            { status: 400 }
+          );
+        }
+
+        // Check NPC exists
+        const npc = worldState.npcs[npcId];
+        if (!npc) {
+          return Response.json(
+            { error: "NPC not found" },
+            { status: 404 }
+          );
+        }
+
+        // Check NPC is alive
+        if (!npc.isAlive) {
+          return Response.json(
+            { error: `Cannot talk to ${npc.name} - they are no longer alive` },
+            { status: 400 }
+          );
+        }
+
+        // Check NPC is at current location
+        const currentLocation = worldState.locations[worldState.player.currentLocationId];
+        if (!currentLocation?.presentNpcIds.includes(npcId)) {
+          return Response.json(
+            { error: `${npc.name} is not here` },
+            { status: 400 }
+          );
+        }
+
+        try {
+          // Handle the conversation
+          const conversationResult = await handleConversation(
+            worldState,
+            npcId,
+            message.trim()
+          );
+
+          // Update NPC's conversation history
+          const newConversationEntry = {
+            actionNumber: worldState.actionCounter,
+            summary: conversationResult.conversationSummary,
+            playerAsked: [message.trim()],
+            npcRevealed: conversationResult.newKnowledge,
+          };
+
+          const updatedConversationHistory = [
+            ...npc.conversationHistory,
+            newConversationEntry,
+          ];
+
+          // Calculate new attitude (clamped to -100 to 100)
+          const newAttitude = Math.max(
+            -100,
+            Math.min(100, npc.attitude + conversationResult.attitudeChange)
+          );
+
+          // Update NPC in world state
+          worldState = {
+            ...worldState,
+            npcs: {
+              ...worldState.npcs,
+              [npcId]: {
+                ...npc,
+                conversationHistory: updatedConversationHistory,
+                attitude: newAttitude,
+              },
+            },
+          };
+
+          // Add new knowledge to player if any was revealed
+          if (conversationResult.newKnowledge.length > 0) {
+            const updatedLore = [
+              ...worldState.player.knowledge.lore,
+              ...conversationResult.newKnowledge.filter(
+                (k) => !worldState.player.knowledge.lore.includes(k)
+              ),
+            ];
+
+            worldState = {
+              ...worldState,
+              player: {
+                ...worldState.player,
+                knowledge: {
+                  ...worldState.player.knowledge,
+                  lore: updatedLore,
+                },
+              },
+            };
+          }
+
+          // Increment action counter
+          worldState = {
+            ...worldState,
+            actionCounter: worldState.actionCounter + 1,
+          };
+
+          // Save the updated world state
+          await saveWorldState(worldState);
+
+          return Response.json({
+            narrative: conversationResult.narrative,
+            npcResponse: conversationResult.npcResponse,
+            npcName: npc.name,
+            attitudeChange: conversationResult.attitudeChange,
+            newAttitude,
+            suggestsEndConversation: conversationResult.suggestsEndConversation,
+            newKnowledge: conversationResult.newKnowledge,
+          });
+        } catch (error) {
+          // Handle errors from handleConversation
+          const errorMessage = error instanceof Error ? error.message : "Conversation failed";
+          return Response.json(
+            { error: errorMessage },
+            { status: 500 }
+          );
+        }
       },
     },
   },
