@@ -698,3 +698,20 @@
   - Use non-null assertions (`!`) after checking existence to satisfy TypeScript (e.g., `newLocations[homeLocationId]!.presentNpcIds`)
   - Pre-existing type errors in stateManager.ts (lines 305-361) are documented in Codebase Patterns
 ---
+
+## 2026-02-14 - US-047
+- What was implemented: Added crafting resolution to GPT service
+- Files changed:
+  - src/world/gptService.ts (modified - added handleCrafting function, CraftingResult interface, CRAFTING_RESULT_SCHEMA)
+- **Learnings for future iterations:**
+  - `handleCrafting(worldState, description)` returns `CraftingResult` with success, narrative, craftedItem, materialsConsumed, stateChanges, and skillImprovement
+  - GPT schema uses `isFeasible` boolean to branch between successful crafting and playful rejection
+  - Crafting context includes: player inventory with item IDs (critical for material consumption), known recipes, crafting skills, location context, and available crafting structures
+  - Materials consumed by returning item IDs in `materialsUsed` array - caller must apply `remove_item` state changes
+  - `narrativeRejection` is only populated if `isFeasible=false` - provides chaotic trickster rejections with hints
+  - `narrativeSuccess` describes the crafting process dramatically when successful
+  - Crafted item value reflects complexity and skill level (simple 5-50g, medium 50-200g, complex 200+g)
+  - Skill improvement can be tracked via `add_knowledge` state change with `skill` and `skillLevel` fields
+  - Location structures like forges, anvils, alchemy tables affect what can be crafted
+  - Function is generous but logical - leather scraps can make pouches, bones can make tools
+---
