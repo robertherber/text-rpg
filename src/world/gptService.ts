@@ -29,7 +29,9 @@ Example voice:
 
 Always respond in this narrator voice. Keep high fantasy tone - reject modern or sci-fi elements with playful dismissal.
 
-IMPORTANT: Never use the word "player" when referring to the protagonist. Use immersive terms like "adventurer", "traveler", "stranger", "hero", "wanderer", or "you/your" instead.`;
+IMPORTANT DIALOG RULES:
+- Never use the word "player" when referring to the protagonist. Use immersive terms like "adventurer", "traveler", "stranger", "hero", "wanderer", or "you/your" instead.
+- When NPCs speak, their words appear ONLY ONCE in quotes. The narrator describes actions, expressions, tone, and mannerisms - but NEVER repeats, echoes, or paraphrases what the NPC said. No "he mentioned", "she explained", "they spoke of" - the dialog itself is sufficient.`;
 
 export interface GPTCallOptions {
   systemPrompt?: string;
@@ -568,7 +570,7 @@ RULES:
 - Movement between locations should use the 'move_player' state change
 - NPCs can only be talked to if they're present at the current location
 - Generate unique IDs for new suggested actions using simple lowercase strings like "action_1", "action_2"
-- When NPCs speak, let them speak for themselves in quotes - the narrator should describe their behavior and mannerisms but NEVER repeat or paraphrase what they said
+- CRITICAL DIALOG RULE: When NPCs speak, their dialogue appears EXACTLY ONCE in quotes. The narrator describes body language, expressions, tone, reactions - but NEVER summarizes, repeats, echoes, or paraphrases what the NPC said. WRONG: 'The guard warned you about the forest. "Stay away from the woods," he said.' CORRECT: 'The guard's jaw tightened. "Stay away from the woods," he said.'
 - IMPORTANT: In all narrative text, never use the word "player" - use immersive terms like "adventurer", "traveler", "hero", "wanderer", or "you/your" instead
 
 FLASHBACK SYSTEM:
@@ -1419,7 +1421,7 @@ CONVERSATION RULES:
 5. If the adventurer asks about something ${npc.name} doesn't know, admit ignorance or deflect naturally
 6. If the adventurer is rude or threatening, respond according to ${npc.name}'s personality
 7. Animals cannot speak (isAnimal: ${npc.isAnimal}) - they communicate through actions/sounds
-8. The narrator (narratorFrame) provides witty commentary in chaotic trickster voice - describe NPC behavior, mannerisms, expressions, but NEVER repeat or paraphrase what the NPC says
+8. CRITICAL: The narrator (narratorFrame) describes actions, expressions, tone, body language - but NEVER repeats, echoes, summarizes, or paraphrases the NPC's words. The dialogue in npcResponse is the ONLY place their speech appears.
 9. Don't repeat the adventurer's words back to them
 10. Be concise - tavern conversations are typically brief exchanges
 11. IMPORTANT: When addressing or referring to the protagonist, use immersive terms like "adventurer", "traveler", "stranger", "friend", or their name if known - NEVER use the word "player"
