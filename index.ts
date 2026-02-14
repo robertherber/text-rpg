@@ -11,7 +11,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
@@ -667,6 +667,105 @@ const server = Bun.serve({
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Character creation failed";
+          return Response.json(
+            { error: errorMessage },
+            { status: 500 }
+          );
+        }
+      },
+    },
+
+    // Fast travel to a known location with potential encounters
+    "/api/world/travel": {
+      POST: async (req) => {
+        const body = await req.json() as { destinationId?: string };
+        const { destinationId } = body;
+
+        // Validate input
+        if (!destinationId || typeof destinationId !== "string") {
+          return Response.json(
+            { error: "destinationId is required" },
+            { status: 400 }
+          );
+        }
+
+        // Check destination exists
+        const destination = worldState.locations[destinationId];
+        if (!destination) {
+          return Response.json(
+            { error: "Destination not found" },
+            { status: 404 }
+          );
+        }
+
+        // Validate destination is in player knowledge
+        const playerKnowledge = worldState.player.knowledge;
+        const knowsDestination = playerKnowledge.locations.some(
+          (knownLoc) =>
+            knownLoc === destinationId ||
+            knownLoc.toLowerCase() === destination.name.toLowerCase()
+        );
+
+        if (!knowsDestination) {
+          // Generate a playful rejection narrative
+          const rejection = await generateNarratorRejection(
+            [destination.name],
+            `travel to ${destination.name}`
+          );
+
+          // Generate new suggested actions
+          const suggestedActions = await generateSuggestedActions(worldState);
+          lastSuggestedActions = suggestedActions;
+
+          return Response.json({
+            narrative: rejection,
+            suggestedActions,
+            knowledgeRejection: true,
+            unknownDestination: destinationId,
+          });
+        }
+
+        try {
+          // Handle the travel with potential encounters
+          const travelResult = await handleTravel(worldState, destinationId);
+
+          // Apply state changes from travel
+          worldState = applyStateChanges(worldState, travelResult.stateChanges as any);
+
+          // Increment action counter
+          worldState = {
+            ...worldState,
+            actionCounter: worldState.actionCounter + 1,
+          };
+
+          // Save the updated world state
+          await saveWorldState(worldState);
+
+          // Generate new suggested actions based on final location
+          const suggestedActions = await generateSuggestedActions(worldState);
+          lastSuggestedActions = suggestedActions;
+
+          // Pre-generate images for movement destinations in background (non-blocking)
+          preGenerateImagesForDestinations(worldState, suggestedActions);
+
+          // Get final location details
+          const finalLocation = worldState.locations[travelResult.finalLocationId];
+
+          return Response.json({
+            narrative: travelResult.narrative,
+            arrived: travelResult.arrived,
+            finalLocation: finalLocation ? {
+              id: finalLocation.id,
+              name: finalLocation.name,
+              description: finalLocation.description,
+              terrain: finalLocation.terrain,
+              coordinates: finalLocation.coordinates,
+            } : null,
+            encounter: travelResult.encounter,
+            suggestedActions,
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Travel failed";
           return Response.json(
             { error: errorMessage },
             { status: 500 }
