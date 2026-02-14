@@ -662,3 +662,23 @@
   - Pre-existing DOM lib errors (same as other frontend files) are unchanged
   - Stats update automatically via React re-render when worldState changes
 ---
+
+## 2026-02-14 - US-045
+- What was implemented: Created inventory panel component for viewing and managing player inventory
+- Files changed:
+  - src/frontend/InventoryPanel.tsx (created - reusable inventory panel component)
+  - src/frontend/WorldApp.tsx (modified - integrated InventoryPanel, added handleUseItem function)
+  - src/frontend/worldStyles.css (modified - added inventory panel styles)
+  - index.ts (modified - added inventory array to playerStats in /api/world/state response)
+- **Learnings for future iterations:**
+  - InventoryPanel follows same component extraction pattern as StoryPanel, ActionPanel, MapPanel, ImagePanel, JournalPanel, StatsPanel
+  - Item types have corresponding icons via `getItemIcon()` helper: weapon ⚔️, armor 🛡️, potion 🧪, food 🍖, key 🔑, book 📖, magic ✨, material 🪨, misc 📦
+  - Usable items: potion, food, book (via `isUsableItem()`)
+  - Equippable items: weapon, armor (via `isEquippableItem()`)
+  - Click-to-use functionality uses `/api/world/freeform` endpoint with text like "use {item.name} from my inventory"
+  - Hover tooltip shows item details: name, description, type, value in gold, effect if any, action hint
+  - `InventoryItem` interface exported from component for type reuse
+  - Inventory data added to playerStats in API response - includes id, name, description, type, effect, value
+  - Inventory panel placed below ActionPanel in the right column of WorldApp layout
+  - Pre-existing TypeScript errors in codebase are unchanged - no new errors introduced
+---
