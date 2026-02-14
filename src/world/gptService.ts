@@ -467,6 +467,13 @@ STATE CHANGE TYPES:
 - add_companion: { npcId: string } - Add NPC as companion
 - remove_companion: { npcId: string } - Remove NPC as companion
 - reveal_flashback: { flashbackContent: string, revealedSkill?: { name: string, level: string } } - Reveal a flashback memory
+- player_transform: { transformation: string, physicalDescriptionChange?: string, remove?: boolean } - Transform player (vampire, werewolf, etc.). Include physicalDescriptionChange to describe the visible physical changes. Use remove: true to reverse a transformation.
+
+TRANSFORMATION RULES:
+- Transformations can occur through story events: being bitten by a vampire/werewolf, powerful curses, magical rituals, consuming certain items, etc.
+- Consider the player's current transformations when resolving actions - they may grant special abilities or weaknesses
+- Transformations should be dramatic and significant - rare, story-changing events
+- Examples: vampire, werewolf, ghost, lich, demon, fae, elemental, werebear, harpy
 
 SUGGESTED ACTION TYPES:
 - move: Walk to an adjacent location

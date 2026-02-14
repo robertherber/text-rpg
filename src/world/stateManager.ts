@@ -236,6 +236,9 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "relationship_change":
       return handleRelationshipChange(state, change.data);
 
+    case "player_transform":
+      return handlePlayerTransform(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -2499,6 +2502,110 @@ function handleRelationshipChange(
     default:
       console.warn(`relationship_change: unknown type: ${type}`);
       return state;
+  }
+
+  return newState;
+}
+
+// ===== Transformation System =====
+
+/**
+ * Handle player_transform state change.
+ * Adds or removes a transformation from the player.
+ *
+ * data: {
+ *   transformation: string,            // Required: Name of the transformation (e.g., "vampire", "werewolf", "ghost")
+ *   physicalDescriptionChange?: string, // Optional: How the transformation affects physical appearance
+ *   remove?: boolean                    // Optional: If true, removes the transformation instead of adding
+ * }
+ *
+ * Transformations:
+ * - Are stored in player.transformations array
+ * - Affect player.physicalDescription (appended description of physical changes)
+ * - Are considered by GPT when resolving actions (already passed in context)
+ * - Can be removed through narrative means (cures, rituals, etc.)
+ *
+ * Example transformations: vampire, werewolf, ghost, lich, demon, fae, elemental, cursed_form
+ */
+function handlePlayerTransform(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { transformation, physicalDescriptionChange, remove } = data;
+
+  if (!transformation || typeof transformation !== "string") {
+    console.warn("player_transform: invalid transformation");
+    return state;
+  }
+
+  const normalizedTransformation = transformation.toLowerCase().trim();
+
+  let newState = { ...state };
+  newState.player = { ...state.player };
+
+  if (remove === true) {
+    // Remove transformation if it exists
+    if (!newState.player.transformations.includes(normalizedTransformation)) {
+      console.warn(
+        `player_transform: transformation not found: ${normalizedTransformation}`
+      );
+      return state;
+    }
+
+    newState.player.transformations = newState.player.transformations.filter(
+      (t) => t !== normalizedTransformation
+    );
+
+    // If physical description change is provided, update it (for reverting appearance)
+    if (physicalDescriptionChange && typeof physicalDescriptionChange === "string") {
+      newState.player.physicalDescription = physicalDescriptionChange;
+    }
+
+    // Create transformation removal event
+    const removeEvent: import("./types").WorldEvent = {
+      id: `event_transform_remove_${state.actionCounter}_${Date.now()}`,
+      actionNumber: state.actionCounter,
+      description: `${state.player.name || "The player"} is no longer a ${normalizedTransformation}`,
+      type: "discovery",
+      involvedNpcIds: [],
+      locationId: state.player.currentLocationId,
+      isSignificant: true,
+    };
+    newState.eventHistory = [...state.eventHistory, removeEvent];
+  } else {
+    // Add transformation if not already present
+    if (newState.player.transformations.includes(normalizedTransformation)) {
+      console.warn(
+        `player_transform: already has transformation: ${normalizedTransformation}`
+      );
+      return state;
+    }
+
+    newState.player.transformations = [
+      ...newState.player.transformations,
+      normalizedTransformation,
+    ];
+
+    // Update physical description if provided
+    if (physicalDescriptionChange && typeof physicalDescriptionChange === "string") {
+      // Append the transformation's physical changes to existing description
+      const currentDescription = newState.player.physicalDescription;
+      newState.player.physicalDescription = currentDescription
+        ? `${currentDescription} ${physicalDescriptionChange}`
+        : physicalDescriptionChange;
+    }
+
+    // Create transformation event
+    const transformEvent: import("./types").WorldEvent = {
+      id: `event_transform_${state.actionCounter}_${Date.now()}`,
+      actionNumber: state.actionCounter,
+      description: `${state.player.name || "The player"} transformed into a ${normalizedTransformation}`,
+      type: "discovery",
+      involvedNpcIds: [],
+      locationId: state.player.currentLocationId,
+      isSignificant: true,
+    };
+    newState.eventHistory = [...state.eventHistory, transformEvent];
   }
 
   return newState;
