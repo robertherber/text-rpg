@@ -3,6 +3,136 @@
 import type { WorldState, StateChange, WorldItem } from "./types";
 
 /**
+ * Validates whether the player knows about a referenced entity (location, NPC, or item).
+ *
+ * @param worldState - The current world state
+ * @param reference - The reference string to validate (location/NPC id or name, or lore text)
+ * @returns true if the player knows about the reference, false otherwise
+ */
+export function validateKnowledge(
+  worldState: WorldState,
+  reference: string
+): boolean {
+  if (!reference || typeof reference !== "string") {
+    return false;
+  }
+
+  const normalizedRef = reference.toLowerCase().trim();
+  const { knowledge } = worldState.player;
+
+  // Check known location IDs
+  if (knowledge.locations.some((locId) => locId.toLowerCase() === normalizedRef)) {
+    return true;
+  }
+
+  // Check known location names
+  for (const locId of knowledge.locations) {
+    const location = worldState.locations[locId];
+    if (location && location.name.toLowerCase().includes(normalizedRef)) {
+      return true;
+    }
+  }
+
+  // Check known NPC IDs
+  if (knowledge.npcs.some((npcId) => npcId.toLowerCase() === normalizedRef)) {
+    return true;
+  }
+
+  // Check known NPC names
+  for (const npcId of knowledge.npcs) {
+    const npc = worldState.npcs[npcId];
+    if (npc && npc.name.toLowerCase().includes(normalizedRef)) {
+      return true;
+    }
+  }
+
+  // Check known lore
+  if (knowledge.lore.some((lore) => lore.toLowerCase().includes(normalizedRef))) {
+    return true;
+  }
+
+  // Check known recipes
+  if (knowledge.recipes.some((recipe) => recipe.toLowerCase().includes(normalizedRef))) {
+    return true;
+  }
+
+  // Check known skills
+  const skillNames = Object.keys(knowledge.skills);
+  if (skillNames.some((skill) => skill.toLowerCase().includes(normalizedRef))) {
+    return true;
+  }
+
+  // Check items in player's inventory (players know about items they have)
+  for (const item of worldState.player.inventory) {
+    if (
+      item.id.toLowerCase() === normalizedRef ||
+      item.name.toLowerCase().includes(normalizedRef)
+    ) {
+      return true;
+    }
+  }
+
+  // Check NPCs/locations at current location (visible things are known)
+  const currentLocation = worldState.locations[worldState.player.currentLocationId];
+  if (currentLocation) {
+    // Check current location itself
+    if (
+      currentLocation.id.toLowerCase() === normalizedRef ||
+      currentLocation.name.toLowerCase().includes(normalizedRef)
+    ) {
+      return true;
+    }
+
+    // Check items at current location
+    for (const item of currentLocation.items) {
+      if (
+        item.id.toLowerCase() === normalizedRef ||
+        item.name.toLowerCase().includes(normalizedRef)
+      ) {
+        return true;
+      }
+    }
+
+    // Check structures at current location
+    for (const structure of currentLocation.structures) {
+      if (
+        structure.id.toLowerCase() === normalizedRef ||
+        structure.name.toLowerCase().includes(normalizedRef)
+      ) {
+        return true;
+      }
+    }
+
+    // Check NPCs present at current location
+    for (const npcId of currentLocation.presentNpcIds) {
+      const npc = worldState.npcs[npcId];
+      if (
+        npc &&
+        npc.isAlive &&
+        (npcId.toLowerCase() === normalizedRef ||
+          npc.name.toLowerCase().includes(normalizedRef))
+      ) {
+        return true;
+      }
+    }
+  }
+
+  // Check companions (player always knows their companions)
+  for (const companionId of worldState.player.companionIds) {
+    const companion = worldState.npcs[companionId];
+    if (
+      companion &&
+      (companionId.toLowerCase() === normalizedRef ||
+        companion.name.toLowerCase().includes(normalizedRef))
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
  * Apply an array of state changes to a WorldState immutably.
  * Returns a new WorldState with the changes applied.
  */
