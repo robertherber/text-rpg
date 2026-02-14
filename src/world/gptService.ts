@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player, WorldItem, StateChange } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player, WorldItem, StateChange, Structure } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -2801,6 +2801,275 @@ Consider:
     success: true,
     narrative: result.narrativeSuccess,
     craftedItem,
+    materialsConsumed: result.materialsUsed,
+    stateChanges,
+    skillImprovement: result.skillImprovement || undefined,
+  };
+}
+
+// =============================================
+// Building Resolution System
+// =============================================
+
+// Internal interface for GPT building response
+interface BuildingResultData {
+  isFeasible: boolean;
+  rejectionReason: string; // Why building isn't possible (empty if feasible)
+  narrativeRejection: string; // Playful narrator rejection if not feasible
+  structureName: string; // Name of the structure (empty if not feasible)
+  structureDescription: string; // Description of the structure
+  structureType: "camp" | "shelter" | "house" | "fort" | "trap" | "marker" | "grave";
+  materialsUsed: string[]; // Item IDs that were consumed
+  narrativeSuccess: string; // Dramatic building narrative if successful
+  skillImprovement: string; // Description of any skill improvement from building
+}
+
+// JSON Schema for building resolution
+const BUILDING_RESULT_SCHEMA = {
+  type: "object",
+  properties: {
+    isFeasible: {
+      type: "boolean",
+      description: "Whether the building attempt is feasible with available materials and location",
+    },
+    rejectionReason: {
+      type: "string",
+      description: "Brief reason why building isn't possible. Empty if feasible.",
+    },
+    narrativeRejection: {
+      type: "string",
+      description: "A playful, chaotic trickster narrator rejection message if not feasible. Should hint at what's needed. Empty if feasible.",
+    },
+    structureName: {
+      type: "string",
+      description: "The name of the structure being built (e.g., 'Simple Lean-To', 'Stone Firepit'). Empty if not feasible.",
+    },
+    structureDescription: {
+      type: "string",
+      description: "A vivid description of the structure - what it looks like, its purpose. Empty if not feasible.",
+    },
+    structureType: {
+      type: "string",
+      enum: ["camp", "shelter", "house", "fort", "trap", "marker", "grave"],
+      description: "The type of structure: camp (temporary resting), shelter (weather protection), house (dwelling), fort (defensive), trap (hunting/defense), marker (navigation), grave (memorial)",
+    },
+    materialsUsed: {
+      type: "array",
+      items: { type: "string" },
+      description: "Array of item IDs from player inventory that were consumed in building. Empty array if not feasible or no materials needed.",
+    },
+    narrativeSuccess: {
+      type: "string",
+      description: "A dramatic narrative describing the building process and the completed structure. Empty if not feasible.",
+    },
+    skillImprovement: {
+      type: "string",
+      description: "A brief description of any building/construction skill improvement gained (e.g., 'Your carpentry improves slightly'). Empty if none.",
+    },
+  },
+  required: [
+    "isFeasible",
+    "rejectionReason",
+    "narrativeRejection",
+    "structureName",
+    "structureDescription",
+    "structureType",
+    "materialsUsed",
+    "narrativeSuccess",
+    "skillImprovement",
+  ],
+  additionalProperties: false,
+};
+
+// Result returned from handleBuilding
+export interface BuildingResult {
+  success: boolean;
+  narrative: string;
+  structure?: Structure;
+  materialsConsumed: string[]; // Item IDs
+  stateChanges: StateChange[];
+  skillImprovement?: string;
+}
+
+/**
+ * Handle a building attempt based on player description.
+ * GPT judges if building is feasible given inventory and location,
+ * removes materials if successful, and creates the structure.
+ * Returns playful rejection if not feasible.
+ */
+export async function handleBuilding(
+  worldState: WorldState,
+  description: string
+): Promise<BuildingResult> {
+  const { player, locations } = worldState;
+  const currentLocation = locations[player.currentLocationId];
+
+  // Build inventory context for GPT
+  const inventoryContext = player.inventory
+    .map((item) => `- ${item.name} (ID: ${item.id}, Type: ${item.type}): ${item.description}`)
+    .join("\n");
+
+  // Check for building-relevant skills
+  const buildingSkills = Object.entries(player.knowledge.skills)
+    .filter(([skill]) =>
+      ["building", "construction", "carpentry", "masonry", "engineering", "architecture", "fortification"].some(
+        (s) => skill.toLowerCase().includes(s)
+      )
+    )
+    .map(([skill, level]) => `${skill}: ${level}`)
+    .join(", ");
+
+  // Location context
+  const locationContext = currentLocation
+    ? `Current location: ${currentLocation.name}
+Terrain: ${currentLocation.terrain}
+Danger Level: ${currentLocation.dangerLevel}/10
+Existing structures: ${currentLocation.structures.length > 0 ? currentLocation.structures.map((s) => `${s.name} (${s.type})`).join(", ") : "None"}`
+    : "Unknown location";
+
+  // Check for natural building materials at location
+  const naturalMaterials: string[] = [];
+  if (currentLocation?.terrain === "forest") naturalMaterials.push("trees, branches, leaves");
+  if (currentLocation?.terrain === "plains") naturalMaterials.push("grass, reeds, mud");
+  if (currentLocation?.terrain === "mountain") naturalMaterials.push("stones, rocks");
+  if (currentLocation?.terrain === "swamp") naturalMaterials.push("reeds, mud, rotting wood");
+  if (currentLocation?.terrain === "water") naturalMaterials.push("sand, driftwood, shells");
+  if (currentLocation?.terrain === "cave") naturalMaterials.push("stone, stalagmites");
+  if (currentLocation?.terrain === "desert") naturalMaterials.push("sand, sun-bleached bones, sparse scrub");
+  if (currentLocation?.terrain === "dungeon") naturalMaterials.push("rubble, salvageable stone, old timber");
+
+  const naturalMaterialsStr = naturalMaterials.length > 0
+    ? naturalMaterials.join("; ")
+    : "limited (open terrain)";
+
+  const systemPrompt = `You are evaluating a building/construction attempt in a fantasy medieval RPG.
+
+THE PLAYER WANTS TO BUILD: "${description}"
+
+PLAYER'S INVENTORY:
+${inventoryContext || "Empty inventory"}
+
+PLAYER'S BUILDING SKILLS: ${buildingSkills || "No formal building training"}
+${locationContext}
+NATURAL MATERIALS AVAILABLE: ${naturalMaterialsStr}
+
+BUILDING RULES:
+1. Be GENEROUS but LOGICAL about what can be built:
+   - Simple structures (camps, lean-tos, markers) need minimal or no materials
+   - The environment provides natural materials based on terrain
+   - Player doesn't need to carry every stick and stone - the world has resources
+   - A camp can be made almost anywhere with nearby materials
+   - A shelter needs a forest (wood) or cave
+
+2. Things that CANNOT be built:
+   - Complex structures without proper materials (can't build a house from nothing)
+   - Buildings requiring tools/materials clearly not available
+   - Modern or sci-fi structures (always reject these with humor)
+   - Structures inappropriate for location (can't build a firepit underwater)
+   - Structures that would require months of labor (be reasonable about scale)
+
+3. STRUCTURE TYPE GUIDE:
+   - "camp": temporary resting spot, firepit, bedroll setup
+   - "shelter": weather protection, lean-to, cave improvement, basic roof
+   - "house": more permanent dwelling, requires significant materials
+   - "fort": defensive structure, requires considerable resources
+   - "trap": hunting/defensive device, varies in complexity
+   - "marker": navigation aid, cairn, signpost, carved tree
+   - "grave": memorial for fallen characters
+
+4. REJECTION should be playful and helpful:
+   - Use the chaotic trickster narrator voice
+   - Suggest what materials or location might help
+   - Be encouraging while explaining the limitation
+
+5. SUCCESS should feel rewarding:
+   - Describe the building process dramatically
+   - Make the structure feel earned and real
+   - Consider skill level in structure quality
+
+6. MATERIAL CONSUMPTION:
+   - Only consume inventory items that would logically be used
+   - Natural materials from environment are free (trees in forest, stones in mountains)
+   - Don't over-consume - building a simple shelter shouldn't use all lumber
+   - Return the item IDs of consumed inventory materials`;
+
+  const userPrompt = `Evaluate whether the player can build: "${description}"
+
+Review their inventory, location, and available natural materials to determine:
+1. Is this feasible here with available resources?
+2. If yes, what inventory materials are consumed and what is created?
+3. If no, provide a playful rejection that hints at what's needed or a better location.
+
+Consider:
+- High fantasy only - no modern/sci-fi structures
+- Be generous with interpretation (a "shelter" could be branches leaned against a rock)
+- Account for player skill level
+- Some structures need specific locations (can't build stone fort without stones nearby)
+- Simple structures should be easy in appropriate terrain`;
+
+  const response = await callGPT<BuildingResultData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: BUILDING_RESULT_SCHEMA,
+    maxTokens: 800,
+  });
+
+  const result = response.content;
+
+  // Handle rejection case
+  if (!result.isFeasible) {
+    return {
+      success: false,
+      narrative: result.narrativeRejection,
+      materialsConsumed: [],
+      stateChanges: [],
+    };
+  }
+
+  // Create the structure
+  const structureId = `structure_${result.structureName.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")}_${Date.now().toString(36)}`;
+
+  const structure: Structure = {
+    id: structureId,
+    name: result.structureName,
+    description: result.structureDescription,
+    type: result.structureType,
+    builtAtAction: worldState.actionCounter,
+    ownerId: "player", // Player doesn't have an ID, use fixed identifier
+  };
+
+  // Build state changes
+  const stateChanges: StateChange[] = [];
+
+  // Remove consumed materials from inventory
+  for (const materialId of result.materialsUsed) {
+    stateChanges.push({
+      type: "remove_item",
+      data: { itemId: materialId },
+    });
+  }
+
+  // Create the structure at current location
+  stateChanges.push({
+    type: "create_structure",
+    data: { structure },
+  });
+
+  // Add skill improvement if applicable
+  if (result.skillImprovement && result.skillImprovement.trim()) {
+    stateChanges.push({
+      type: "add_knowledge",
+      data: {
+        skill: "Building",
+        skillLevel: result.skillImprovement,
+      },
+    });
+  }
+
+  return {
+    success: true,
+    narrative: result.narrativeSuccess,
+    structure,
     materialsConsumed: result.materialsUsed,
     stateChanges,
     skillImprovement: result.skillImprovement || undefined,
