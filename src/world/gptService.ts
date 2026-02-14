@@ -171,3 +171,90 @@ export async function callGPTNarrative(
   });
   return response.content;
 }
+
+/**
+ * Build context string for GPT action resolution.
+ * Includes current location, nearby NPCs, recent events, player stats and inventory.
+ * Kept under 4000 tokens for efficiency.
+ */
+export function buildActionContext(worldState: WorldState): string {
+  const { player, locations, npcs, eventHistory } = worldState;
+  const currentLocation = locations[player.currentLocationId];
+
+  // Build location context
+  const locationContext = currentLocation
+    ? `CURRENT LOCATION: ${currentLocation.name}
+Description: ${currentLocation.description}
+Terrain: ${currentLocation.terrain}
+Danger Level: ${currentLocation.dangerLevel}/10
+Structures: ${currentLocation.structures.length > 0 ? currentLocation.structures.map((s) => s.name).join(", ") : "None"}
+Items visible: ${currentLocation.items.length > 0 ? currentLocation.items.map((i) => i.name).join(", ") : "None"}`
+    : "CURRENT LOCATION: Unknown";
+
+  // Build NPC context - only NPCs at current location
+  const presentNpcs = currentLocation?.presentNpcIds
+    .map((id) => npcs[id])
+    .filter((npc) => npc && npc.isAlive) || [];
+
+  const npcContext =
+    presentNpcs.length > 0
+      ? `NPCS PRESENT:
+${presentNpcs
+          .map((npc) => {
+            const attitudeDesc =
+              npc.attitude >= 70
+                ? "very friendly"
+                : npc.attitude >= 40
+                  ? "friendly"
+                  : npc.attitude >= 10
+                    ? "neutral"
+                    : npc.attitude >= -30
+                      ? "wary"
+                      : "hostile";
+            return `- ${npc.name}: ${npc.description} (${attitudeDesc} toward player)`;
+          })
+          .join("\n")}`
+      : "NPCS PRESENT: None";
+
+  // Build recent event history - last 5 events
+  const recentEvents = eventHistory.slice(-5);
+  const eventContext =
+    recentEvents.length > 0
+      ? `RECENT EVENTS:
+${recentEvents.map((e) => `- ${e.description}`).join("\n")}`
+      : "RECENT EVENTS: None";
+
+  // Build player stats summary
+  const playerStats = `PLAYER STATUS:
+Name: ${player.name || "Unknown"}
+Health: ${player.health}/${player.maxHealth}
+Gold: ${player.gold}
+Level: ${player.level}
+Stats: STR ${player.strength}, DEF ${player.defense}, MAG ${player.magic}
+Companions: ${player.companionIds.length > 0 ? player.companionIds.map((id) => npcs[id]?.name || id).join(", ") : "None"}
+Transformations: ${player.transformations.length > 0 ? player.transformations.join(", ") : "None"}
+Curses: ${player.curses.length > 0 ? player.curses.join(", ") : "None"}
+Blessings: ${player.blessings.length > 0 ? player.blessings.join(", ") : "None"}`;
+
+  // Build inventory summary - truncate if too long
+  const inventoryItems = player.inventory.slice(0, 10); // Max 10 items shown
+  const inventorySummary = `INVENTORY (${player.inventory.length} items):
+${inventoryItems.length > 0 ? inventoryItems.map((i) => `- ${i.name} (${i.type})`).join("\n") : "Empty"}${player.inventory.length > 10 ? `\n... and ${player.inventory.length - 10} more items` : ""}`;
+
+  // Build knowledge summary - brief
+  const knowledgeSummary = `KNOWN LOCATIONS: ${player.knowledge.locations.length > 0 ? player.knowledge.locations.slice(0, 5).join(", ") : "None"}${player.knowledge.locations.length > 5 ? ` (+${player.knowledge.locations.length - 5} more)` : ""}
+KNOWN NPCS: ${player.knowledge.npcs.length > 0 ? player.knowledge.npcs.slice(0, 5).join(", ") : "None"}${player.knowledge.npcs.length > 5 ? ` (+${player.knowledge.npcs.length - 5} more)` : ""}`;
+
+  // Combine all context sections
+  return `${locationContext}
+
+${npcContext}
+
+${eventContext}
+
+${playerStats}
+
+${inventorySummary}
+
+${knowledgeSummary}`;
+}
