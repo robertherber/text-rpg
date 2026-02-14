@@ -585,3 +585,21 @@
   - Pre-existing DOM lib errors (getContext, width, height, getBoundingClientRect on HTMLCanvasElement) - same pattern as other frontend files
   - Optional `onLocationClick` prop allows parent to handle location selection for future fast-travel integration
 ---
+
+## 2026-02-14 - US-041
+- What was implemented: Created journal panel component for displaying quests, lore, and deceased heroes
+- Files changed:
+  - src/frontend/JournalPanel.tsx (created - reusable journal panel component)
+  - src/frontend/WorldApp.tsx (modified - integrated JournalPanel component)
+  - src/frontend/worldStyles.css (modified - added journal panel styles)
+- **Learnings for future iterations:**
+  - JournalPanel follows same component extraction pattern as StoryPanel, ActionPanel, MapPanel, ImagePanel
+  - Component has internal tab navigation with three sections: Quests, Lore, Fallen Heroes
+  - Uses `useState` for tab state and `useEffect` for fetching journal data on mount
+  - Active quests show objectives as checklist with completed items crossed out
+  - Completed quests show rewards, failed quests have dimmed styling
+  - Lore items displayed as bullet list with diamond markers
+  - Deceased heroes displayed as memorial cards with death description and major deeds
+  - Pre-existing DOM lib errors in other files are unchanged - no new errors introduced in JournalPanel.tsx
+  - Empty states have atmospheric placeholder text matching the game's tone
+---
