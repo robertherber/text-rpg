@@ -535,6 +535,67 @@ const server = Bun.serve({
       },
     },
 
+    // Get journal data - quests, lore, deceased heroes
+    "/api/world/journal": {
+      GET: () => {
+        const { quests, deceasedHeroes, player } = worldState;
+
+        // Categorize quests by status
+        const allQuests = Object.values(quests);
+        const activeQuests = allQuests
+          .filter((q) => q.status === "active")
+          .map((q) => ({
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            giverNpcId: q.giverNpcId,
+            objectives: q.objectives,
+            completedObjectives: q.completedObjectives,
+          }));
+
+        const completedQuests = allQuests
+          .filter((q) => q.status === "completed")
+          .map((q) => ({
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            giverNpcId: q.giverNpcId,
+            rewards: q.rewards,
+          }));
+
+        const failedQuests = allQuests
+          .filter((q) => q.status === "failed" || q.status === "impossible")
+          .map((q) => ({
+            id: q.id,
+            title: q.title,
+            description: q.description,
+            status: q.status,
+          }));
+
+        // Get known lore
+        const knownLore = player.knowledge.lore;
+
+        // Format deceased heroes for display
+        const deceasedHeroesDisplay = deceasedHeroes.map((hero) => ({
+          id: hero.id,
+          name: hero.name,
+          origin: hero.origin,
+          deathDescription: hero.deathDescription,
+          deathLocationId: hero.deathLocationId,
+          majorDeeds: hero.majorDeeds,
+          diedAtAction: hero.diedAtAction,
+        }));
+
+        return Response.json({
+          activeQuests,
+          completedQuests,
+          failedQuests,
+          knownLore,
+          deceasedHeroes: deceasedHeroesDisplay,
+        });
+      },
+    },
+
     // Create a new character after death
     "/api/world/new-character": {
       POST: async (req) => {
