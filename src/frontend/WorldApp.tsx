@@ -9,6 +9,7 @@ import StatsPanel from "./StatsPanel";
 import InventoryPanel, { type InventoryItem } from "./InventoryPanel";
 import CharacterCreation, { type CharacterCreationResponse } from "./CharacterCreation";
 import DeathScreen, { type DeceasedHeroDisplay } from "./DeathScreen";
+import BackgroundMusic from "./BackgroundMusic";
 
 // Types for world state data
 interface WorldLocation {
@@ -452,6 +453,9 @@ export default function WorldApp() {
 
   return (
     <div className="world-container">
+      {/* Background music */}
+      <BackgroundMusic src="/audio/Emerald Sky Citadel.mp3" defaultVolume={0.3} />
+
       {/* Header with player stats */}
       <StatsPanel
         name={worldState.playerStats.name}

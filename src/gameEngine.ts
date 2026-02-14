@@ -43,7 +43,8 @@ export function checkRequirement(state: GameState, choice: Choice): boolean {
       return state.inventory.some((item) => item.id === id);
     case "stat":
       if (stat && value !== undefined) {
-        return state.character[stat] >= value;
+        const statValue = state.character[stat as keyof typeof state.character];
+        return typeof statValue === "number" && statValue >= value;
       }
       return true;
     case "gold":
@@ -92,9 +93,10 @@ export function processChoice(state: GameState, choice: Choice): GameState {
           newState.messageLog.push(`You obtained: ${item.name}!`);
 
           // Apply stat bonuses
-          if (item.effect && item.effect.stat !== "health") {
-            newState.character[item.effect.stat] += item.effect.value;
-            newState.messageLog.push(`Your ${item.effect.stat} increased by ${item.effect.value}!`);
+          if (item.effect && item.effect.stat !== "health" && item.effect.stat !== "name") {
+            const stat = item.effect.stat;
+            (newState.character[stat] as number) += item.effect.value;
+            newState.messageLog.push(`Your ${stat} increased by ${item.effect.value}!`);
           }
         } else {
           newState.messageLog.push(`You already have: ${item.name}`);
@@ -198,8 +200,8 @@ export function processCombatAction(
     }
     case "usePotion": {
       const potionIndex = newState.inventory.findIndex((i) => i.type === "potion");
-      if (potionIndex !== -1) {
-        const potion = newState.inventory[potionIndex];
+      const potion = newState.inventory[potionIndex];
+      if (potionIndex !== -1 && potion) {
         if (potion.effect) {
           newState.character.health = Math.min(
             newState.character.maxHealth,

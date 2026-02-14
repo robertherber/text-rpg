@@ -294,10 +294,10 @@ export function createSeedWorld(): WorldState {
   };
 
   // Place NPCs at their locations
-  locations[tavern.id].presentNpcIds = [barkeep.id];
-  locations[blacksmith.id].presentNpcIds = [blacksmithNpc.id];
-  locations[elderHouse.id].presentNpcIds = [elder.id];
-  locations[villageSquare.id].presentNpcIds = [stablehand.id];
+  locations[tavern.id]!.presentNpcIds = [barkeep.id];
+  locations[blacksmith.id]!.presentNpcIds = [blacksmithNpc.id];
+  locations[elderHouse.id]!.presentNpcIds = [elder.id];
+  locations[villageSquare.id]!.presentNpcIds = [stablehand.id];
 
   // Assemble NPCs record
   const npcs: Record<string, NPC> = {

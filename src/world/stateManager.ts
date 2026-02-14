@@ -336,23 +336,29 @@ function handleAddItem(
   };
 
   // Add to NPC inventory
-  if (toNpc && typeof toNpc === "string" && state.npcs[toNpc]) {
-    const newNpcs = { ...state.npcs };
-    newNpcs[toNpc] = {
-      ...newNpcs[toNpc],
-      inventory: [...newNpcs[toNpc].inventory, worldItem],
-    };
-    return { ...state, npcs: newNpcs };
+  if (toNpc && typeof toNpc === "string") {
+    const existingNpc = state.npcs[toNpc];
+    if (existingNpc) {
+      const newNpcs = { ...state.npcs };
+      newNpcs[toNpc] = {
+        ...existingNpc,
+        inventory: [...existingNpc.inventory, worldItem],
+      };
+      return { ...state, npcs: newNpcs };
+    }
   }
 
   // Add to location
-  if (toLocation && typeof toLocation === "string" && state.locations[toLocation]) {
-    const newLocations = { ...state.locations };
-    newLocations[toLocation] = {
-      ...newLocations[toLocation],
-      items: [...newLocations[toLocation].items, worldItem],
-    };
-    return { ...state, locations: newLocations };
+  if (toLocation && typeof toLocation === "string") {
+    const existingLocation = state.locations[toLocation];
+    if (existingLocation) {
+      const newLocations = { ...state.locations };
+      newLocations[toLocation] = {
+        ...existingLocation,
+        items: [...existingLocation.items, worldItem],
+      };
+      return { ...state, locations: newLocations };
+    }
   }
 
   // Default: add to player inventory
@@ -380,23 +386,29 @@ function handleRemoveItem(
   }
 
   // Remove from NPC inventory
-  if (fromNpc && typeof fromNpc === "string" && state.npcs[fromNpc]) {
-    const newNpcs = { ...state.npcs };
-    newNpcs[fromNpc] = {
-      ...newNpcs[fromNpc],
-      inventory: newNpcs[fromNpc].inventory.filter((i) => i.id !== itemId),
-    };
-    return { ...state, npcs: newNpcs };
+  if (fromNpc && typeof fromNpc === "string") {
+    const existingNpc = state.npcs[fromNpc];
+    if (existingNpc) {
+      const newNpcs = { ...state.npcs };
+      newNpcs[fromNpc] = {
+        ...existingNpc,
+        inventory: existingNpc.inventory.filter((i) => i.id !== itemId),
+      };
+      return { ...state, npcs: newNpcs };
+    }
   }
 
   // Remove from location
-  if (fromLocation && typeof fromLocation === "string" && state.locations[fromLocation]) {
-    const newLocations = { ...state.locations };
-    newLocations[fromLocation] = {
-      ...newLocations[fromLocation],
-      items: newLocations[fromLocation].items.filter((i) => i.id !== itemId),
-    };
-    return { ...state, locations: newLocations };
+  if (fromLocation && typeof fromLocation === "string") {
+    const existingLocation = state.locations[fromLocation];
+    if (existingLocation) {
+      const newLocations = { ...state.locations };
+      newLocations[fromLocation] = {
+        ...existingLocation,
+        items: existingLocation.items.filter((i) => i.id !== itemId),
+      };
+      return { ...state, locations: newLocations };
+    }
   }
 
   // Default: remove from player inventory
@@ -3416,7 +3428,7 @@ export function getPlayerWantedStatus(worldState: WorldState): {
     if (crime.severity === "severe") {
       mostSevereCrimeType = "severe";
       break;
-    } else if (crime.severity === "moderate" && mostSevereCrimeType !== "severe") {
+    } else if (crime.severity === "moderate" && mostSevereCrimeType !== "moderate") {
       mostSevereCrimeType = "moderate";
     } else if (crime.severity === "minor" && !mostSevereCrimeType) {
       mostSevereCrimeType = "minor";

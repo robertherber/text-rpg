@@ -74,7 +74,7 @@ export default function CharacterCreation({ onCharacterCreated }: CharacterCreat
   // Generate a random backstory
   const handleSurpriseMe = () => {
     const randomIndex = Math.floor(Math.random() * RANDOM_BACKSTORIES.length);
-    setBackstoryHints(RANDOM_BACKSTORIES[randomIndex]);
+    setBackstoryHints(RANDOM_BACKSTORIES[randomIndex] ?? "");
   };
 
   const handleSubmit = async (e: React.FormEvent) => {

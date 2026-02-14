@@ -43,7 +43,7 @@ await initializeWorldState();
 const server = Bun.serve({
   port: 3000,
 
-  // Serve static files from image-cache directory
+  // Serve static files from image-cache and audio directories
   async fetch(req) {
     const url = new URL(req.url);
     if (url.pathname.startsWith("/image-cache/")) {
@@ -52,6 +52,16 @@ const server = Bun.serve({
       if (await file.exists()) {
         return new Response(file, {
           headers: { "Content-Type": "image/png", "Cache-Control": "public, max-age=31536000" },
+        });
+      }
+      return new Response("Not found", { status: 404 });
+    }
+    if (url.pathname.startsWith("/audio/")) {
+      const filePath = `./public${url.pathname}`;
+      const file = Bun.file(filePath);
+      if (await file.exists()) {
+        return new Response(file, {
+          headers: { "Content-Type": "audio/mpeg", "Cache-Control": "public, max-age=31536000" },
         });
       }
       return new Response("Not found", { status: 404 });
@@ -67,7 +77,7 @@ const server = Bun.serve({
     // Start a new game
     "/api/game/start": {
       POST: async (req) => {
-        const body = await req.json();
+        const body = await req.json() as { playerName?: string };
         const state = createInitialState();
         state.character.name = body.playerName || "Hero";
         return Response.json({ state });
@@ -137,7 +147,7 @@ const server = Bun.serve({
     // Get available choices for current location
     "/api/game/choices": {
       POST: async (req) => {
-        const body = await req.json();
+        const body = await req.json() as { state: GameState };
         const state: GameState = body.state;
         const location = getLocation(state.currentLocationId);
 
@@ -157,7 +167,7 @@ const server = Bun.serve({
     // Process a player action/choice
     "/api/game/action": {
       POST: async (req) => {
-        const body = await req.json();
+        const body = await req.json() as { state: GameState; choiceId: string };
         const state: GameState = body.state;
         const choiceId: string = body.choiceId;
 
@@ -180,7 +190,7 @@ const server = Bun.serve({
     // Process combat action
     "/api/game/combat": {
       POST: async (req) => {
-        const body = await req.json();
+        const body = await req.json() as { state: GameState; action: "attack" | "defend" | "flee" | "usePotion" };
         const state: GameState = body.state;
         const action: "attack" | "defend" | "flee" | "usePotion" = body.action;
 
@@ -363,12 +373,12 @@ const server = Bun.serve({
         if (!currentLocation) {
           // Extract direction from the action text
           const directionMatch = selectedAction.text.toLowerCase().match(/\b(north|south|east|west|northeast|northwest|southeast|southwest)\b/);
-          const direction = directionMatch ? directionMatch[1] : "unknown";
+          const direction = directionMatch?.[1] ?? "unknown";
 
           console.log(`🗺️ Generating new location ${direction} from ${previousLocationId}...`);
 
           // Generate the new location
-          const newLocation = await generateLocation(worldState, direction, previousLocationId);
+          const newLocation = await generateLocation(worldState, direction, previousLocationId!);
 
           // Add the new location to world state
           worldState = {
@@ -498,12 +508,12 @@ const server = Bun.serve({
         if (!currentLocation) {
           // Extract direction from the action text
           const directionMatch = trimmedText.toLowerCase().match(/\b(north|south|east|west|northeast|northwest|southeast|southwest)\b/);
-          const direction = directionMatch ? directionMatch[1] : "unknown";
+          const direction = directionMatch?.[1] ?? "unknown";
 
           console.log(`🗺️ Generating new location ${direction} from ${previousLocationId}...`);
 
           // Generate the new location
-          const newLocation = await generateLocation(worldState, direction, previousLocationId);
+          const newLocation = await generateLocation(worldState, direction, previousLocationId!);
 
           // Add the new location to world state
           worldState = {

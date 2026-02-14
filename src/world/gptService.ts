@@ -192,9 +192,9 @@ Items visible: ${currentLocation.items.length > 0 ? currentLocation.items.map((i
     : "CURRENT LOCATION: Unknown";
 
   // Build NPC context - only NPCs at current location
-  const presentNpcs = currentLocation?.presentNpcIds
+  const presentNpcs = (currentLocation?.presentNpcIds
     .map((id) => npcs[id])
-    .filter((npc) => npc && npc.isAlive) || [];
+    .filter((npc): npc is NPC => npc !== undefined && npc.isAlive)) ?? [];
 
   const npcContext =
     presentNpcs.length > 0
@@ -872,9 +872,9 @@ export async function generateSuggestedActions(
 
   // Get present NPCs for interaction options
   const presentNpcs =
-    currentLocation?.presentNpcIds
+    (currentLocation?.presentNpcIds
       .map((id) => npcs[id])
-      .filter((npc) => npc && npc.isAlive) || [];
+      .filter((npc): npc is NPC => npc !== undefined && npc.isAlive)) ?? [];
 
   const systemPrompt = `You are generating contextual action suggestions for a fantasy medieval RPG.
 

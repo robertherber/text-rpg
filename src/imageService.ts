@@ -146,7 +146,7 @@ export async function generateImage(locationId: string, prompt: string, stateHas
       quality: "standard",
     });
 
-    const imageUrl = response.data[0]?.url;
+    const imageUrl = response.data?.[0]?.url;
     if (imageUrl) {
       // Download and cache the image locally with state hash
       const cachedUrl = await cacheImage(locationId, imageUrl, stateHash);
