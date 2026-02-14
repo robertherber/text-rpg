@@ -79,6 +79,14 @@ interface DeathState {
   deceasedHero: DeceasedHeroDisplay;
 }
 
+// Type for tracking the last action for retry functionality
+type LastAction =
+  | { type: "action"; action: SuggestedAction }
+  | { type: "freeform"; text: string }
+  | { type: "conversation"; message: string }
+  | { type: "useItem"; itemId: string }
+  | null;
+
 export default function WorldApp() {
   const [worldState, setWorldState] = useState<WorldStateResponse | null>(null);
   const [storyMessages, setStoryMessages] = useState<StoryMessage[]>([]);
@@ -89,6 +97,8 @@ export default function WorldApp() {
   const [conversationState, setConversationState] = useState<ConversationState | null>(null);
   const [needsCharacterCreation, setNeedsCharacterCreation] = useState(false);
   const [deathState, setDeathState] = useState<DeathState | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [lastAction, setLastAction] = useState<LastAction>(null);
   const messageIdRef = useRef(0);
 
   // Fetch initial world state
@@ -218,6 +228,30 @@ export default function WorldApp() {
     ]);
   };
 
+  // Handle retrying the last failed action
+  const handleRetry = async () => {
+    if (!lastAction) return;
+
+    // Clear the error state
+    setActionError(null);
+
+    // Retry based on the type of last action
+    switch (lastAction.type) {
+      case "action":
+        await handleAction(lastAction.action);
+        break;
+      case "freeform":
+        await handleFreeformSubmit(lastAction.text);
+        break;
+      case "conversation":
+        await handleConversationMessage(lastAction.message);
+        break;
+      case "useItem":
+        await handleUseItem(lastAction.itemId);
+        break;
+    }
+  };
+
   const handleAction = async (action: SuggestedAction) => {
     if (isProcessing) return;
 
@@ -236,6 +270,8 @@ export default function WorldApp() {
     }
 
     setIsProcessing(true);
+    setActionError(null);
+    setLastAction({ type: "action", action });
     addStoryMessage(`> ${action.text}`, "action");
 
     try {
@@ -260,8 +296,10 @@ export default function WorldApp() {
           setWorldState(newState);
         }
       }
+      // Clear last action on success
+      setLastAction(null);
     } catch (err) {
-      addStoryMessage("Something went wrong...", "system");
+      setActionError("Something went wrong. Retry?");
       console.error(err);
     } finally {
       setIsProcessing(false);
@@ -272,6 +310,8 @@ export default function WorldApp() {
     if (isProcessing) return;
 
     setIsProcessing(true);
+    setActionError(null);
+    setLastAction({ type: "freeform", text });
     addStoryMessage(`> ${text}`, "action");
 
     try {
@@ -304,8 +344,10 @@ export default function WorldApp() {
         const newState = (await stateResponse.json()) as WorldStateResponse;
         setWorldState(newState);
       }
+      // Clear last action on success
+      setLastAction(null);
     } catch (err) {
-      addStoryMessage("Something went wrong...", "system");
+      setActionError("Something went wrong. Retry?");
       console.error(err);
     } finally {
       setIsProcessing(false);
@@ -316,6 +358,8 @@ export default function WorldApp() {
     if (isProcessing || !conversationState) return;
 
     setIsProcessing(true);
+    setActionError(null);
+    setLastAction({ type: "conversation", message });
     addStoryMessage(`> "${message}"`, "action");
 
     try {
@@ -372,8 +416,10 @@ export default function WorldApp() {
       const stateResponse = await fetch("/api/world/state");
       const newState = (await stateResponse.json()) as WorldStateResponse;
       setWorldState(newState);
+      // Clear last action on success
+      setLastAction(null);
     } catch (err) {
-      addStoryMessage("Something went wrong...", "system");
+      setActionError("Something went wrong. Retry?");
       console.error(err);
     } finally {
       setIsProcessing(false);
@@ -395,6 +441,8 @@ export default function WorldApp() {
     if (!item) return;
 
     setIsProcessing(true);
+    setActionError(null);
+    setLastAction({ type: "useItem", itemId });
     addStoryMessage(`> Use ${item.name}`, "action");
 
     try {
@@ -419,8 +467,10 @@ export default function WorldApp() {
       const stateResponse = await fetch("/api/world/state");
       const newState = (await stateResponse.json()) as WorldStateResponse;
       setWorldState(newState);
+      // Clear last action on success
+      setLastAction(null);
     } catch (err) {
-      addStoryMessage("Something went wrong...", "system");
+      setActionError("Something went wrong. Retry?");
       console.error(err);
     } finally {
       setIsProcessing(false);
@@ -516,7 +566,11 @@ export default function WorldApp() {
 
           {/* Story panel */}
           {activePanel === "story" && (
-            <StoryPanel messages={storyMessages} />
+            <StoryPanel
+              messages={storyMessages}
+              actionError={actionError}
+              onRetry={handleRetry}
+            />
           )}
 
           {/* Map panel */}

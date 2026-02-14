@@ -278,6 +278,45 @@ body {
   font-size: 0.9rem;
 }
 
+/* Error message with retry button */
+.story-message.error {
+  background: rgba(230, 57, 70, 0.15);
+  border: 1px solid var(--accent-red);
+  border-left: 3px solid var(--accent-red);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.error-text {
+  color: var(--accent-red);
+  font-size: 0.95rem;
+}
+
+.error-retry-button {
+  padding: 0.5rem 1rem;
+  background: var(--accent-red);
+  border: none;
+  border-radius: 0.5rem;
+  color: white;
+  font-family: inherit;
+  font-size: 0.9rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+  white-space: nowrap;
+}
+
+.error-retry-button:hover {
+  background: #c62836;
+  transform: scale(1.05);
+}
+
+.error-retry-button:active {
+  transform: scale(0.95);
+}
+
 /* Narrator text - de-emphasized italic style */
 .narrator-text {
   font-style: italic;

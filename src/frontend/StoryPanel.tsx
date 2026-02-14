@@ -14,6 +14,8 @@ export interface StoryMessage {
  */
 interface StoryPanelProps {
   messages: StoryMessage[];
+  actionError?: string | null;
+  onRetry?: () => void;
 }
 
 /**
@@ -117,16 +119,17 @@ function NarrativeText({ text }: { text: string }) {
  * - New messages appear at bottom
  * - Different styles for narrative, action, and system messages
  * - Narrator text styled in italic gray, NPC dialog in normal weight
+ * - Error state with retry button
  */
-export default function StoryPanel({ messages }: StoryPanelProps) {
+export default function StoryPanel({ messages, actionError, onRetry }: StoryPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when new messages arrive
+  // Scroll to bottom when new messages arrive or error appears
   useEffect(() => {
     if (panelRef.current) {
       panelRef.current.scrollTop = panelRef.current.scrollHeight;
     }
-  }, [messages]);
+  }, [messages, actionError]);
 
   return (
     <div className="story-panel" ref={panelRef}>
@@ -139,6 +142,16 @@ export default function StoryPanel({ messages }: StoryPanelProps) {
           )}
         </div>
       ))}
+      {actionError && (
+        <div className="story-message error">
+          <span className="error-text">{actionError}</span>
+          {onRetry && (
+            <button className="error-retry-button" onClick={onRetry}>
+              Try again
+            </button>
+          )}
+        </div>
+      )}
     </div>
   );
 }
