@@ -278,6 +278,25 @@ body {
   font-size: 0.9rem;
 }
 
+/* Narrator text - de-emphasized italic style */
+.narrator-text {
+  font-style: italic;
+  color: #6b7280;
+}
+
+/* Dialog speaker name - gold accent */
+.dialog-speaker {
+  color: var(--accent-gold);
+  font-weight: bold;
+}
+
+/* NPC dialog text - normal weight, standard text color */
+.dialog-text {
+  font-style: normal;
+  color: var(--text-primary);
+  font-weight: normal;
+}
+
 /* Map panel */
 .map-panel {
   flex: 1;

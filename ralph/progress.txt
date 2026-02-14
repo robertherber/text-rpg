@@ -11,3 +11,15 @@
 
 ---
 
+## 2026-02-14 - US-001
+- What was implemented: De-emphasized narrator text styling with italic gray (#6b7280) and kept NPC dialog in normal weight with standard text color
+- Files changed:
+  - src/frontend/StoryPanel.tsx - Added parseNarrativeText function to segment narrator vs dialog, added NarrativeText component
+  - src/frontend/worldStyles.css - Added .narrator-text, .dialog-speaker, .dialog-text styles
+- **Learnings for future iterations:**
+  - Narrative messages contain both narrator descriptions and NPC dialog (quoted text with optional speaker prefix)
+  - Dialog pattern uses Name: "text" format or standalone "text" quotes
+  - StoryPanel uses a "type" field to distinguish narrative/action/system messages
+
+---
+
