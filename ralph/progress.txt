@@ -856,3 +856,21 @@
   - Divorce requires player to be married to the specified NPC
   - Children management via have_child, adopt, and disown with proper validation
 ---
+
+## 2026-02-14 - US-056
+- What was implemented: Added transformation system allowing players to transform into different forms
+- Files changed:
+  - src/world/stateManager.ts (modified - added handlePlayerTransform handler function and case in applySingleChange)
+  - src/world/gptService.ts (modified - added player_transform documentation to STATE CHANGE TYPES section with TRANSFORMATION RULES)
+- **Learnings for future iterations:**
+  - `player_transform` was already in StateChange type union (line 239 of types.ts) and ACTION_RESULT_SCHEMA (line 315 of gptService.ts)
+  - player.transformations array already existed in Player type (line 153 of types.ts)
+  - Transformations are already passed to GPT in buildActionContext() (line 235) via PLAYER STATUS section
+  - Handler supports: `transformation` (string), `physicalDescriptionChange` (optional string), `remove` (optional boolean)
+  - Transformations are normalized to lowercase and trimmed before storage
+  - When adding transformation, physicalDescriptionChange is APPENDED to existing physicalDescription
+  - When removing transformation with physicalDescriptionChange, it REPLACES physicalDescription (for reverting appearance)
+  - Both adding and removing transformations create significant discovery events in eventHistory
+  - Example transformations mentioned in GPT prompt: vampire, werewolf, ghost, lich, demon, fae, elemental, werebear, harpy
+  - Pre-existing type errors in stateManager.ts (lines 314-370) are documented in Codebase Patterns
+---
