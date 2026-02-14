@@ -567,3 +567,21 @@
   - Pre-existing DOM lib errors (scrollTop, scrollHeight, document) appear in new components same as other frontend files
   - Removing inline image logic from WorldApp.tsx cleaned up unused state variables (locationImage, isLoadingImage, loadLocationImage function)
 ---
+
+## 2026-02-14 - US-040
+- What was implemented: Created canvas map component for displaying explored areas
+- Files changed:
+  - src/frontend/MapPanel.tsx (created - canvas map component with terrain colors and hover tooltip)
+  - src/frontend/WorldApp.tsx (modified - integrated MapPanel component)
+  - src/frontend/worldStyles.css (modified - added map panel, tooltip, and legend styles)
+- **Learnings for future iterations:**
+  - MapPanel follows same component extraction pattern as StoryPanel, ActionPanel, and ImagePanel
+  - Canvas rendering uses `TERRAIN_COLORS` record for consistent color mapping across terrain types
+  - Coordinates are transformed: grid Y is inverted so north is up on canvas
+  - Current location highlighted with gold border and marker circle above the node
+  - Hover state managed via `handleMouseMove` checking if mouse is within location node bounds
+  - Legend shows first 6 terrain types to avoid visual clutter
+  - Tooltip positioned absolute in top-right corner, showing location name, terrain, coords, and "You are here" badge
+  - Pre-existing DOM lib errors (getContext, width, height, getBoundingClientRect on HTMLCanvasElement) - same pattern as other frontend files
+  - Optional `onLocationClick` prop allows parent to handle location selection for future fast-travel integration
+---
