@@ -273,3 +273,20 @@
   - Error handling: wraps handleConversation in try/catch to return friendly error messages
 ---
 
+## 2026-02-14 - US-021
+- What was implemented: Created world simulation on location entry
+- Files changed:
+  - src/world/gptService.ts (modified - added simulateLocationChanges function, LOCATION_SIMULATION_SCHEMA, LocationSimulationResult interface)
+- **Learnings for future iterations:**
+  - `simulateLocationChanges(worldState, locationId)` simulates changes when player returns to a location
+  - Uses `lastVisitedAtAction` to calculate actions elapsed - if 0 or negative, no simulation needed
+  - Change probability formula: `Math.min(0.9, 0.1 + (actionsElapsed * 0.04))` - 50% at 10 actions, 90% at 50 actions
+  - NPCs can move between adjacent locations based on their soul instructions
+  - Companions (`isCompanion: true`) are explicitly excluded from moving independently
+  - Returns: hasChanges, narrative, npcMovements, npcArrivals, environmentalChanges, newItems, removedItemIds
+  - NPC movements include: npcId, reason (why they moved), destinationLocationId
+  - NPC arrivals include: npcId, reason (why they arrived), fromLocationId
+  - GPT receives truncated soul instructions (first 200 chars) to keep context manageable
+  - The caller must apply the state changes (npcMovements, npcArrivals) using stateManager
+---
+
