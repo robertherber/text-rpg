@@ -240,3 +240,20 @@
   - `homeLocationId` defaults to where they're generated
 ---
 
+## 2026-02-14 - US-019
+- What was implemented: Created conversation system with memory for extended NPC dialogues
+- Files changed:
+  - src/world/gptService.ts (modified - added handleConversation function, CONVERSATION_RESPONSE_SCHEMA, ConversationResponse/ConversationResult interfaces)
+- **Learnings for future iterations:**
+  - `handleConversation(worldState, npcId, playerMessage)` returns ConversationResult with narrative, npcResponse, attitudeChange, newKnowledge, conversationSummary, suggestsEndConversation
+  - Context builds from: NPC soulInstruction (full paragraph), last 5 conversationHistory entries, NPC knowledge, current attitude, location context
+  - Past conversations show "actions ago" for time context (e.g., "[12 actions ago] Discussed the missing merchant")
+  - NPC's `playerNameKnown` field tracks what name the player introduced themselves as
+  - Attitude descriptions: very friendly (>=70), friendly (>=40), neutral (>=10), wary (>=-30), hostile (<-30)
+  - Response includes `narratorFrame` for chaotic trickster commentary before/after NPC speech
+  - Attitude changes clamped to ±20 range to prevent extreme swings from single exchanges
+  - Animals (`isAnimal: true`) communicate through actions/sounds, not speech
+  - The caller must handle storing the conversationSummary to NPC.conversationHistory and updating NPC.attitude
+  - ConversationSummary type imported from types.ts for completeness
+---
+
