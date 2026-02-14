@@ -64,6 +64,18 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "create_npc":
       return handleCreateNpc(state, change.data);
 
+    case "create_location":
+      return handleCreateLocation(state, change.data);
+
+    case "update_location":
+      return handleUpdateLocation(state, change.data);
+
+    case "create_structure":
+      return handleCreateStructure(state, change.data);
+
+    case "destroy_structure":
+      return handleDestroyStructure(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -677,5 +689,249 @@ function handleCreateNpc(
     ...state,
     npcs: newNpcs,
     locations: newLocations,
+  };
+}
+
+/**
+ * Handle create_location state change (for dynamically generated locations)
+ * data: { location: Location } OR { location: Location, direction: string, fromLocationId: string }
+ *
+ * If direction and fromLocationId are provided, coordinates are calculated automatically.
+ * Direction can be: "north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"
+ */
+function handleCreateLocation(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { location, direction, fromLocationId } = data;
+
+  if (!location || typeof location !== "object") {
+    console.warn("create_location: invalid location data");
+    return state;
+  }
+
+  // Generate ID if not provided
+  const locationId =
+    location.id ||
+    `loc_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Calculate coordinates based on direction if provided
+  let coordinates = location.coordinates;
+
+  if (direction && fromLocationId) {
+    const fromLocation = state.locations[fromLocationId];
+    if (fromLocation) {
+      coordinates = calculateCoordinatesFromDirection(
+        fromLocation.coordinates,
+        direction
+      );
+    }
+  }
+
+  // If still no coordinates, default to (0, 0) - though this shouldn't happen normally
+  if (!coordinates) {
+    console.warn("create_location: no coordinates provided, defaulting to (0, 0)");
+    coordinates = { x: 0, y: 0 };
+  }
+
+  // Create a complete Location with defaults for any missing fields
+  const newLocation: import("./types").Location = {
+    id: locationId,
+    name: location.name || "Unknown Location",
+    description: location.description || "",
+    imagePrompt: location.imagePrompt || location.description || "",
+    coordinates,
+    terrain: location.terrain || "plains",
+    dangerLevel: location.dangerLevel ?? 0,
+    presentNpcIds: location.presentNpcIds || [],
+    items: location.items || [],
+    structures: location.structures || [],
+    notes: location.notes || [],
+    isCanonical: false, // Dynamically created locations are not canonical
+    lastVisitedAtAction: undefined,
+    imageStateHash: undefined,
+  };
+
+  // Add location to state
+  const newLocations = {
+    ...state.locations,
+    [locationId]: newLocation,
+  };
+
+  return {
+    ...state,
+    locations: newLocations,
+  };
+}
+
+/**
+ * Calculate new coordinates based on direction from a starting point
+ */
+function calculateCoordinatesFromDirection(
+  from: import("./types").Coordinates,
+  direction: string
+): import("./types").Coordinates {
+  const directionMap: Record<string, { dx: number; dy: number }> = {
+    north: { dx: 0, dy: 1 },
+    south: { dx: 0, dy: -1 },
+    east: { dx: 1, dy: 0 },
+    west: { dx: -1, dy: 0 },
+    northeast: { dx: 1, dy: 1 },
+    northwest: { dx: -1, dy: 1 },
+    southeast: { dx: 1, dy: -1 },
+    southwest: { dx: -1, dy: -1 },
+  };
+
+  const delta = directionMap[direction.toLowerCase()] || { dx: 0, dy: 0 };
+
+  return {
+    x: from.x + delta.dx,
+    y: from.y + delta.dy,
+  };
+}
+
+/**
+ * Handle update_location state change
+ * data: { locationId: string, updates: Partial<Location> }
+ */
+function handleUpdateLocation(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { locationId, updates } = data;
+
+  if (!locationId || typeof locationId !== "string") {
+    console.warn("update_location: invalid locationId");
+    return state;
+  }
+
+  const location = state.locations[locationId];
+  if (!location) {
+    console.warn(`update_location: location not found: ${locationId}`);
+    return state;
+  }
+
+  if (!updates || typeof updates !== "object") {
+    console.warn("update_location: invalid updates");
+    return state;
+  }
+
+  // Don't allow changing id or coordinates directly (use create_location for new locations)
+  const { id, coordinates, ...safeUpdates } = updates;
+
+  // Merge updates into existing location
+  const updatedLocation = {
+    ...location,
+    ...safeUpdates,
+  };
+
+  return {
+    ...state,
+    locations: {
+      ...state.locations,
+      [locationId]: updatedLocation,
+    },
+  };
+}
+
+/**
+ * Handle create_structure state change
+ * data: { structure: Structure, locationId?: string }
+ *
+ * If locationId is not provided, structure is created at player's current location.
+ */
+function handleCreateStructure(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { structure, locationId } = data;
+
+  if (!structure || typeof structure !== "object") {
+    console.warn("create_structure: invalid structure data");
+    return state;
+  }
+
+  const targetLocationId = locationId || state.player.currentLocationId;
+  const location = state.locations[targetLocationId];
+
+  if (!location) {
+    console.warn(`create_structure: location not found: ${targetLocationId}`);
+    return state;
+  }
+
+  // Generate ID if not provided
+  const structureId =
+    structure.id ||
+    `struct_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+  // Create a complete Structure with defaults for any missing fields
+  const newStructure: import("./types").Structure = {
+    id: structureId,
+    name: structure.name || "Unknown Structure",
+    description: structure.description || "",
+    type: structure.type || "marker",
+    builtAtAction: structure.builtAtAction ?? state.actionCounter,
+    ownerId: structure.ownerId,
+  };
+
+  // Add structure to location
+  const updatedLocation = {
+    ...location,
+    structures: [...location.structures, newStructure],
+  };
+
+  return {
+    ...state,
+    locations: {
+      ...state.locations,
+      [targetLocationId]: updatedLocation,
+    },
+  };
+}
+
+/**
+ * Handle destroy_structure state change
+ * data: { structureId: string, locationId?: string }
+ *
+ * If locationId is not provided, searches in player's current location.
+ */
+function handleDestroyStructure(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { structureId, locationId } = data;
+
+  if (!structureId || typeof structureId !== "string") {
+    console.warn("destroy_structure: invalid structureId");
+    return state;
+  }
+
+  const targetLocationId = locationId || state.player.currentLocationId;
+  const location = state.locations[targetLocationId];
+
+  if (!location) {
+    console.warn(`destroy_structure: location not found: ${targetLocationId}`);
+    return state;
+  }
+
+  // Check if structure exists
+  const structureExists = location.structures.some((s) => s.id === structureId);
+  if (!structureExists) {
+    console.warn(`destroy_structure: structure not found: ${structureId}`);
+    return state;
+  }
+
+  // Remove structure from location
+  const updatedLocation = {
+    ...location,
+    structures: location.structures.filter((s) => s.id !== structureId),
+  };
+
+  return {
+    ...state,
+    locations: {
+      ...state.locations,
+      [targetLocationId]: updatedLocation,
+    },
   };
 }
