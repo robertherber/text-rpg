@@ -623,3 +623,25 @@
   - Conversation mode wrapper has green border (`--accent-green`) to visually distinguish from normal action mode
   - Export `ConversationMode` interface from ActionPanel for type reuse
 ---
+
+## 2026-02-14 - US-043
+- What was implemented: Added combat integration to world system with NPC-based enemies
+- Files changed:
+  - src/world/stateManager.ts (modified - added combat functions: initiateWorldCombat, processWorldCombatAction, WorldCombatResult)
+  - index.ts (modified - added /api/world/combat and /api/world/combat/start endpoints, updated /api/world/action, /api/world/freeform, /api/world/state)
+- **Learnings for future iterations:**
+  - World combat uses `CombatState` from types.ts with `enemyNpcId` (string) instead of embedding enemy data
+  - `initiateWorldCombat(state, npcId)` sets up combat state with companions who are present at current location
+  - `processWorldCombatAction(state, action)` returns `WorldCombatResult` with newState, messages, and outcome flags
+  - Combat damage calculation: `baseDamage = strength - (defense * 0.5) + random(-3, 3)`, minimum 1
+  - XP reward formula: `10 + maxHealth * 0.5 + strength * 2`
+  - Gold reward formula: `random(5, 25) + strength`
+  - Level up: every 50 XP per level, grants +10 maxHealth, +2 strength, +1 defense
+  - On player defeat, `handlePlayerDeath` is called to preserve world state
+  - Enemy NPC marked as dead via `isAlive: false` and `deathDescription` on defeat
+  - Combat events added to `eventHistory` with `isSignificant: true` for rumor spreading
+  - `/api/world/state` returns `inCombat` boolean and `combat` object with enemy details
+  - `/api/world/action` and `/api/world/freeform` handle `initiatesCombat` from GPT and return `combatStarted` flag
+  - Use non-null assertion `!` when accessing record entries that were just created (e.g., `npcs[id]!`)
+  - Behavior patterns updated: `combat` pattern incremented after defeating enemies
+---
