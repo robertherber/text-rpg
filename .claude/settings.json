@@ -1,0 +1,15 @@
+
+{
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "enabledPlugins": {
+    "typescript@kingstinct-skills": true,
+    "planning@kingstinct-skills": true,
+    "general@kingstinct-skills": true,
+    "ralph-skills@ralph-marketplace": true
+  },
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)"
+    ]
+  }
+}
