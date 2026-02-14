@@ -144,3 +144,26 @@
   - JSON schema wraps actions in an object `{ actions: SuggestedAction[] }` for strict mode compatibility
 ---
 
+## 2026-02-14 - US-012
+- What was implemented: Created GET /api/world/state API endpoint for world state retrieval
+- Files changed:
+  - index.ts (modified - added /api/world/state endpoint and generateSuggestedActions import)
+- **Learnings for future iterations:**
+  - Use type predicate `(npc): npc is NonNullable<typeof npc> =>` in filter() to narrow undefined types
+  - Endpoint returns: currentLocation (with items, structures), presentNpcs (filtered & mapped), playerStats, suggestedActions
+  - Pre-existing type errors in index.ts are from `req.json()` returning `unknown` - these are ignored per Codebase Patterns
+  - Open World API endpoints section added with comment separator `// ===== Open World API Endpoints =====`
+---
+
+## 2026-02-14 - US-013
+- What was implemented: Created POST /api/world/action API endpoint for suggested action selection
+- Files changed:
+  - index.ts (modified - added /api/world/action endpoint, resolveAction and applyStateChanges imports, lastSuggestedActions module variable)
+- **Learnings for future iterations:**
+  - Module-level `lastSuggestedActions` stores suggested actions from GET /api/world/state and POST /api/world/action for ID lookup
+  - Use `as { actionId?: string }` type assertion for `req.json()` to handle pre-existing unknown type issues
+  - Endpoint flow: find action by ID → resolveAction → applyStateChanges → increment actionCounter → saveWorldState → return
+  - `actionResult.suggestedActions` from resolveAction replaces the lastSuggestedActions for chained action selections
+  - Returns: narrative, suggestedActions, initiatesCombat, revealsFlashback
+---
+

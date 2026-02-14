@@ -11,10 +11,15 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction } from "./src/world/gptService";
+import { applyStateChanges } from "./src/world/stateManager";
+import type { SuggestedAction } from "./src/world/types";
 
 // Module-level world state for API access
 let worldState: WorldState;
+
+// Store last suggested actions for action lookup by ID
+let lastSuggestedActions: SuggestedAction[] = [];
 
 // Initialize world state - load existing or create seed world
 async function initializeWorldState(): Promise<void> {
@@ -217,6 +222,9 @@ const server = Bun.serve({
         // Generate suggested actions using GPT
         const suggestedActions = await generateSuggestedActions(worldState);
 
+        // Store for action lookup by ID
+        lastSuggestedActions = suggestedActions;
+
         // Build player stats summary
         const playerStats = {
           name: player.name,
@@ -246,6 +254,56 @@ const server = Bun.serve({
           presentNpcs,
           playerStats,
           suggestedActions,
+        });
+      },
+    },
+
+    // Process a suggested action by ID
+    "/api/world/action": {
+      POST: async (req) => {
+        const body = await req.json() as { actionId?: string };
+        const { actionId } = body;
+
+        if (!actionId || typeof actionId !== "string") {
+          return Response.json(
+            { error: "actionId is required" },
+            { status: 400 }
+          );
+        }
+
+        // Find the action from last suggested actions
+        const selectedAction = lastSuggestedActions.find((a) => a.id === actionId);
+
+        if (!selectedAction) {
+          return Response.json(
+            { error: "Action not found. Please refresh suggested actions." },
+            { status: 404 }
+          );
+        }
+
+        // Resolve the action using GPT
+        const actionResult = await resolveAction(worldState, selectedAction.text);
+
+        // Apply state changes
+        worldState = applyStateChanges(worldState, actionResult.stateChanges);
+
+        // Increment action counter
+        worldState = {
+          ...worldState,
+          actionCounter: worldState.actionCounter + 1,
+        };
+
+        // Save the updated world state
+        await saveWorldState(worldState);
+
+        // Store the new suggested actions for next action lookup
+        lastSuggestedActions = actionResult.suggestedActions;
+
+        return Response.json({
+          narrative: actionResult.narrative,
+          suggestedActions: actionResult.suggestedActions,
+          initiatesCombat: actionResult.initiatesCombat,
+          revealsFlashback: actionResult.revealsFlashback,
         });
       },
     },
