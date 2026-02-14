@@ -348,3 +348,19 @@
   - The endpoint is synchronous (no async needed) since getMapData does no I/O
 ---
 
+## 2026-02-14 - US-026
+- What was implemented: Created permadeath handler for player death with world persistence
+- Files changed:
+  - src/world/stateManager.ts (modified - added handlePlayerDeath function)
+- **Learnings for future iterations:**
+  - `handlePlayerDeath(worldState, deathDescription)` is an exported function (not a state change handler, but direct call)
+  - Creates `DeceasedHero` record with: id, name, physicalDescription, origin, diedAtAction, deathDescription, deathLocationId, majorDeeds, itemsLeftBehind, knownByNpcIds
+  - Major deeds are gathered from significant events (combat, quest, discovery, relationship types), limited to last 10
+  - `knownByNpcIds` includes NPCs who had conversations, knew player's name, or were companions
+  - Player's inventory items are added to the death location's items array (truly left behind)
+  - Companions are marked as `isCompanion: false` (scattered) but stay alive at their current location
+  - A death event is added to eventHistory with type "death" and isSignificant: true
+  - Fresh player state resets to: loc_village_square, 100 HP, level 1, empty inventory, minimal knowledge, zero behavior patterns
+  - Fresh player retains structure but with undefined name and empty backstory (ready for new character creation)
+---
+
