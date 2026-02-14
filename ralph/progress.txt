@@ -222,3 +222,21 @@
   - Geographic coherence: prompts GPT to consider nearby terrain types for natural transitions
 ---
 
+## 2026-02-14 - US-018
+- What was implemented: Created dynamic NPC generator for spawning new NPCs
+- Files changed:
+  - src/world/gptService.ts (modified - added generateNPC function, GENERATED_NPC_SCHEMA, GeneratedNPCData interface)
+- **Learnings for future iterations:**
+  - `generateNPC(worldState, context, locationId?)` generates new NPCs via GPT with comprehensive character data
+  - The `context` parameter describes why/where the NPC is needed (e.g., "a mysterious traveler at the tavern")
+  - Location defaults to player's current location if not specified
+  - `soulInstruction` is the most important field - must be a coherent paragraph (4-6 sentences) covering: background, goals, personality, speech patterns, trust/gullibility
+  - NPC ID format: `npc_{name_with_underscores}_{timestamp_base36}`
+  - Generated NPCs include: knowledge (nearby locations/lore), inventory, stats, potential quest hooks
+  - Use type predicate `(npc): npc is NPC =>` in filter() to narrow possibly-undefined types
+  - Inventory items get auto-generated IDs: `item_{npcId}_{index}`
+  - Attitude clamped to -100 to 100 range
+  - Generated NPCs get `isCanonical: false`, `isCompanion: false`, `isAlive: true`
+  - `homeLocationId` defaults to where they're generated
+---
+
