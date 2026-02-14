@@ -99,6 +99,7 @@ export default function WorldApp() {
   const [deathState, setDeathState] = useState<DeathState | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [lastAction, setLastAction] = useState<LastAction>(null);
+  const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const messageIdRef = useRef(0);
 
   // Fetch initial world state
@@ -226,6 +227,25 @@ export default function WorldApp() {
       ...prev,
       { id: messageIdRef.current, text, type },
     ]);
+    return messageIdRef.current;
+  };
+
+  // Update an existing message by ID (used for streaming)
+  const updateMessageText = (messageId: number, newText: string) => {
+    setStoryMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, text: newText } : msg
+      )
+    );
+  };
+
+  // Append text to an existing message by ID (used for streaming)
+  const appendToMessage = (messageId: number, textChunk: string) => {
+    setStoryMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId ? { ...msg, text: msg.text + textChunk } : msg
+      )
+    );
   };
 
   // Handle retrying the last failed action
@@ -315,38 +335,85 @@ export default function WorldApp() {
     addStoryMessage(`> ${text}`, "action");
 
     try {
-      const response = await fetch("/api/world/freeform", {
+      // Use streaming endpoint
+      const response = await fetch("/api/world/freeform/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text }),
       });
 
-      const data = (await response.json()) as {
-        error?: string;
-        narrative?: string;
-        knowledgeRejection?: boolean;
-        unknownReferences?: string[];
-      };
-
-      if (data.error) {
-        addStoryMessage(data.error, "system");
-      } else if (data.knowledgeRejection && data.narrative) {
-        // Knowledge rejection - playful narrator rejection
-        addStoryMessage(data.narrative, "narrative");
-      } else if (data.narrative) {
-        addStoryMessage(data.narrative, "narrative");
+      if (!response.ok) {
+        const errorData = await response.json() as { error?: string };
+        throw new Error(errorData.error || "Request failed");
       }
 
-      // Update world state with new suggested actions
-      if (worldState) {
-        // Re-fetch world state to get updated location
-        const stateResponse = await fetch("/api/world/state");
-        const newState = (await stateResponse.json()) as WorldStateResponse;
-        setWorldState(newState);
+      if (!response.body) {
+        throw new Error("No response body");
       }
-      // Clear last action on success
-      setLastAction(null);
+
+      // Create a streaming narrative message
+      const narrativeId = addStoryMessage("", "narrative");
+      setStreamingMessageId(narrativeId);
+
+      // Process the SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE events (each ends with \n\n)
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || ""; // Keep incomplete event in buffer
+
+        for (const event of events) {
+          if (!event.trim() || !event.startsWith("data: ")) continue;
+
+          const jsonStr = event.slice(6); // Remove "data: " prefix
+          try {
+            const data = JSON.parse(jsonStr) as {
+              type: "narrative" | "complete" | "error";
+              content?: string;
+              error?: string;
+              suggestedActions?: SuggestedAction[];
+              knowledgeRejection?: boolean;
+              unknownReferences?: string[];
+            };
+
+            if (data.type === "narrative" && data.content) {
+              // Append narrative chunk to the streaming message
+              appendToMessage(narrativeId, data.content);
+            } else if (data.type === "complete") {
+              // Stream complete - clear streaming state and refresh world state
+              setStreamingMessageId(null);
+
+              // Re-fetch world state to get updated location and actions
+              const stateResponse = await fetch("/api/world/state");
+              const newState = (await stateResponse.json()) as WorldStateResponse;
+              setWorldState(newState);
+
+              // Clear last action on success
+              setLastAction(null);
+            } else if (data.type === "error") {
+              // Error during streaming
+              setStreamingMessageId(null);
+              updateMessageText(narrativeId, data.error || "An error occurred");
+              setActionError("Something went wrong. Retry?");
+            }
+          } catch {
+            // Ignore JSON parse errors for incomplete chunks
+          }
+        }
+      }
+
+      // Clear streaming state in case stream ended without "complete" event
+      setStreamingMessageId(null);
     } catch (err) {
+      setStreamingMessageId(null);
       setActionError("Something went wrong. Retry?");
       console.error(err);
     } finally {
@@ -363,7 +430,8 @@ export default function WorldApp() {
     addStoryMessage(`> "${message}"`, "action");
 
     try {
-      const response = await fetch("/api/world/talk", {
+      // Use streaming endpoint
+      const response = await fetch("/api/world/talk/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -372,53 +440,102 @@ export default function WorldApp() {
         }),
       });
 
-      const data = (await response.json()) as {
-        error?: string;
-        narrative?: string;
-        npcResponse?: string;
-        npcName?: string;
-        attitudeChange?: number;
-        newAttitude?: number;
-        suggestsEndConversation?: boolean;
-        newKnowledge?: string[];
-        suggestedResponses?: SuggestedResponse[];
-      };
+      if (!response.ok) {
+        const errorData = await response.json() as { error?: string };
+        throw new Error(errorData.error || "Request failed");
+      }
 
-      if (data.error) {
-        addStoryMessage(data.error, "system");
-      } else {
-        // Display the narrator framing if present
-        if (data.narrative) {
-          addStoryMessage(data.narrative, "narrative");
-        }
-        // Display the NPC's response
-        if (data.npcResponse) {
-          addStoryMessage(`${data.npcName || conversationState.npcName}: "${data.npcResponse}"`, "narrative");
-        }
-        // Show knowledge gained
-        if (data.newKnowledge && data.newKnowledge.length > 0) {
-          addStoryMessage(`[Learned: ${data.newKnowledge.join(", ")}]`, "system");
-        }
-        // Auto-end conversation if NPC suggests it
-        if (data.suggestsEndConversation) {
-          addStoryMessage(`${conversationState.npcName} seems to have nothing more to say.`, "narrative");
-          setConversationState(null);
-        } else {
-          // Update conversation state with new suggested responses
-          setConversationState(prev => prev ? {
-            ...prev,
-            suggestedResponses: data.suggestedResponses || [],
-          } : null);
+      if (!response.body) {
+        throw new Error("No response body");
+      }
+
+      // Create a streaming narrative message
+      const narrativeId = addStoryMessage("", "narrative");
+      setStreamingMessageId(narrativeId);
+
+      // Process the SSE stream
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+
+        // Process complete SSE events (each ends with \n\n)
+        const events = buffer.split("\n\n");
+        buffer = events.pop() || ""; // Keep incomplete event in buffer
+
+        for (const event of events) {
+          if (!event.trim() || !event.startsWith("data: ")) continue;
+
+          const jsonStr = event.slice(6); // Remove "data: " prefix
+          try {
+            const data = JSON.parse(jsonStr) as {
+              type: "narrative" | "complete" | "error";
+              content?: string;
+              error?: string;
+              npcResponse?: string;
+              npcName?: string;
+              attitudeChange?: number;
+              newAttitude?: number;
+              suggestsEndConversation?: boolean;
+              newKnowledge?: string[];
+              suggestedResponses?: SuggestedResponse[];
+            };
+
+            if (data.type === "narrative" && data.content) {
+              // Append narrative chunk to the streaming message
+              appendToMessage(narrativeId, data.content);
+            } else if (data.type === "complete") {
+              // Stream complete - clear streaming state
+              setStreamingMessageId(null);
+
+              // Display the NPC's response (from final structured data)
+              if (data.npcResponse) {
+                addStoryMessage(`${data.npcName || conversationState.npcName}: "${data.npcResponse}"`, "narrative");
+              }
+              // Show knowledge gained
+              if (data.newKnowledge && data.newKnowledge.length > 0) {
+                addStoryMessage(`[Learned: ${data.newKnowledge.join(", ")}]`, "system");
+              }
+              // Auto-end conversation if NPC suggests it
+              if (data.suggestsEndConversation) {
+                addStoryMessage(`${conversationState.npcName} seems to have nothing more to say.`, "narrative");
+                setConversationState(null);
+              } else {
+                // Update conversation state with new suggested responses
+                setConversationState(prev => prev ? {
+                  ...prev,
+                  suggestedResponses: data.suggestedResponses || [],
+                } : null);
+              }
+
+              // Re-fetch world state to keep it up to date
+              const stateResponse = await fetch("/api/world/state");
+              const newState = (await stateResponse.json()) as WorldStateResponse;
+              setWorldState(newState);
+
+              // Clear last action on success
+              setLastAction(null);
+            } else if (data.type === "error") {
+              // Error during streaming
+              setStreamingMessageId(null);
+              updateMessageText(narrativeId, data.error || "An error occurred");
+              setActionError("Something went wrong. Retry?");
+            }
+          } catch {
+            // Ignore JSON parse errors for incomplete chunks
+          }
         }
       }
 
-      // Re-fetch world state to keep it up to date
-      const stateResponse = await fetch("/api/world/state");
-      const newState = (await stateResponse.json()) as WorldStateResponse;
-      setWorldState(newState);
-      // Clear last action on success
-      setLastAction(null);
+      // Clear streaming state in case stream ended without "complete" event
+      setStreamingMessageId(null);
     } catch (err) {
+      setStreamingMessageId(null);
       setActionError("Something went wrong. Retry?");
       console.error(err);
     } finally {
@@ -571,6 +688,7 @@ export default function WorldApp() {
               actionError={actionError}
               onRetry={handleRetry}
               isLoading={isProcessing}
+              streamingMessageId={streamingMessageId}
             />
           )}
 

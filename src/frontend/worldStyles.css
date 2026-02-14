@@ -494,6 +494,30 @@ body {
   }
 }
 
+/* Streaming cursor - blinking cursor effect while text streams */
+.streaming-cursor {
+  display: inline;
+  color: var(--accent-gold);
+  animation: blink-cursor 0.8s ease-in-out infinite;
+  margin-left: 2px;
+}
+
+@keyframes blink-cursor {
+  0%, 50% {
+    opacity: 1;
+  }
+  51%, 100% {
+    opacity: 0;
+  }
+}
+
+/* Streaming message - subtle visual indication */
+.story-message.streaming {
+  border-left: 2px solid var(--accent-gold);
+  padding-left: 0.5rem;
+  margin-left: -0.5rem;
+}
+
 /* Narrator text - de-emphasized italic style */
 .narrator-text {
   font-style: italic;

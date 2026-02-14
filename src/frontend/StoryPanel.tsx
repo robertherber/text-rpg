@@ -17,6 +17,7 @@ interface StoryPanelProps {
   actionError?: string | null;
   onRetry?: () => void;
   isLoading?: boolean;
+  streamingMessageId?: number | null;
 }
 
 /**
@@ -157,28 +158,31 @@ function NarrativeText({ text }: { text: string }) {
  * - Narrator text styled in italic gray, NPC dialog in normal weight
  * - Error state with retry button
  */
-export default function StoryPanel({ messages, actionError, onRetry, isLoading }: StoryPanelProps) {
+export default function StoryPanel({ messages, actionError, onRetry, isLoading, streamingMessageId }: StoryPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when new messages arrive, error appears, or loading state changes
+  // Scroll to bottom when new messages arrive, error appears, loading state changes, or streaming updates
   useEffect(() => {
     if (panelRef.current) {
       panelRef.current.scrollTop = panelRef.current.scrollHeight;
     }
-  }, [messages, actionError, isLoading]);
+  }, [messages, actionError, isLoading, streamingMessageId]);
 
   return (
     <div className="story-panel" ref={panelRef}>
       {messages.map((msg) => (
-        <div key={msg.id} className={`story-message ${msg.type}`}>
+        <div key={msg.id} className={`story-message ${msg.type}${msg.id === streamingMessageId ? " streaming" : ""}`}>
           {msg.type === "narrative" ? (
-            <NarrativeText text={msg.text} />
+            <>
+              <NarrativeText text={msg.text} />
+              {msg.id === streamingMessageId && <span className="streaming-cursor">▍</span>}
+            </>
           ) : (
             msg.text
           )}
         </div>
       ))}
-      {isLoading && <LoadingIndicator />}
+      {isLoading && !streamingMessageId && <LoadingIndicator />}
       {actionError && (
         <div className="story-message error">
           <span className="error-text">{actionError}</span>
