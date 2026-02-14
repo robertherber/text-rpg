@@ -179,3 +179,16 @@
   - Also stores resulting suggestedActions in lastSuggestedActions for subsequent action ID lookups
 ---
 
+## 2026-02-14 - US-015
+- What was implemented: Added validateKnowledge function for player knowledge tracking
+- Files changed:
+  - src/world/stateManager.ts (modified - added validateKnowledge function)
+- **Learnings for future iterations:**
+  - `validateKnowledge(worldState, reference)` checks if player knows about a location/NPC/item
+  - Function checks: knowledge.locations (ID and name), knowledge.npcs (ID and name), knowledge.lore, knowledge.recipes, knowledge.skills
+  - Also checks: player inventory items, NPCs present at current location, items at current location, structures at current location, companions
+  - References are normalized with `.toLowerCase().trim()` for case-insensitive matching
+  - Uses `.includes()` for partial matching on names (e.g., "Millbrook" matches "Millbrook Village Square")
+  - Player starting knowledge already set up in seedWorld.ts with all village locations, Pip (visible NPC), and basic lore
+---
+
