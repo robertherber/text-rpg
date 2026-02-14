@@ -13,7 +13,7 @@ import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
 import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel } from "./src/world/gptService";
-import { applyStateChanges, validateKnowledge } from "./src/world/stateManager";
+import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
 
@@ -246,6 +246,26 @@ const server = Bun.serve({
           inventoryCount: player.inventory.length,
         };
 
+        // Build combat state if in combat
+        let combatInfo = null;
+        if (worldState.combatState) {
+          const enemy = npcs[worldState.combatState.enemyNpcId];
+          if (enemy) {
+            combatInfo = {
+              enemy: {
+                id: enemy.id,
+                name: enemy.name,
+                description: enemy.description,
+                health: enemy.stats.health,
+                maxHealth: enemy.stats.maxHealth,
+              },
+              playerTurn: worldState.combatState.playerTurn,
+              turnCount: worldState.combatState.turnCount,
+              companionsInCombat: worldState.combatState.companionsInCombat,
+            };
+          }
+        }
+
         return Response.json({
           currentLocation: {
             id: currentLocation.id,
@@ -260,6 +280,8 @@ const server = Bun.serve({
           presentNpcs,
           playerStats,
           suggestedActions,
+          inCombat: worldState.combatState !== null,
+          combat: combatInfo,
         });
       },
     },
@@ -293,6 +315,24 @@ const server = Bun.serve({
         // Apply state changes
         worldState = applyStateChanges(worldState, actionResult.stateChanges);
 
+        // Check if combat should be initiated
+        let combatStarted = false;
+        let enemyInfo = null;
+        if (actionResult.initiatesCombat) {
+          const npc = worldState.npcs[actionResult.initiatesCombat];
+          if (npc && npc.isAlive) {
+            worldState = initiateWorldCombat(worldState, actionResult.initiatesCombat);
+            combatStarted = true;
+            enemyInfo = {
+              id: npc.id,
+              name: npc.name,
+              description: npc.description,
+              health: npc.stats.health,
+              maxHealth: npc.stats.maxHealth,
+            };
+          }
+        }
+
         // Increment action counter
         worldState = {
           ...worldState,
@@ -312,6 +352,9 @@ const server = Bun.serve({
           narrative: actionResult.narrative,
           suggestedActions: actionResult.suggestedActions,
           initiatesCombat: actionResult.initiatesCombat,
+          combatStarted,
+          enemy: enemyInfo,
+          inCombat: worldState.combatState !== null,
           revealsFlashback: actionResult.revealsFlashback,
         });
       },
@@ -368,6 +411,24 @@ const server = Bun.serve({
         // Apply state changes
         worldState = applyStateChanges(worldState, actionResult.stateChanges);
 
+        // Check if combat should be initiated
+        let combatStarted = false;
+        let enemyInfo = null;
+        if (actionResult.initiatesCombat) {
+          const npc = worldState.npcs[actionResult.initiatesCombat];
+          if (npc && npc.isAlive) {
+            worldState = initiateWorldCombat(worldState, actionResult.initiatesCombat);
+            combatStarted = true;
+            enemyInfo = {
+              id: npc.id,
+              name: npc.name,
+              description: npc.description,
+              health: npc.stats.health,
+              maxHealth: npc.stats.maxHealth,
+            };
+          }
+        }
+
         // Increment action counter
         worldState = {
           ...worldState,
@@ -387,6 +448,9 @@ const server = Bun.serve({
           narrative: actionResult.narrative,
           suggestedActions: actionResult.suggestedActions,
           initiatesCombat: actionResult.initiatesCombat,
+          combatStarted,
+          enemy: enemyInfo,
+          inCombat: worldState.combatState !== null,
           revealsFlashback: actionResult.revealsFlashback,
         });
       },
@@ -674,6 +738,150 @@ const server = Bun.serve({
             { status: 500 }
           );
         }
+      },
+    },
+
+    // Process a combat action in the world system
+    "/api/world/combat": {
+      POST: async (req) => {
+        const body = await req.json() as { action?: "attack" | "defend" | "flee" | "usePotion" };
+        const { action } = body;
+
+        // Validate action
+        if (!action || !["attack", "defend", "flee", "usePotion"].includes(action)) {
+          return Response.json(
+            { error: "Invalid action. Must be one of: attack, defend, flee, usePotion" },
+            { status: 400 }
+          );
+        }
+
+        // Check if in combat
+        if (!worldState.combatState) {
+          return Response.json(
+            { error: "Not in combat" },
+            { status: 400 }
+          );
+        }
+
+        // Process the combat action
+        const result = processWorldCombatAction(worldState, action);
+        worldState = result.newState;
+
+        // Handle player death if defeated
+        if (result.playerDefeated) {
+          // Generate death description from combat context
+          const enemyNpc = worldState.npcs[worldState.combatState?.enemyNpcId || ""];
+          const deathDescription = enemyNpc
+            ? `Fell in combat against ${enemyNpc.name}`
+            : "Fell in combat";
+
+          worldState = handlePlayerDeath(worldState, deathDescription);
+        }
+
+        // Increment action counter
+        worldState = {
+          ...worldState,
+          actionCounter: worldState.actionCounter + 1,
+        };
+
+        // Save the updated world state
+        await saveWorldState(worldState);
+
+        // Get enemy info for UI
+        let enemyInfo = null;
+        if (worldState.combatState) {
+          const enemy = worldState.npcs[worldState.combatState.enemyNpcId];
+          if (enemy) {
+            enemyInfo = {
+              id: enemy.id,
+              name: enemy.name,
+              description: enemy.description,
+              health: enemy.stats.health,
+              maxHealth: enemy.stats.maxHealth,
+            };
+          }
+        }
+
+        return Response.json({
+          messages: result.messages,
+          combatEnded: result.combatEnded,
+          playerVictory: result.playerVictory,
+          playerDefeated: result.playerDefeated,
+          fled: result.fled,
+          experienceGained: result.experienceGained,
+          goldGained: result.goldGained,
+          leveledUp: result.leveledUp,
+          playerHealth: worldState.player.health,
+          playerMaxHealth: worldState.player.maxHealth,
+          enemy: enemyInfo,
+          inCombat: worldState.combatState !== null,
+        });
+      },
+    },
+
+    // Initiate combat with an NPC
+    "/api/world/combat/start": {
+      POST: async (req) => {
+        const body = await req.json() as { npcId?: string };
+        const { npcId } = body;
+
+        if (!npcId || typeof npcId !== "string") {
+          return Response.json(
+            { error: "npcId is required" },
+            { status: 400 }
+          );
+        }
+
+        // Check if already in combat
+        if (worldState.combatState) {
+          return Response.json(
+            { error: "Already in combat" },
+            { status: 400 }
+          );
+        }
+
+        // Check NPC exists and is alive
+        const npc = worldState.npcs[npcId];
+        if (!npc) {
+          return Response.json(
+            { error: "NPC not found" },
+            { status: 404 }
+          );
+        }
+
+        if (!npc.isAlive) {
+          return Response.json(
+            { error: `${npc.name} is already dead` },
+            { status: 400 }
+          );
+        }
+
+        // Check NPC is at current location
+        const currentLocation = worldState.locations[worldState.player.currentLocationId];
+        if (!currentLocation?.presentNpcIds.includes(npcId)) {
+          return Response.json(
+            { error: `${npc.name} is not here` },
+            { status: 400 }
+          );
+        }
+
+        // Initiate combat
+        worldState = initiateWorldCombat(worldState, npcId);
+
+        // Save the updated world state
+        await saveWorldState(worldState);
+
+        return Response.json({
+          message: `Combat begins with ${npc.name}!`,
+          enemy: {
+            id: npc.id,
+            name: npc.name,
+            description: npc.description,
+            health: npc.stats.health,
+            maxHealth: npc.stats.maxHealth,
+          },
+          inCombat: true,
+        });
       },
     },
 

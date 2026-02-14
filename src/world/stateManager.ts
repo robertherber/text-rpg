@@ -1400,3 +1400,326 @@ function handleUpdateFaction(
     },
   };
 }
+
+// ===== Combat System for World State =====
+
+/**
+ * Result of a combat action
+ */
+export interface WorldCombatResult {
+  newState: WorldState;
+  messages: string[];
+  combatEnded: boolean;
+  playerVictory: boolean;
+  playerDefeated: boolean;
+  fled: boolean;
+  experienceGained: number;
+  goldGained: number;
+  leveledUp: boolean;
+}
+
+/**
+ * Calculate damage for world combat, accounting for stats
+ */
+function calculateWorldCombatDamage(
+  attackerStrength: number,
+  defenderDefense: number
+): number {
+  const baseDamage = attackerStrength;
+  const reduction = defenderDefense * 0.5;
+  const damage = Math.max(1, Math.floor(baseDamage - reduction + (Math.random() * 6 - 3)));
+  return damage;
+}
+
+/**
+ * Initiate combat with an NPC.
+ * Sets up the combat state with the specified NPC as the enemy.
+ *
+ * @param state - The current world state
+ * @param npcId - The ID of the NPC to fight
+ * @returns A new WorldState with combat initiated, or unchanged state if NPC invalid
+ */
+export function initiateWorldCombat(
+  state: WorldState,
+  npcId: string
+): WorldState {
+  const npc = state.npcs[npcId];
+
+  if (!npc) {
+    console.warn(`initiateWorldCombat: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  if (!npc.isAlive) {
+    console.warn(`initiateWorldCombat: NPC is not alive: ${npcId}`);
+    return state;
+  }
+
+  // Get player's companions who are present at the current location
+  const currentLocation = state.locations[state.player.currentLocationId];
+  const companionsInCombat = state.player.companionIds.filter((companionId) => {
+    const companion = state.npcs[companionId];
+    return (
+      companion &&
+      companion.isAlive &&
+      currentLocation?.presentNpcIds.includes(companionId)
+    );
+  });
+
+  return {
+    ...state,
+    combatState: {
+      enemyNpcId: npcId,
+      playerTurn: true,
+      turnCount: 1,
+      companionsInCombat,
+    },
+  };
+}
+
+/**
+ * Process a combat action in the world system.
+ *
+ * This function handles:
+ * - Attack: Player deals damage to enemy NPC
+ * - Defend: Reduces incoming damage on enemy turn
+ * - Flee: 50% chance to escape combat
+ * - UsePotion: Consumes a potion from inventory to heal
+ *
+ * After player action, if enemy survives, enemy counter-attacks.
+ * Combat ends when enemy is defeated (NPC marked as dead) or player flees.
+ *
+ * @param state - The current world state with active combatState
+ * @param action - The combat action to take
+ * @returns WorldCombatResult with new state, messages, and outcome flags
+ */
+export function processWorldCombatAction(
+  state: WorldState,
+  action: "attack" | "defend" | "flee" | "usePotion"
+): WorldCombatResult {
+  const messages: string[] = [];
+  let experienceGained = 0;
+  let goldGained = 0;
+  let leveledUp = false;
+
+  if (!state.combatState) {
+    return {
+      newState: state,
+      messages: ["Not in combat"],
+      combatEnded: true,
+      playerVictory: false,
+      playerDefeated: false,
+      fled: false,
+      experienceGained: 0,
+      goldGained: 0,
+      leveledUp: false,
+    };
+  }
+
+  const enemyNpc = state.npcs[state.combatState.enemyNpcId];
+  if (!enemyNpc || !enemyNpc.isAlive) {
+    return {
+      newState: { ...state, combatState: null },
+      messages: ["Enemy is no longer a threat"],
+      combatEnded: true,
+      playerVictory: true,
+      playerDefeated: false,
+      fled: false,
+      experienceGained: 0,
+      goldGained: 0,
+      leveledUp: false,
+    };
+  }
+
+  // Create mutable copies
+  let newState = { ...state };
+  newState.player = { ...state.player };
+  newState.npcs = { ...state.npcs };
+  newState.npcs[enemyNpc.id] = {
+    ...enemyNpc,
+    stats: { ...enemyNpc.stats },
+  };
+  newState.combatState = {
+    ...state.combatState,
+  };
+  newState.messageLog = [...state.messageLog];
+
+  // Get enemy reference (guaranteed to exist since we just created it)
+  const enemy = newState.npcs[enemyNpc.id]!;
+  let isDefending = false;
+
+  // Player action
+  switch (action) {
+    case "attack": {
+      const damage = calculateWorldCombatDamage(
+        newState.player.strength,
+        enemy.stats.defense
+      );
+      enemy.stats.health -= damage;
+      messages.push(`You deal ${damage} damage to ${enemy.name}!`);
+      break;
+    }
+    case "defend": {
+      isDefending = true;
+      messages.push("You take a defensive stance!");
+      break;
+    }
+    case "flee": {
+      if (Math.random() > 0.5) {
+        newState.combatState = null;
+        messages.push("You managed to escape!");
+        return {
+          newState,
+          messages,
+          combatEnded: true,
+          playerVictory: false,
+          playerDefeated: false,
+          fled: true,
+          experienceGained: 0,
+          goldGained: 0,
+          leveledUp: false,
+        };
+      } else {
+        messages.push("You failed to escape!");
+      }
+      break;
+    }
+    case "usePotion": {
+      const potionIndex = newState.player.inventory.findIndex(
+        (i) => i.type === "potion"
+      );
+      if (potionIndex !== -1) {
+        const potion = newState.player.inventory[potionIndex]!;
+        if (potion.effect) {
+          const healAmount = potion.effect.value;
+          newState.player.health = Math.min(
+            newState.player.maxHealth,
+            newState.player.health + healAmount
+          );
+          messages.push(
+            `You used ${potion.name} and restored ${healAmount} health!`
+          );
+        }
+        newState.player.inventory = [...newState.player.inventory];
+        newState.player.inventory.splice(potionIndex, 1);
+      } else {
+        messages.push("You don't have any potions!");
+      }
+      break;
+    }
+  }
+
+  // Check if enemy defeated
+  if (enemy.stats.health <= 0) {
+    messages.push(`You defeated ${enemy.name}!`);
+
+    // Calculate rewards based on enemy stats
+    experienceGained = Math.floor(
+      10 + enemy.stats.maxHealth * 0.5 + enemy.stats.strength * 2
+    );
+    goldGained = Math.floor(Math.random() * 20 + 5 + enemy.stats.strength);
+
+    messages.push(`Gained ${experienceGained} XP and ${goldGained} gold!`);
+
+    newState.player.experience += experienceGained;
+    newState.player.gold += goldGained;
+
+    // Update behavior pattern for combat
+    newState.player.behaviorPatterns = {
+      ...newState.player.behaviorPatterns,
+      combat: newState.player.behaviorPatterns.combat + 1,
+    };
+
+    // Mark NPC as dead
+    newState.npcs[enemy.id] = {
+      ...enemy,
+      isAlive: false,
+      deathDescription: `Slain in combat by the player`,
+    };
+
+    // Check for level up
+    const xpNeeded = newState.player.level * 50;
+    if (newState.player.experience >= xpNeeded) {
+      newState.player.level++;
+      newState.player.experience -= xpNeeded;
+      newState.player.maxHealth += 10;
+      newState.player.health = newState.player.maxHealth;
+      newState.player.strength += 2;
+      newState.player.defense += 1;
+      messages.push(`LEVEL UP! You are now level ${newState.player.level}!`);
+      leveledUp = true;
+    }
+
+    // Add combat event to history
+    const combatEvent: import("./types").WorldEvent = {
+      id: `event_combat_${newState.actionCounter}_${Date.now()}`,
+      actionNumber: newState.actionCounter,
+      description: `Defeated ${enemy.name} in combat`,
+      type: "combat",
+      involvedNpcIds: [enemy.id],
+      locationId: newState.player.currentLocationId,
+      isSignificant: true,
+    };
+    newState.eventHistory = [...newState.eventHistory, combatEvent];
+
+    newState.combatState = null;
+
+    return {
+      newState,
+      messages,
+      combatEnded: true,
+      playerVictory: true,
+      playerDefeated: false,
+      fled: false,
+      experienceGained,
+      goldGained,
+      leveledUp,
+    };
+  }
+
+  // Enemy turn
+  let damageMultiplier = isDefending ? 0.5 : 1;
+
+  const enemyDamage = Math.floor(
+    calculateWorldCombatDamage(enemy.stats.strength, newState.player.defense) *
+      damageMultiplier
+  );
+  newState.player.health -= enemyDamage;
+  messages.push(`${enemy.name} deals ${enemyDamage} damage to you!`);
+
+  // Check if player defeated
+  if (newState.player.health <= 0) {
+    messages.push("You have been defeated...");
+    newState.combatState = null;
+
+    return {
+      newState,
+      messages,
+      combatEnded: true,
+      playerVictory: false,
+      playerDefeated: true,
+      fled: false,
+      experienceGained: 0,
+      goldGained: 0,
+      leveledUp: false,
+    };
+  }
+
+  // Increment turn counter
+  newState.combatState = {
+    ...newState.combatState,
+    turnCount: newState.combatState.turnCount + 1,
+  };
+
+  return {
+    newState,
+    messages,
+    combatEnded: false,
+    playerVictory: false,
+    playerDefeated: false,
+    fled: false,
+    experienceGained: 0,
+    goldGained: 0,
+    leveledUp: false,
+  };
+}
