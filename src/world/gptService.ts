@@ -2522,3 +2522,287 @@ Return the NPC details as JSON.`;
 
   return newNPC;
 }
+
+// ========== CRAFTING SYSTEM ==========
+
+// Interface for crafting result data from GPT
+interface CraftingResultData {
+  isFeasible: boolean;
+  rejectionReason: string; // Empty if feasible
+  narrativeRejection: string; // Playful narrator rejection if not feasible
+  craftedItemName: string; // Empty if not feasible
+  craftedItemDescription: string;
+  craftedItemType: "weapon" | "armor" | "potion" | "food" | "key" | "misc" | "material" | "book" | "magic";
+  craftedItemBaseValue: number;
+  hasEffect: boolean;
+  effectStat: string;
+  effectValue: number;
+  materialsUsed: string[]; // Item IDs that were consumed
+  narrativeSuccess: string; // Dramatic crafting narrative if successful
+  skillImprovement: string; // Description of any skill improvement from crafting
+}
+
+// JSON Schema for crafting resolution
+const CRAFTING_RESULT_SCHEMA = {
+  type: "object",
+  properties: {
+    isFeasible: {
+      type: "boolean",
+      description: "Whether the crafting is possible with the player's current inventory",
+    },
+    rejectionReason: {
+      type: "string",
+      description: "If not feasible, the logical reason why (e.g., 'missing iron ore'). Empty string if feasible.",
+    },
+    narrativeRejection: {
+      type: "string",
+      description: "If not feasible, a playful chaotic trickster narrator rejection (3-4 sentences). Empty string if feasible.",
+    },
+    craftedItemName: {
+      type: "string",
+      description: "The name of the crafted item. Empty string if not feasible.",
+    },
+    craftedItemDescription: {
+      type: "string",
+      description: "A vivid description of the crafted item. Empty string if not feasible.",
+    },
+    craftedItemType: {
+      type: "string",
+      enum: ["weapon", "armor", "potion", "food", "key", "misc", "material", "book", "magic"],
+      description: "The type of crafted item. Defaults to 'misc' if not feasible.",
+    },
+    craftedItemBaseValue: {
+      type: "number",
+      description: "The base gold value of the crafted item. 0 if not feasible.",
+    },
+    hasEffect: {
+      type: "boolean",
+      description: "Whether the crafted item has a special effect",
+    },
+    effectStat: {
+      type: "string",
+      description: "If hasEffect is true, which stat the effect applies to (health, strength, defense, magic). Empty if no effect.",
+    },
+    effectValue: {
+      type: "number",
+      description: "If hasEffect is true, the magnitude of the effect. 0 if no effect.",
+    },
+    materialsUsed: {
+      type: "array",
+      items: { type: "string" },
+      description: "Array of item IDs from the player's inventory that were consumed in crafting. Empty array if not feasible.",
+    },
+    narrativeSuccess: {
+      type: "string",
+      description: "If feasible, a dramatic narrative describing the crafting process (3-5 sentences in chaotic trickster narrator voice). Empty string if not feasible.",
+    },
+    skillImprovement: {
+      type: "string",
+      description: "A brief description of any crafting skill improvement gained (e.g., 'Your metalworking improves slightly'). Empty if none.",
+    },
+  },
+  required: [
+    "isFeasible",
+    "rejectionReason",
+    "narrativeRejection",
+    "craftedItemName",
+    "craftedItemDescription",
+    "craftedItemType",
+    "craftedItemBaseValue",
+    "hasEffect",
+    "effectStat",
+    "effectValue",
+    "materialsUsed",
+    "narrativeSuccess",
+    "skillImprovement",
+  ],
+  additionalProperties: false,
+};
+
+// Result returned from handleCrafting
+export interface CraftingResult {
+  success: boolean;
+  narrative: string;
+  craftedItem?: WorldItem;
+  materialsConsumed: string[]; // Item IDs
+  stateChanges: StateChange[];
+  skillImprovement?: string;
+}
+
+/**
+ * Handle a crafting attempt based on player description.
+ * GPT judges if crafting is feasible given inventory, removes materials if successful,
+ * and creates the crafted item. Returns playful rejection if not feasible.
+ */
+export async function handleCrafting(
+  worldState: WorldState,
+  description: string
+): Promise<CraftingResult> {
+  const { player, locations } = worldState;
+  const currentLocation = locations[player.currentLocationId];
+
+  // Build inventory context for GPT
+  const inventoryContext = player.inventory
+    .map((item) => `- ${item.name} (ID: ${item.id}, Type: ${item.type}): ${item.description}`)
+    .join("\n");
+
+  // Check for crafting-relevant skills
+  const craftingSkills = Object.entries(player.knowledge.skills)
+    .filter(([skill]) =>
+      ["crafting", "smithing", "alchemy", "cooking", "leatherworking", "carpentry", "enchanting"].some(
+        (s) => skill.toLowerCase().includes(s)
+      )
+    )
+    .map(([skill, level]) => `${skill}: ${level}`)
+    .join(", ");
+
+  // Check known recipes
+  const knownRecipes = player.knowledge.recipes.length > 0
+    ? player.knowledge.recipes.join(", ")
+    : "None";
+
+  // Location context (some locations are better for crafting)
+  const locationContext = currentLocation
+    ? `Current location: ${currentLocation.name} (${currentLocation.terrain})`
+    : "Unknown location";
+
+  // Check for structures that might aid crafting
+  const craftingStructures = currentLocation?.structures
+    .filter((s) =>
+      ["forge", "anvil", "workbench", "alchemy table", "kitchen", "campfire"].some((term) =>
+        s.name.toLowerCase().includes(term) || s.description.toLowerCase().includes(term)
+      )
+    )
+    .map((s) => s.name)
+    .join(", ") || "None available";
+
+  const systemPrompt = `You are evaluating a crafting attempt in a fantasy medieval RPG.
+
+THE PLAYER WANTS TO CRAFT: "${description}"
+
+PLAYER'S INVENTORY:
+${inventoryContext || "Empty inventory"}
+
+PLAYER'S CRAFTING SKILLS: ${craftingSkills || "No formal crafting training"}
+KNOWN RECIPES: ${knownRecipes}
+${locationContext}
+CRAFTING FACILITIES: ${craftingStructures}
+
+CRAFTING RULES:
+1. Be GENEROUS but LOGICAL about what can be crafted:
+   - If the player has reasonable materials, allow the craft
+   - Materials don't need to be exact - leather scraps can make a pouch, bones can make tools
+   - Common sense crafting should work (combining herbs, basic woodworking, etc.)
+
+2. Things that CANNOT be crafted:
+   - Items requiring materials clearly not in inventory
+   - Magical items without magical components or enchanting skill
+   - Complex mechanical devices without proper materials
+   - Modern or sci-fi items (always reject these with humor)
+
+3. REJECTION should be playful and helpful:
+   - Use the chaotic trickster narrator voice
+   - Suggest what materials might help
+   - Be encouraging while explaining the limitation
+
+4. SUCCESS should feel rewarding:
+   - Describe the crafting process dramatically
+   - Make the item feel earned and special
+   - Consider skill level in item quality
+
+5. MATERIAL CONSUMPTION:
+   - Only consume materials that would logically be used
+   - Don't consume more than necessary
+   - Return the item IDs of consumed materials
+
+6. ITEM VALUES should reflect:
+   - Complexity of craft: simple items 5-50 gold, medium 50-200, complex 200+
+   - Quality of materials used
+   - Player's skill level (higher skill = better items)`;
+
+  const userPrompt = `Evaluate whether the player can craft: "${description}"
+
+Review their inventory and determine:
+1. Is this feasible with available materials?
+2. If yes, what materials are consumed and what is created?
+3. If no, provide a playful rejection that hints at what's needed.
+
+Consider:
+- High fantasy only - no modern/sci-fi items
+- Be generous with interpretation (a "knife" could be made from bone, metal scraps, obsidian, etc.)
+- Account for player skill level
+- Some crafts need specific locations/tools (smithing needs a forge)`;
+
+  const response = await callGPT<CraftingResultData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: CRAFTING_RESULT_SCHEMA,
+    maxTokens: 800,
+  });
+
+  const result = response.content;
+
+  // Handle rejection case
+  if (!result.isFeasible) {
+    return {
+      success: false,
+      narrative: result.narrativeRejection,
+      materialsConsumed: [],
+      stateChanges: [],
+    };
+  }
+
+  // Create the crafted item
+  const itemId = `item_${result.craftedItemName.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "")}_${Date.now().toString(36)}`;
+
+  const effect = result.hasEffect && result.effectStat && result.effectValue
+    ? { stat: result.effectStat, value: result.effectValue }
+    : undefined;
+
+  const craftedItem: WorldItem = {
+    id: itemId,
+    name: result.craftedItemName,
+    description: result.craftedItemDescription,
+    type: result.craftedItemType,
+    effect,
+    value: result.craftedItemBaseValue,
+    isCanonical: false,
+  };
+
+  // Build state changes
+  const stateChanges: StateChange[] = [];
+
+  // Remove consumed materials
+  for (const materialId of result.materialsUsed) {
+    stateChanges.push({
+      type: "remove_item",
+      data: { itemId: materialId },
+    });
+  }
+
+  // Add crafted item to player inventory
+  stateChanges.push({
+    type: "add_item",
+    data: { item: craftedItem },
+  });
+
+  // Add skill improvement if applicable
+  if (result.skillImprovement && result.skillImprovement.trim()) {
+    stateChanges.push({
+      type: "add_knowledge",
+      data: {
+        skill: "Crafting",
+        skillLevel: result.skillImprovement,
+      },
+    });
+  }
+
+  return {
+    success: true,
+    narrative: result.narrativeSuccess,
+    craftedItem,
+    materialsConsumed: result.materialsUsed,
+    stateChanges,
+    skillImprovement: result.skillImprovement || undefined,
+  };
+}
