@@ -839,3 +839,20 @@
   - API returns `deceasedHero` object with majorDeeds array for memorial card display
   - Use `worldState.deceasedHeroes[worldState.deceasedHeroes.length - 1]` to get most recent fallen hero
 ---
+
+## 2026-02-14 - US-055
+- What was implemented: Added relationship tracking for NPCs with marriage, children, and relationship change handlers
+- Files changed:
+  - src/world/types.ts (modified - added "relationship_change" to StateChange type union)
+  - src/world/stateManager.ts (modified - added handleRelationshipChange handler function)
+- **Learnings for future iterations:**
+  - `relationship_change` state change supports types: marry, divorce, have_child, adopt, disown, attitude
+  - NPC.attitude was already tracked -100 to 100 (line 64 of types.ts)
+  - player.marriedToNpcId (line 156) and player.childrenNpcIds (line 157) already existed in Player type
+  - Attitude already affects dialogue tone in handleConversation() via attitudeDesc (very friendly/friendly/neutral/wary/hostile)
+  - Attitude changes returned from conversation (attitudeChange) are clamped to ±20 to prevent extreme swings
+  - All relationship changes (marry, divorce, have_child, adopt, disown) record events in eventHistory with type "relationship" and isSignificant: true
+  - Marriage requires player to not already be married (player.marriedToNpcId must be undefined)
+  - Divorce requires player to be married to the specified NPC
+  - Children management via have_child, adopt, and disown with proper validation
+---
