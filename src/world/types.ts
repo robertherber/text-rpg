@@ -240,7 +240,12 @@ export interface StateChange {
     | "add_curse"
     | "add_blessing"
     | "skill_practice"
-    | "gold_change";
+    | "gold_change"
+    | "claim_home"
+    | "store_item_at_home"
+    | "retrieve_item_from_home"
+    | "companion_wait_at_home"
+    | "companion_rejoin";
   data: Record<string, any>;
 }
 

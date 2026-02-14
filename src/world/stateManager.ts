@@ -215,6 +215,21 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "update_faction":
       return handleUpdateFaction(state, change.data);
 
+    case "claim_home":
+      return handleClaimHome(state, change.data);
+
+    case "store_item_at_home":
+      return handleStoreItemAtHome(state, change.data);
+
+    case "retrieve_item_from_home":
+      return handleRetrieveItemFromHome(state, change.data);
+
+    case "companion_wait_at_home":
+      return handleCompanionWaitAtHome(state, change.data);
+
+    case "companion_rejoin":
+      return handleCompanionRejoin(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -1398,6 +1413,319 @@ function handleUpdateFaction(
         playerReputation: newReputation,
       },
     },
+  };
+}
+
+// ===== Home Ownership System =====
+
+/**
+ * Handle claim_home state change
+ * data: { locationId?: string }
+ *
+ * Claims a location as the player's home. If no locationId is provided,
+ * the current location is claimed. Only structures of type "house" or
+ * locations without restrictions can be claimed as homes.
+ */
+function handleClaimHome(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { locationId } = data;
+  const targetLocationId = locationId || state.player.currentLocationId;
+
+  const location = state.locations[targetLocationId];
+  if (!location) {
+    console.warn(`claim_home: location not found: ${targetLocationId}`);
+    return state;
+  }
+
+  // Set the player's home location
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      homeLocationId: targetLocationId,
+    },
+  };
+}
+
+/**
+ * Handle store_item_at_home state change
+ * data: { itemId: string }
+ *
+ * Moves an item from the player's inventory to their home location.
+ * Player must have a home set and must possess the item.
+ */
+function handleStoreItemAtHome(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { itemId } = data;
+
+  if (!itemId || typeof itemId !== "string") {
+    console.warn("store_item_at_home: invalid itemId");
+    return state;
+  }
+
+  const homeLocationId = state.player.homeLocationId;
+  if (!homeLocationId) {
+    console.warn("store_item_at_home: player has no home");
+    return state;
+  }
+
+  const homeLocation = state.locations[homeLocationId];
+  if (!homeLocation) {
+    console.warn(`store_item_at_home: home location not found: ${homeLocationId}`);
+    return state;
+  }
+
+  // Find the item in player's inventory
+  const itemIndex = state.player.inventory.findIndex((i) => i.id === itemId);
+  if (itemIndex === -1) {
+    console.warn(`store_item_at_home: item not in inventory: ${itemId}`);
+    return state;
+  }
+
+  const item = state.player.inventory[itemIndex]!;
+
+  // Remove item from player inventory
+  const newInventory = [...state.player.inventory];
+  newInventory.splice(itemIndex, 1);
+
+  // Add item to home location
+  const newLocations = {
+    ...state.locations,
+    [homeLocationId]: {
+      ...homeLocation,
+      items: [...homeLocation.items, item],
+    },
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      inventory: newInventory,
+    },
+    locations: newLocations,
+  };
+}
+
+/**
+ * Handle retrieve_item_from_home state change
+ * data: { itemId: string }
+ *
+ * Moves an item from the player's home location to their inventory.
+ * Player must have a home set and must be at that location.
+ */
+function handleRetrieveItemFromHome(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { itemId } = data;
+
+  if (!itemId || typeof itemId !== "string") {
+    console.warn("retrieve_item_from_home: invalid itemId");
+    return state;
+  }
+
+  const homeLocationId = state.player.homeLocationId;
+  if (!homeLocationId) {
+    console.warn("retrieve_item_from_home: player has no home");
+    return state;
+  }
+
+  // Player must be at home to retrieve items
+  if (state.player.currentLocationId !== homeLocationId) {
+    console.warn("retrieve_item_from_home: player not at home");
+    return state;
+  }
+
+  const homeLocation = state.locations[homeLocationId];
+  if (!homeLocation) {
+    console.warn(`retrieve_item_from_home: home location not found: ${homeLocationId}`);
+    return state;
+  }
+
+  // Find the item at home location
+  const itemIndex = homeLocation.items.findIndex((i) => i.id === itemId);
+  if (itemIndex === -1) {
+    console.warn(`retrieve_item_from_home: item not found at home: ${itemId}`);
+    return state;
+  }
+
+  const item = homeLocation.items[itemIndex]!;
+
+  // Remove item from home location
+  const newHomeItems = [...homeLocation.items];
+  newHomeItems.splice(itemIndex, 1);
+
+  // Add item to player inventory
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      inventory: [...state.player.inventory, item],
+    },
+    locations: {
+      ...state.locations,
+      [homeLocationId]: {
+        ...homeLocation,
+        items: newHomeItems,
+      },
+    },
+  };
+}
+
+/**
+ * Handle companion_wait_at_home state change
+ * data: { npcId: string }
+ *
+ * Makes a companion wait at the player's home location instead of following.
+ * The companion remains a companion but is moved to the home location.
+ */
+function handleCompanionWaitAtHome(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("companion_wait_at_home: invalid npcId");
+    return state;
+  }
+
+  const homeLocationId = state.player.homeLocationId;
+  if (!homeLocationId) {
+    console.warn("companion_wait_at_home: player has no home");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`companion_wait_at_home: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  if (!npc.isCompanion || !state.player.companionIds.includes(npcId)) {
+    console.warn(`companion_wait_at_home: NPC is not a companion: ${npcId}`);
+    return state;
+  }
+
+  const homeLocation = state.locations[homeLocationId];
+  if (!homeLocation) {
+    console.warn(`companion_wait_at_home: home location not found: ${homeLocationId}`);
+    return state;
+  }
+
+  const oldLocationId = npc.currentLocationId;
+
+  // Update NPC location to home and mark as waiting
+  let newNpcs = { ...state.npcs };
+  newNpcs[npcId] = {
+    ...npc,
+    currentLocationId: homeLocationId,
+    // Companion remains a companion, just at home
+  };
+
+  // Update location presentNpcIds
+  let newLocations = { ...state.locations };
+
+  // Remove from old location
+  if (oldLocationId && newLocations[oldLocationId]) {
+    newLocations[oldLocationId] = {
+      ...newLocations[oldLocationId],
+      presentNpcIds: newLocations[oldLocationId].presentNpcIds.filter(
+        (id) => id !== npcId
+      ),
+    };
+  }
+
+  // Add to home location (we validated homeLocation exists earlier)
+  if (!newLocations[homeLocationId]!.presentNpcIds.includes(npcId)) {
+    newLocations[homeLocationId] = {
+      ...newLocations[homeLocationId]!,
+      presentNpcIds: [...newLocations[homeLocationId]!.presentNpcIds, npcId],
+    };
+  }
+
+  return {
+    ...state,
+    npcs: newNpcs,
+    locations: newLocations,
+  };
+}
+
+/**
+ * Handle companion_rejoin state change
+ * data: { npcId: string }
+ *
+ * Makes a companion who is waiting at home rejoin the player.
+ * The companion is moved to the player's current location.
+ */
+function handleCompanionRejoin(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("companion_rejoin: invalid npcId");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`companion_rejoin: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  if (!npc.isCompanion || !state.player.companionIds.includes(npcId)) {
+    console.warn(`companion_rejoin: NPC is not a companion: ${npcId}`);
+    return state;
+  }
+
+  const playerLocationId = state.player.currentLocationId;
+  const playerLocation = state.locations[playerLocationId];
+  if (!playerLocation) {
+    console.warn(`companion_rejoin: player location not found: ${playerLocationId}`);
+    return state;
+  }
+
+  const oldLocationId = npc.currentLocationId;
+
+  // Update NPC location to player's location
+  let newNpcs = { ...state.npcs };
+  newNpcs[npcId] = {
+    ...npc,
+    currentLocationId: playerLocationId,
+  };
+
+  // Update location presentNpcIds
+  let newLocations = { ...state.locations };
+
+  // Remove from old location
+  if (oldLocationId && newLocations[oldLocationId]) {
+    newLocations[oldLocationId] = {
+      ...newLocations[oldLocationId],
+      presentNpcIds: newLocations[oldLocationId].presentNpcIds.filter(
+        (id) => id !== npcId
+      ),
+    };
+  }
+
+  // Add to player's current location (we validated playerLocation exists earlier)
+  if (!newLocations[playerLocationId]!.presentNpcIds.includes(npcId)) {
+    newLocations[playerLocationId] = {
+      ...newLocations[playerLocationId]!,
+      presentNpcIds: [...newLocations[playerLocationId]!.presentNpcIds, npcId],
+    };
+  }
+
+  return {
+    ...state,
+    npcs: newNpcs,
+    locations: newLocations,
   };
 }
 
