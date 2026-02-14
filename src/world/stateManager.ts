@@ -821,6 +821,7 @@ function handleCreateNpc(
     currentLocationId: npc.currentLocationId || state.player.currentLocationId,
     homeLocationId: npc.homeLocationId,
     knowledge: npc.knowledge || [],
+    heardRumors: npc.heardRumors || [],
     conversationHistory: npc.conversationHistory || [],
     playerNameKnown: npc.playerNameKnown,
     attitude: npc.attitude ?? 0,

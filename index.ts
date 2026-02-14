@@ -12,7 +12,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel, generateInitialCharacter } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel, generateInitialCharacter, calculateRumorSpread, applyRumorSpreads } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath, updateBehaviorPatterns } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
@@ -245,6 +245,14 @@ const server = Bun.serve({
             isCompanion: npc.isCompanion,
             isAnimal: npc.isAnimal,
           }));
+
+        // Spread rumors when entering location - NPCs may have heard about player deeds
+        const rumorSpreads = calculateRumorSpread(worldState, player.currentLocationId);
+        if (rumorSpreads.length > 0) {
+          worldState = applyRumorSpreads(worldState, rumorSpreads);
+          await saveWorldState(worldState);
+          console.log(`📢 ${rumorSpreads.length} rumors spread to NPCs at ${currentLocation.name}`);
+        }
 
         // Generate suggested actions using GPT
         const suggestedActions = await generateSuggestedActions(worldState);

@@ -171,6 +171,7 @@ export function createSeedWorld(): WorldState {
       "Remembers travelers who pass through",
     ],
     conversationHistory: [],
+    heardRumors: [],
     attitude: 50, // Friendly to strangers
     isCompanion: false,
     isAnimal: false,
@@ -201,6 +202,7 @@ export function createSeedWorld(): WorldState {
       "Knows Elder Bramwell from the old days",
     ],
     conversationHistory: [],
+    heardRumors: [],
     attitude: 10, // Neutral, reserved with strangers
     isCompanion: false,
     isAnimal: false,
@@ -242,6 +244,7 @@ export function createSeedWorld(): WorldState {
       "Remembers heroes who came before",
     ],
     conversationHistory: [],
+    heardRumors: [],
     attitude: 30, // Cautiously welcoming
     isCompanion: false,
     isAnimal: false,
@@ -272,6 +275,7 @@ export function createSeedWorld(): WorldState {
       "Has seen strange lights in the forest at night",
     ],
     conversationHistory: [],
+    heardRumors: [],
     attitude: 70, // Very friendly and eager
     isCompanion: false,
     isAnimal: false,

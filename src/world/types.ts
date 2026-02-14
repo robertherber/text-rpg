@@ -50,6 +50,14 @@ export interface PlayerNote {
   leftAtAction: number;
 }
 
+export interface Rumor {
+  eventId: string; // Reference to the original WorldEvent
+  content: string; // The rumor description (may be distorted from original event)
+  heardAtAction: number; // When this NPC heard the rumor
+  heardFromNpcId?: string; // NPC who told them (undefined = direct witness or ambient)
+  accuracy: "accurate" | "embellished" | "distorted"; // How true to the original event
+}
+
 export interface NPC {
   id: string;
   name: string;
@@ -59,6 +67,7 @@ export interface NPC {
   currentLocationId: string;
   homeLocationId?: string;
   knowledge: string[]; // What this NPC knows about (locations, people, lore)
+  heardRumors: Rumor[]; // Rumors about player deeds this NPC has heard
   conversationHistory: ConversationSummary[];
   playerNameKnown?: string; // What name player introduced themselves as to this NPC
   attitude: number; // -100 to 100, attitude toward player

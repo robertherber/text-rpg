@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player, WorldItem, StateChange, Structure } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player, WorldItem, StateChange, Structure, Rumor, WorldEvent } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -1254,6 +1254,8 @@ ${locationContext}
 
 ${recentEvents ? `RECENT EVENTS: ${recentEvents}` : ""}
 
+${getNpcRumorsContext(npc, worldState)}
+
 CONVERSATION RULES:
 1. Stay COMPLETELY in character based on the soul instruction
 2. Use the speech patterns described in the soul instruction
@@ -1601,6 +1603,374 @@ Generate believable world changes and describe them in an atmospheric narrative.
   });
 
   return response.content;
+}
+
+// ===== Rumor Spreading System =====
+
+/**
+ * Calculate which NPCs should hear about significant player events (rumors).
+ * Rumors spread through NPC networks based on:
+ * 1. Proximity - NPCs at nearby locations hear rumors faster
+ * 2. NPC connections - NPCs who know each other spread rumors
+ * 3. Faction membership - Faction members share information
+ * 4. Time passed - More actions = wider rumor spread
+ *
+ * @param worldState - The current world state
+ * @param locationId - The location being entered (triggers rumor spread check)
+ * @returns Array of rumor spreads that should be applied
+ */
+export interface RumorSpread {
+  npcId: string;
+  eventId: string;
+  rumorContent: string;
+  accuracy: "accurate" | "embellished" | "distorted";
+  sourceNpcId?: string;
+}
+
+export function calculateRumorSpread(
+  worldState: WorldState,
+  locationId: string
+): RumorSpread[] {
+  const rumorSpreads: RumorSpread[] = [];
+  const location = worldState.locations[locationId];
+
+  if (!location) return rumorSpreads;
+
+  // Get NPCs present at this location who might have heard rumors
+  const presentNpcs = location.presentNpcIds
+    .map((id) => worldState.npcs[id])
+    .filter((npc): npc is NPC => npc !== undefined && npc.isAlive && !npc.isAnimal);
+
+  if (presentNpcs.length === 0) return rumorSpreads;
+
+  // Get significant events that could become rumors
+  const significantEvents = worldState.eventHistory
+    .filter((event) => event.isSignificant)
+    .filter((event) => {
+      // Only events that happened at least 1 action ago can spread
+      return worldState.actionCounter - event.actionNumber >= 1;
+    });
+
+  if (significantEvents.length === 0) return rumorSpreads;
+
+  // For each present NPC, check if they've heard about significant events
+  for (const npc of presentNpcs) {
+    // Initialize heardRumors if it doesn't exist (backwards compatibility)
+    const existingRumorEventIds = new Set(
+      (npc.heardRumors || []).map((r) => r.eventId)
+    );
+
+    for (const event of significantEvents) {
+      // Skip if NPC already knows about this event
+      if (existingRumorEventIds.has(event.id)) continue;
+
+      // Skip if NPC was directly involved (they witnessed it, not a rumor)
+      if (event.involvedNpcIds.includes(npc.id)) continue;
+
+      // Calculate rumor spread probability
+      const actionsSinceEvent = worldState.actionCounter - event.actionNumber;
+      const probability = calculateRumorProbability(
+        worldState,
+        npc,
+        event,
+        actionsSinceEvent
+      );
+
+      // Roll for rumor spread
+      if (Math.random() < probability) {
+        // Determine accuracy based on how far the rumor has spread
+        const accuracy = determineRumorAccuracy(actionsSinceEvent, event);
+
+        // Find a potential source NPC (someone who knew about this event)
+        const sourceNpcId = findRumorSource(worldState, npc, event);
+
+        // Generate the rumor content (may be distorted)
+        const rumorContent = generateRumorContent(event, accuracy, worldState);
+
+        rumorSpreads.push({
+          npcId: npc.id,
+          eventId: event.id,
+          rumorContent,
+          accuracy,
+          sourceNpcId,
+        });
+      }
+    }
+  }
+
+  return rumorSpreads;
+}
+
+/**
+ * Calculate the probability of an NPC hearing about an event.
+ */
+function calculateRumorProbability(
+  worldState: WorldState,
+  npc: NPC,
+  event: WorldEvent,
+  actionsSinceEvent: number
+): number {
+  let probability = 0;
+
+  // Base probability increases with time passed
+  // 5 actions: ~10%, 10 actions: ~20%, 30 actions: ~50%, 50 actions: ~70%
+  probability += Math.min(0.7, actionsSinceEvent * 0.014);
+
+  // Proximity bonus: if event happened at nearby location
+  const npcLocation = worldState.locations[npc.currentLocationId];
+  const eventLocation = worldState.locations[event.locationId];
+  if (npcLocation && eventLocation) {
+    const dx = Math.abs(npcLocation.coordinates.x - eventLocation.coordinates.x);
+    const dy = Math.abs(npcLocation.coordinates.y - eventLocation.coordinates.y);
+    const distance = Math.max(dx, dy);
+    if (distance <= 1) {
+      probability += 0.3; // Adjacent location
+    } else if (distance <= 2) {
+      probability += 0.15; // Two squares away
+    }
+  }
+
+  // Faction connection bonus
+  if (npc.factionIds.length > 0) {
+    for (const involvedNpcId of event.involvedNpcIds) {
+      const involvedNpc = worldState.npcs[involvedNpcId];
+      if (involvedNpc) {
+        // Check if they share a faction
+        const sharedFaction = npc.factionIds.some((fId) =>
+          involvedNpc.factionIds.includes(fId)
+        );
+        if (sharedFaction) {
+          probability += 0.25;
+          break;
+        }
+      }
+    }
+  }
+
+  // Village/tavern locations spread rumors faster
+  const locationTerrain = worldState.locations[npc.currentLocationId]?.terrain;
+  if (locationTerrain === "village" || locationTerrain === "road") {
+    probability += 0.1;
+  }
+
+  // Significant event types spread faster
+  if (event.type === "combat" || event.type === "death") {
+    probability += 0.15;
+  }
+
+  // Cap probability at 95%
+  return Math.min(0.95, probability);
+}
+
+/**
+ * Determine how accurate the rumor is based on spread distance.
+ */
+function determineRumorAccuracy(
+  actionsSinceEvent: number,
+  event: WorldEvent
+): "accurate" | "embellished" | "distorted" {
+  // Recent events are more accurate
+  if (actionsSinceEvent <= 5) {
+    return "accurate";
+  } else if (actionsSinceEvent <= 15) {
+    // 70% accurate, 30% embellished
+    return Math.random() < 0.7 ? "accurate" : "embellished";
+  } else if (actionsSinceEvent <= 30) {
+    // 40% accurate, 40% embellished, 20% distorted
+    const roll = Math.random();
+    if (roll < 0.4) return "accurate";
+    if (roll < 0.8) return "embellished";
+    return "distorted";
+  } else {
+    // Old events: 20% accurate, 40% embellished, 40% distorted
+    const roll = Math.random();
+    if (roll < 0.2) return "accurate";
+    if (roll < 0.6) return "embellished";
+    return "distorted";
+  }
+}
+
+/**
+ * Find an NPC who could have told this NPC about the event.
+ */
+function findRumorSource(
+  worldState: WorldState,
+  npc: NPC,
+  event: WorldEvent
+): string | undefined {
+  // Check NPCs who were directly involved or have already heard the rumor
+  const potentialSources: string[] = [];
+
+  // Direct witnesses
+  for (const involvedNpcId of event.involvedNpcIds) {
+    const involvedNpc = worldState.npcs[involvedNpcId];
+    if (involvedNpc && involvedNpc.isAlive && involvedNpc.id !== npc.id) {
+      potentialSources.push(involvedNpcId);
+    }
+  }
+
+  // NPCs who already heard this rumor
+  for (const [npcId, otherNpc] of Object.entries(worldState.npcs)) {
+    if (npcId === npc.id) continue;
+    if (!otherNpc.isAlive) continue;
+    const hasRumor = (otherNpc.heardRumors || []).some(
+      (r) => r.eventId === event.id
+    );
+    if (hasRumor) {
+      potentialSources.push(npcId);
+    }
+  }
+
+  // Pick a random source if available
+  if (potentialSources.length > 0) {
+    return potentialSources[Math.floor(Math.random() * potentialSources.length)];
+  }
+
+  // No specific source - ambient rumor spread
+  return undefined;
+}
+
+/**
+ * Generate the rumor content, potentially distorting it based on accuracy.
+ */
+function generateRumorContent(
+  event: WorldEvent,
+  accuracy: "accurate" | "embellished" | "distorted",
+  worldState: WorldState
+): string {
+  const originalDescription = event.description;
+
+  if (accuracy === "accurate") {
+    return originalDescription;
+  }
+
+  // For embellished/distorted, we modify the description
+  // This is a simple transformation - in production, GPT could do this better
+  if (accuracy === "embellished") {
+    // Add dramatic flair
+    const embellishments = [
+      "they say",
+      "witnesses claim",
+      "folk are whispering that",
+      "the word is that",
+      "rumor has it",
+    ];
+    const prefix = embellishments[Math.floor(Math.random() * embellishments.length)];
+    return `${prefix} ${originalDescription}`;
+  }
+
+  // Distorted - change key details
+  const distortions = [
+    { pattern: /killed/gi, replacement: "brutally slaughtered" },
+    { pattern: /defeated/gi, replacement: "barely survived against" },
+    { pattern: /helped/gi, replacement: "tried to help" },
+    { pattern: /found/gi, replacement: "stumbled upon" },
+    { pattern: /gold/gi, replacement: "treasure" },
+  ];
+
+  let distorted = originalDescription;
+  for (const { pattern, replacement } of distortions) {
+    if (pattern.test(distorted)) {
+      distorted = distorted.replace(pattern, replacement);
+      break; // Only apply one distortion
+    }
+  }
+
+  // Add uncertainty
+  const prefixes = [
+    "I heard a tale that",
+    "someone mentioned that",
+    "there's a story going around that",
+  ];
+  const prefix = prefixes[Math.floor(Math.random() * prefixes.length)];
+  return `${prefix} ${distorted}`;
+}
+
+/**
+ * Apply rumor spreads to the world state (immutably).
+ */
+export function applyRumorSpreads(
+  worldState: WorldState,
+  rumorSpreads: RumorSpread[]
+): WorldState {
+  if (rumorSpreads.length === 0) return worldState;
+
+  const newNpcs = { ...worldState.npcs };
+
+  for (const spread of rumorSpreads) {
+    const npc = newNpcs[spread.npcId];
+    if (!npc) continue;
+
+    const newRumor: Rumor = {
+      eventId: spread.eventId,
+      content: spread.rumorContent,
+      heardAtAction: worldState.actionCounter,
+      heardFromNpcId: spread.sourceNpcId,
+      accuracy: spread.accuracy,
+    };
+
+    newNpcs[spread.npcId] = {
+      ...npc,
+      heardRumors: [...(npc.heardRumors || []), newRumor],
+    };
+  }
+
+  return {
+    ...worldState,
+    npcs: newNpcs,
+  };
+}
+
+/**
+ * Get rumors about the player that an NPC knows, formatted for conversation context.
+ */
+export function getNpcRumorsAboutPlayer(
+  worldState: WorldState,
+  npcId: string
+): string[] {
+  const npc = worldState.npcs[npcId];
+  if (!npc || !npc.heardRumors || npc.heardRumors.length === 0) {
+    return [];
+  }
+
+  // Filter to recent rumors (within last 100 actions) and format them
+  const relevantRumors = npc.heardRumors
+    .filter((rumor) => {
+      const actionsSinceHeard = worldState.actionCounter - rumor.heardAtAction;
+      return actionsSinceHeard <= 100; // NPCs forget rumors after ~100 actions
+    })
+    .map((rumor) => {
+      const accuracyNote = rumor.accuracy === "accurate"
+        ? ""
+        : rumor.accuracy === "embellished"
+          ? " (embellished)"
+          : " (distorted)";
+      return `${rumor.content}${accuracyNote}`;
+    });
+
+  return relevantRumors;
+}
+
+/**
+ * Get formatted rumor context for NPC conversation prompts.
+ */
+function getNpcRumorsContext(npc: NPC, worldState: WorldState): string {
+  const rumors = getNpcRumorsAboutPlayer(worldState, npc.id);
+
+  if (rumors.length === 0) {
+    return "";
+  }
+
+  return `RUMORS ${npc.name.toUpperCase()} HAS HEARD ABOUT THE PLAYER:
+${rumors.map((r) => `- ${r}`).join("\n")}
+
+RUMOR USAGE RULES:
+- ${npc.name} may reference these rumors naturally in conversation
+- Distorted rumors should be mentioned with uncertainty ("I heard that...")
+- Embellished rumors add dramatic flair ("They say you...")
+- Accurate rumors can be stated as fact if the NPC trusts their source
+- ${npc.name}'s attitude may be influenced by what they've heard
+- The NPC doesn't have to mention every rumor - use them naturally when relevant`;
 }
 
 // JSON Schema for new character generation response from GPT
@@ -2627,6 +2997,7 @@ Return the NPC details as JSON.`;
     currentLocationId: targetLocationId,
     homeLocationId: targetLocationId, // They live where they were generated
     knowledge: generatedData.knowledge,
+    heardRumors: [],
     conversationHistory: [],
     attitude: Math.max(-100, Math.min(100, generatedData.attitude)), // Clamp to -100 to 100
     isCompanion: false,
