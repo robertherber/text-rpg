@@ -258,3 +258,198 @@ ${inventorySummary}
 
 ${knowledgeSummary}`;
 }
+
+// JSON Schema for ActionResult response from GPT
+const ACTION_RESULT_SCHEMA = {
+  type: "object",
+  properties: {
+    narrative: {
+      type: "string",
+      description: "The narrator's description of what happened",
+    },
+    stateChanges: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          type: {
+            type: "string",
+            enum: [
+              "move_player",
+              "move_npc",
+              "add_item",
+              "remove_item",
+              "update_npc_attitude",
+              "npc_death",
+              "player_damage",
+              "player_heal",
+              "add_knowledge",
+              "add_companion",
+              "remove_companion",
+              "create_structure",
+              "destroy_structure",
+              "update_location",
+              "create_npc",
+              "create_location",
+              "add_quest",
+              "update_faction",
+              "player_transform",
+              "add_curse",
+              "add_blessing",
+              "skill_practice",
+              "gold_change",
+            ],
+          },
+          data: {
+            type: "object",
+            additionalProperties: true,
+          },
+        },
+        required: ["type", "data"],
+        additionalProperties: false,
+      },
+    },
+    suggestedActions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Unique identifier for the action",
+          },
+          text: {
+            type: "string",
+            description: "Human-readable action text",
+          },
+          type: {
+            type: "string",
+            enum: [
+              "move",
+              "talk",
+              "examine",
+              "use",
+              "attack",
+              "craft",
+              "build",
+              "travel",
+              "other",
+            ],
+          },
+          targetLocationId: {
+            type: "string",
+            description: "Location ID if this is a movement action",
+          },
+          targetNpcId: {
+            type: "string",
+            description: "NPC ID if this targets an NPC",
+          },
+        },
+        required: ["id", "text", "type"],
+        additionalProperties: false,
+      },
+    },
+    initiatesCombat: {
+      type: "string",
+      description: "NPC ID to fight if combat starts, omit if no combat",
+    },
+    revealsFlashback: {
+      type: "string",
+      description: "Flashback content to reveal, omit if none",
+    },
+    newKnowledge: {
+      type: "array",
+      items: { type: "string" },
+      description: "New knowledge gained by the player",
+    },
+    questUpdates: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          questId: { type: "string" },
+          status: {
+            type: "string",
+            enum: ["active", "completed", "failed", "impossible"],
+          },
+          completedObjectives: {
+            type: "array",
+            items: { type: "string" },
+          },
+        },
+        required: ["questId", "status"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["narrative", "stateChanges", "suggestedActions"],
+  additionalProperties: false,
+};
+
+/**
+ * Resolve a player action using GPT.
+ * Takes the world state and player's action text, returns an ActionResult
+ * containing narrative, state changes, and suggested follow-up actions.
+ */
+export async function resolveAction(
+  worldState: WorldState,
+  action: string
+): Promise<ActionResult> {
+  const context = buildActionContext(worldState);
+
+  const systemPrompt = `You are resolving player actions in a fantasy medieval RPG.
+
+Given the current game context and the player's attempted action, determine:
+1. What happens as a result (narrate it dramatically in first person as the chaotic trickster narrator)
+2. What state changes occur in the world
+3. What actions the player might take next (3-6 suggestions)
+
+RULES:
+- Almost anything is possible if it makes narrative sense within high fantasy
+- Be the arbiter of what's reasonable - reject absurd actions playfully
+- If an action would harm NPCs or steal, roll for success narratively (consider NPC vigilance, player stats)
+- Combat only initiates for direct hostile actions toward capable opponents
+- Movement between locations should use the 'move_player' state change
+- NPCs can only be talked to if they're present at the current location
+- Generate unique IDs for new suggested actions using simple lowercase strings like "action_1", "action_2"
+
+STATE CHANGE TYPES:
+- move_player: { locationId: string } - Move player to a location
+- add_item: { item: WorldItem } - Add item to player inventory
+- remove_item: { itemId: string } - Remove item from player inventory
+- gold_change: { amount: number } - Change player gold (positive or negative)
+- player_damage: { amount: number } - Damage player
+- player_heal: { amount: number } - Heal player
+- add_knowledge: { type: "location"|"npc"|"lore", value: string } - Add to player knowledge
+- update_npc_attitude: { npcId: string, change: number } - Change NPC attitude
+- move_npc: { npcId: string, locationId: string } - Move an NPC
+- npc_death: { npcId: string, description: string } - Kill an NPC
+- add_companion: { npcId: string } - Add NPC as companion
+- remove_companion: { npcId: string } - Remove NPC as companion
+
+SUGGESTED ACTION TYPES:
+- move: Walk to an adjacent location
+- talk: Speak with an NPC
+- examine: Look at something closely
+- use: Use an item or interact with something
+- attack: Initiate combat
+- craft: Try to make something
+- build: Construct a structure
+- travel: Fast travel to a known distant location
+- other: Any other action`;
+
+  const userPrompt = `${context}
+
+PLAYER ACTION: ${action}
+
+Resolve this action and return the result as JSON.`;
+
+  const response = await callGPT<ActionResult>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: ACTION_RESULT_SCHEMA,
+    maxTokens: 2500,
+  });
+
+  return response.content;
+}
