@@ -239,6 +239,8 @@ export interface StateChange {
     | "player_transform"
     | "add_curse"
     | "add_blessing"
+    | "remove_curse"
+    | "remove_blessing"
     | "skill_practice"
     | "gold_change"
     | "claim_home"

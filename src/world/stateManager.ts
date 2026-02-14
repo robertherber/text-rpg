@@ -239,6 +239,18 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "player_transform":
       return handlePlayerTransform(state, change.data);
 
+    case "add_curse":
+      return handleAddCurse(state, change.data);
+
+    case "add_blessing":
+      return handleAddBlessing(state, change.data);
+
+    case "remove_curse":
+      return handleRemoveCurse(state, change.data);
+
+    case "remove_blessing":
+      return handleRemoveBlessing(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -2609,4 +2621,268 @@ function handlePlayerTransform(
   }
 
   return newState;
+}
+
+// ===== Curses and Blessings System =====
+
+/**
+ * Handle add_curse state change.
+ * Adds a curse to the player's curses array.
+ *
+ * data: {
+ *   curse: string,                      // Required: Name/description of the curse
+ *   source?: string,                    // Optional: Who or what inflicted the curse
+ *   effects?: string                    // Optional: Description of the curse's effects
+ * }
+ *
+ * Curses:
+ * - Are stored in player.curses array
+ * - Are considered by GPT when resolving actions (already passed in context)
+ * - Can be removed through narrative means (cures, rituals, divine intervention, completing quests)
+ *
+ * Example curses: cursed by witch, marked by shadow, blood debt, unlucky, silenced, weakened
+ */
+function handleAddCurse(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { curse, source, effects } = data;
+
+  if (!curse || typeof curse !== "string") {
+    console.warn("add_curse: invalid curse");
+    return state;
+  }
+
+  const normalizedCurse = curse.toLowerCase().trim();
+
+  // Check if player already has this curse
+  if (state.player.curses.includes(normalizedCurse)) {
+    console.warn(`add_curse: player already has curse: ${normalizedCurse}`);
+    return state;
+  }
+
+  // Build the curse entry - can include source and effects for narrative richness
+  let curseEntry = normalizedCurse;
+  if (source && typeof source === "string") {
+    curseEntry = `${normalizedCurse} (from ${source})`;
+  }
+
+  // Create a significant event for the curse
+  const curseEvent: import("./types").WorldEvent = {
+    id: `event_curse_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: effects
+      ? `${state.player.name || "The player"} was cursed: ${normalizedCurse}. ${effects}`
+      : `${state.player.name || "The player"} was cursed: ${normalizedCurse}`,
+    type: "other",
+    involvedNpcIds: [],
+    locationId: state.player.currentLocationId,
+    isSignificant: true,
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      curses: [...state.player.curses, curseEntry],
+    },
+    eventHistory: [...state.eventHistory, curseEvent],
+  };
+}
+
+/**
+ * Handle add_blessing state change.
+ * Adds a blessing to the player's blessings array.
+ *
+ * data: {
+ *   blessing: string,                   // Required: Name/description of the blessing
+ *   source?: string,                    // Optional: Who or what granted the blessing
+ *   effects?: string                    // Optional: Description of the blessing's effects
+ * }
+ *
+ * Blessings:
+ * - Are stored in player.blessings array
+ * - Are considered by GPT when resolving actions (already passed in context)
+ * - Can be removed or expire through narrative means (time, certain actions, divine disfavor)
+ *
+ * Example blessings: blessed by priest, favored by fortune, protected by spirits, heightened senses
+ */
+function handleAddBlessing(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { blessing, source, effects } = data;
+
+  if (!blessing || typeof blessing !== "string") {
+    console.warn("add_blessing: invalid blessing");
+    return state;
+  }
+
+  const normalizedBlessing = blessing.toLowerCase().trim();
+
+  // Check if player already has this blessing
+  if (state.player.blessings.includes(normalizedBlessing)) {
+    console.warn(`add_blessing: player already has blessing: ${normalizedBlessing}`);
+    return state;
+  }
+
+  // Build the blessing entry - can include source for narrative richness
+  let blessingEntry = normalizedBlessing;
+  if (source && typeof source === "string") {
+    blessingEntry = `${normalizedBlessing} (from ${source})`;
+  }
+
+  // Create a significant event for the blessing
+  const blessingEvent: import("./types").WorldEvent = {
+    id: `event_blessing_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: effects
+      ? `${state.player.name || "The player"} received a blessing: ${normalizedBlessing}. ${effects}`
+      : `${state.player.name || "The player"} received a blessing: ${normalizedBlessing}`,
+    type: "other",
+    involvedNpcIds: [],
+    locationId: state.player.currentLocationId,
+    isSignificant: true,
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      blessings: [...state.player.blessings, blessingEntry],
+    },
+    eventHistory: [...state.eventHistory, blessingEvent],
+  };
+}
+
+/**
+ * Handle remove_curse state change.
+ * Removes a curse from the player through narrative means.
+ *
+ * data: {
+ *   curse: string,                      // Required: Name of the curse to remove
+ *   method?: string                     // Optional: How the curse was removed
+ * }
+ *
+ * Curses can be removed through:
+ * - Divine intervention
+ * - Powerful magic or rituals
+ * - Completing specific quests
+ * - Finding rare items or cures
+ * - Paying a price to the one who cursed them
+ */
+function handleRemoveCurse(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { curse, method } = data;
+
+  if (!curse || typeof curse !== "string") {
+    console.warn("remove_curse: invalid curse");
+    return state;
+  }
+
+  const normalizedCurse = curse.toLowerCase().trim();
+
+  // Find and remove the curse (check partial match since curses may include source info)
+  const curseIndex = state.player.curses.findIndex(
+    (c) => c.toLowerCase().includes(normalizedCurse)
+  );
+
+  if (curseIndex === -1) {
+    console.warn(`remove_curse: player does not have curse: ${normalizedCurse}`);
+    return state;
+  }
+
+  const removedCurse = state.player.curses[curseIndex];
+  const newCurses = [...state.player.curses];
+  newCurses.splice(curseIndex, 1);
+
+  // Create a significant event for the curse removal
+  const removalEvent: import("./types").WorldEvent = {
+    id: `event_curse_removed_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: method
+      ? `${state.player.name || "The player"} was freed from the curse of ${removedCurse} through ${method}`
+      : `${state.player.name || "The player"} was freed from the curse of ${removedCurse}`,
+    type: "discovery",
+    involvedNpcIds: [],
+    locationId: state.player.currentLocationId,
+    isSignificant: true,
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      curses: newCurses,
+    },
+    eventHistory: [...state.eventHistory, removalEvent],
+  };
+}
+
+/**
+ * Handle remove_blessing state change.
+ * Removes a blessing from the player through narrative means.
+ *
+ * data: {
+ *   blessing: string,                   // Required: Name of the blessing to remove
+ *   reason?: string                     // Optional: Why the blessing was lost
+ * }
+ *
+ * Blessings can be removed through:
+ * - Time/expiration
+ * - Divine disfavor (acting against the deity's wishes)
+ * - Using up the blessing's power
+ * - Being in a place that nullifies blessings
+ * - Voluntary sacrifice
+ */
+function handleRemoveBlessing(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { blessing, reason } = data;
+
+  if (!blessing || typeof blessing !== "string") {
+    console.warn("remove_blessing: invalid blessing");
+    return state;
+  }
+
+  const normalizedBlessing = blessing.toLowerCase().trim();
+
+  // Find and remove the blessing (check partial match since blessings may include source info)
+  const blessingIndex = state.player.blessings.findIndex(
+    (b) => b.toLowerCase().includes(normalizedBlessing)
+  );
+
+  if (blessingIndex === -1) {
+    console.warn(`remove_blessing: player does not have blessing: ${normalizedBlessing}`);
+    return state;
+  }
+
+  const removedBlessing = state.player.blessings[blessingIndex];
+  const newBlessings = [...state.player.blessings];
+  newBlessings.splice(blessingIndex, 1);
+
+  // Create an event for the blessing removal (may or may not be significant depending on reason)
+  const removalEvent: import("./types").WorldEvent = {
+    id: `event_blessing_removed_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: reason
+      ? `${state.player.name || "The player"} lost the blessing of ${removedBlessing}: ${reason}`
+      : `The blessing of ${removedBlessing} faded from ${state.player.name || "the player"}`,
+    type: "other",
+    involvedNpcIds: [],
+    locationId: state.player.currentLocationId,
+    isSignificant: true,
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      blessings: newBlessings,
+    },
+    eventHistory: [...state.eventHistory, removalEvent],
+  };
 }

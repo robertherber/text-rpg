@@ -315,6 +315,8 @@ const ACTION_RESULT_SCHEMA = {
               "player_transform",
               "add_curse",
               "add_blessing",
+              "remove_curse",
+              "remove_blessing",
               "skill_practice",
               "gold_change",
               "reveal_flashback",
@@ -474,6 +476,19 @@ TRANSFORMATION RULES:
 - Consider the player's current transformations when resolving actions - they may grant special abilities or weaknesses
 - Transformations should be dramatic and significant - rare, story-changing events
 - Examples: vampire, werewolf, ghost, lich, demon, fae, elemental, werebear, harpy
+
+CURSES AND BLESSINGS SYSTEM:
+- Curses can be inflicted through: angering powerful beings, disturbing sacred places, breaking oaths, handling cursed items, crossing witches/warlocks
+- Use add_curse: { curse: "curse name", source?: "who cursed", effects?: "what it does" }
+- Curses should have narrative consequences - bad luck, weakness, compulsions, marks that attract trouble
+- Curses can be removed through quests, rituals, divine intervention, or paying a price - use remove_curse: { curse: "curse name", method?: "how removed" }
+- Blessings can be granted through: divine favor, helping spirits, completing sacred quests, receiving from priests/druids
+- Use add_blessing: { blessing: "blessing name", source?: "who blessed", effects?: "what it does" }
+- Blessings provide narrative benefits - protection, luck, guidance, enhanced abilities in certain situations
+- Blessings can fade, be used up, or be lost through unworthy actions - use remove_blessing: { blessing: "blessing name", reason?: "why lost" }
+- Consider the player's current curses/blessings when resolving actions - they affect what happens!
+- Examples of curses: marked by shadow, blood debt, cursed tongue, unlucky, haunted, weakened, compelled, branded
+- Examples of blessings: favored by fortune, protected by spirits, blessed sight, divine protection, healer's touch, lucky
 
 SUGGESTED ACTION TYPES:
 - move: Walk to an adjacent location
