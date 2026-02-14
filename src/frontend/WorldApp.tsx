@@ -570,6 +570,7 @@ export default function WorldApp() {
               messages={storyMessages}
               actionError={actionError}
               onRetry={handleRetry}
+              isLoading={isProcessing}
             />
           )}
 

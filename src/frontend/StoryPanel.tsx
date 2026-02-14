@@ -1,4 +1,4 @@
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 
 /**
  * Story message type for narrative display
@@ -16,7 +16,22 @@ interface StoryPanelProps {
   messages: StoryMessage[];
   actionError?: string | null;
   onRetry?: () => void;
+  isLoading?: boolean;
 }
+
+/**
+ * Thematic loading messages that fit the game's narrator tone
+ */
+const LOADING_MESSAGES = [
+  "The narrator ponders...",
+  "Fate weaves its thread...",
+  "The story unfolds...",
+  "A moment of contemplation...",
+  "The mists of fortune swirl...",
+  "Destiny takes a breath...",
+  "The quill hovers...",
+  "Ancient forces stir...",
+];
 
 /**
  * Segment of parsed narrative text
@@ -79,6 +94,27 @@ function parseNarrativeText(text: string): TextSegment[] {
 }
 
 /**
+ * Get a random loading message from the thematic variations
+ */
+function getRandomLoadingMessage(): string {
+  const index = Math.floor(Math.random() * LOADING_MESSAGES.length);
+  return LOADING_MESSAGES[index] ?? LOADING_MESSAGES[0]!;
+}
+
+/**
+ * Loading indicator component with thematic pulsing text
+ */
+function LoadingIndicator() {
+  const [message] = useState(() => getRandomLoadingMessage());
+
+  return (
+    <div className="loading-indicator">
+      <span className="loading-text">{message}</span>
+    </div>
+  );
+}
+
+/**
  * Render narrative text with distinct styling for narrator vs NPC dialog
  */
 function NarrativeText({ text }: { text: string }) {
@@ -121,15 +157,15 @@ function NarrativeText({ text }: { text: string }) {
  * - Narrator text styled in italic gray, NPC dialog in normal weight
  * - Error state with retry button
  */
-export default function StoryPanel({ messages, actionError, onRetry }: StoryPanelProps) {
+export default function StoryPanel({ messages, actionError, onRetry, isLoading }: StoryPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
 
-  // Scroll to bottom when new messages arrive or error appears
+  // Scroll to bottom when new messages arrive, error appears, or loading state changes
   useEffect(() => {
     if (panelRef.current) {
       panelRef.current.scrollTop = panelRef.current.scrollHeight;
     }
-  }, [messages, actionError]);
+  }, [messages, actionError, isLoading]);
 
   return (
     <div className="story-panel" ref={panelRef}>
@@ -142,6 +178,7 @@ export default function StoryPanel({ messages, actionError, onRetry }: StoryPane
           )}
         </div>
       ))}
+      {isLoading && <LoadingIndicator />}
       {actionError && (
         <div className="story-message error">
           <span className="error-text">{actionError}</span>

@@ -317,6 +317,28 @@ body {
   transform: scale(0.95);
 }
 
+/* Thematic loading indicator */
+.loading-indicator {
+  padding: 1rem;
+  text-align: center;
+}
+
+.loading-text {
+  color: var(--text-secondary);
+  font-style: italic;
+  font-size: 0.95rem;
+  animation: loading-pulse 2s ease-in-out infinite;
+}
+
+@keyframes loading-pulse {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
 /* Narrator text - de-emphasized italic style */
 .narrator-text {
   font-style: italic;
