@@ -1238,6 +1238,248 @@ Generate ${npc.name}'s response, staying true to their soul instruction and curr
   };
 }
 
+// JSON Schema for location simulation response from GPT
+const LOCATION_SIMULATION_SCHEMA = {
+  type: "object",
+  properties: {
+    hasChanges: {
+      type: "boolean",
+      description: "Whether any changes occurred since last visit",
+    },
+    narrative: {
+      type: "string",
+      description: "Description of changes woven into an atmospheric narrative (or empty if no changes)",
+    },
+    npcMovements: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          npcId: { type: "string", description: "ID of the NPC that moved" },
+          reason: { type: "string", description: "Why they moved (based on soul instruction)" },
+          destinationLocationId: { type: "string", description: "Where they went" },
+        },
+        required: ["npcId", "reason", "destinationLocationId"],
+        additionalProperties: false,
+      },
+      description: "NPCs that moved away from this location since last visit",
+    },
+    npcArrivals: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          npcId: { type: "string", description: "ID of the NPC that arrived" },
+          reason: { type: "string", description: "Why they arrived (based on soul instruction)" },
+          fromLocationId: { type: "string", description: "Where they came from" },
+        },
+        required: ["npcId", "reason", "fromLocationId"],
+        additionalProperties: false,
+      },
+      description: "NPCs that arrived at this location since last visit",
+    },
+    environmentalChanges: {
+      type: "array",
+      items: { type: "string" },
+      description: "Minor environmental changes (weather, time of day effects, etc.)",
+    },
+    newItems: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          type: {
+            type: "string",
+            enum: ["weapon", "armor", "potion", "food", "key", "misc", "material", "book", "magic"],
+          },
+          value: { type: "number" },
+        },
+        required: ["name", "description", "type", "value"],
+        additionalProperties: false,
+      },
+      description: "New items that appeared at this location (dropped by travelers, washed up, etc.)",
+    },
+    removedItemIds: {
+      type: "array",
+      items: { type: "string" },
+      description: "IDs of items that were taken or disappeared from this location",
+    },
+  },
+  required: ["hasChanges", "narrative", "npcMovements", "npcArrivals", "environmentalChanges", "newItems", "removedItemIds"],
+  additionalProperties: false,
+};
+
+export interface LocationSimulationResult {
+  hasChanges: boolean;
+  narrative: string;
+  npcMovements: Array<{
+    npcId: string;
+    reason: string;
+    destinationLocationId: string;
+  }>;
+  npcArrivals: Array<{
+    npcId: string;
+    reason: string;
+    fromLocationId: string;
+  }>;
+  environmentalChanges: string[];
+  newItems: Array<{
+    name: string;
+    description: string;
+    type: "weapon" | "armor" | "potion" | "food" | "key" | "misc" | "material" | "book" | "magic";
+    value: number;
+  }>;
+  removedItemIds: string[];
+}
+
+/**
+ * Simulate changes at a location since the player's last visit.
+ * The world should feel alive - NPCs move based on their soul instructions,
+ * items may appear or disappear, and the environment may change.
+ *
+ * @param worldState - The current world state
+ * @param locationId - The ID of the location being entered
+ * @returns LocationSimulationResult with narrative and state changes
+ */
+export async function simulateLocationChanges(
+  worldState: WorldState,
+  locationId: string
+): Promise<LocationSimulationResult> {
+  const location = worldState.locations[locationId];
+
+  if (!location) {
+    throw new Error(`simulateLocationChanges: location not found: ${locationId}`);
+  }
+
+  // Calculate actions elapsed since last visit
+  const lastVisitedAt = location.lastVisitedAtAction ?? 0;
+  const actionsElapsed = worldState.actionCounter - lastVisitedAt;
+
+  // If the player was just here (or never left), no simulation needed
+  if (actionsElapsed <= 0) {
+    return {
+      hasChanges: false,
+      narrative: "",
+      npcMovements: [],
+      npcArrivals: [],
+      environmentalChanges: [],
+      newItems: [],
+      removedItemIds: [],
+    };
+  }
+
+  // Calculate chance of changes based on actions elapsed
+  // Higher action count = higher chance of changes
+  // At 10 actions: ~50% chance, at 50 actions: ~90% chance
+  const changeChance = Math.min(0.9, 0.1 + (actionsElapsed * 0.04));
+  const shouldSimulate = Math.random() < changeChance;
+
+  // If chance fails and not too many actions elapsed, skip simulation
+  if (!shouldSimulate && actionsElapsed < 20) {
+    return {
+      hasChanges: false,
+      narrative: "",
+      npcMovements: [],
+      npcArrivals: [],
+      environmentalChanges: [],
+      newItems: [],
+      removedItemIds: [],
+    };
+  }
+
+  // Build context about NPCs currently at this location
+  const presentNpcs = location.presentNpcIds
+    .map((id) => worldState.npcs[id])
+    .filter((npc): npc is NPC => npc !== undefined && npc.isAlive);
+
+  // Find NPCs at nearby locations who might have come here
+  const nearbyLocations = Object.values(worldState.locations).filter((loc) => {
+    const dx = Math.abs(loc.coordinates.x - location.coordinates.x);
+    const dy = Math.abs(loc.coordinates.y - location.coordinates.y);
+    return dx <= 1 && dy <= 1 && loc.id !== locationId;
+  });
+
+  const nearbyNpcs: NPC[] = [];
+  for (const nearbyLoc of nearbyLocations) {
+    for (const npcId of nearbyLoc.presentNpcIds) {
+      const npc = worldState.npcs[npcId];
+      if (npc && npc.isAlive && !npc.isCompanion) {
+        nearbyNpcs.push(npc);
+      }
+    }
+  }
+
+  // Get recent events for context
+  const recentLocationEvents = worldState.eventHistory
+    .filter((e) => e.locationId === locationId)
+    .slice(-3);
+
+  const systemPrompt = `You are simulating world changes at a location in a fantasy medieval RPG.
+
+The player is entering a location they haven't visited for ${actionsElapsed} actions (game turns).
+The world should feel alive - NPCs pursue their goals, items come and go, and the environment changes.
+
+SIMULATION RULES:
+1. NPCs move based on their soul instructions - merchants travel to sell, guards patrol, wanderers wander
+2. The more actions elapsed, the more likely changes have occurred
+3. Keep changes believable and consistent with NPC personalities
+4. Environmental changes should be subtle (weather, time of day effects, seasonal hints)
+5. New items might appear from travelers dropping things, nature providing, or events
+6. Items might disappear if NPCs took them or they spoiled/decayed
+7. The narrative should smoothly describe what changed since last visit
+8. If an NPC's home is this location, they're more likely to return here
+9. Companions (isCompanion: true) should NEVER move independently - they stay with the player
+
+IMPORTANT:
+- Only move NPCs to locations that actually exist (use provided location IDs)
+- NPCs should only arrive from nearby locations (the ones listed)
+- Keep the narrative in chaotic trickster narrator voice
+- If no meaningful changes, set hasChanges: false and provide empty narrative
+
+PRESENT NPCS (may have left):
+${presentNpcs.length > 0
+    ? presentNpcs.map((npc) => `- ${npc.name} (ID: ${npc.id}): ${npc.soulInstruction.substring(0, 200)}...`).join("\n")
+    : "None currently here"}
+
+NEARBY NPCS (may have arrived):
+${nearbyNpcs.length > 0
+    ? nearbyNpcs.map((npc) => `- ${npc.name} (ID: ${npc.id}) at ${worldState.locations[npc.currentLocationId]?.name || "unknown"}: ${npc.soulInstruction.substring(0, 200)}...`).join("\n")
+    : "No NPCs nearby"}
+
+NEARBY LOCATIONS (valid movement destinations):
+${nearbyLocations.map((loc) => `- ${loc.name} (ID: ${loc.id}, ${loc.terrain})`).join("\n")}
+
+LOCATION DETAILS:
+- Name: ${location.name}
+- Terrain: ${location.terrain}
+- Description: ${location.description}
+- Current items: ${location.items.map((i) => `${i.name} (ID: ${i.id})`).join(", ") || "None"}
+- Structures: ${location.structures.map((s) => s.name).join(", ") || "None"}
+
+RECENT EVENTS AT THIS LOCATION:
+${recentLocationEvents.length > 0
+    ? recentLocationEvents.map((e) => `- ${e.description}`).join("\n")
+    : "No recent events"}`;
+
+  const userPrompt = `Simulate what changed at "${location.name}" over ${actionsElapsed} actions.
+
+Actions elapsed: ${actionsElapsed}
+Change probability context: ${actionsElapsed < 5 ? "Very recent visit - minor changes only" : actionsElapsed < 15 ? "Some time has passed - moderate changes possible" : actionsElapsed < 30 ? "Significant time passed - notable changes likely" : "Long absence - expect meaningful changes"}
+
+Generate believable world changes and describe them in an atmospheric narrative. If nothing meaningful changed, return hasChanges: false with empty narrative.`;
+
+  const response = await callGPT<LocationSimulationResult>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: LOCATION_SIMULATION_SCHEMA,
+    maxTokens: 1200,
+  });
+
+  return response.content;
+}
+
 export async function generateNPC(
   worldState: WorldState,
   context: string,
