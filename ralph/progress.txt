@@ -645,3 +645,20 @@
   - Use non-null assertion `!` when accessing record entries that were just created (e.g., `npcs[id]!`)
   - Behavior patterns updated: `combat` pattern incremented after defeating enemies
 ---
+
+## 2026-02-14 - US-044
+- What was implemented: Created player stats panel component for displaying character stats
+- Files changed:
+  - src/frontend/StatsPanel.tsx (created - reusable stats panel component)
+  - src/frontend/WorldApp.tsx (modified - replaced inline header stats with StatsPanel component)
+  - src/frontend/worldStyles.css (modified - added stats panel styles)
+- **Learnings for future iterations:**
+  - StatsPanel follows same component extraction pattern as StoryPanel, ActionPanel, MapPanel, ImagePanel, JournalPanel
+  - Component receives all player stats as props: name, health, maxHealth, gold, strength, defense, magic, level, experience, companionCount
+  - Health bar uses percentage-based width for visual progress display
+  - XP bar calculates progress towards next level using formula: `level * 50` XP per level
+  - Companion count only displays when > 0, with singular/plural label
+  - Responsive design: uses flexbox with wrap, adapts to mobile screens in @media query
+  - Pre-existing DOM lib errors (same as other frontend files) are unchanged
+  - Stats update automatically via React re-render when worldState changes
+---
