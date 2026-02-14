@@ -553,3 +553,17 @@
   - Input clears after submission via setFreeformText("")
   - Submit button uses → arrow character, disabled when input empty or processing
 ---
+
+## 2026-02-14 - US-039
+- What was implemented: Created image panel component for displaying location images
+- Files changed:
+  - src/frontend/ImagePanel.tsx (created - reusable image panel component)
+  - src/frontend/WorldApp.tsx (modified - replaced inline image panel with component)
+- **Learnings for future iterations:**
+  - ImagePanel follows same pattern as StoryPanel and ActionPanel - extracts reusable UI into separate component
+  - Component manages its own loading state internally via useState
+  - Uses useEffect with location.id dependency to automatically reload image when location changes
+  - Export `ImagePanelLocation` interface for type safety when passing location data as props
+  - Pre-existing DOM lib errors (scrollTop, scrollHeight, document) appear in new components same as other frontend files
+  - Removing inline image logic from WorldApp.tsx cleaned up unused state variables (locationImage, isLoadingImage, loadLocationImage function)
+---
