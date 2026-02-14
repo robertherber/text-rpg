@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import "./worldStyles.css";
 import StoryPanel, { type StoryMessage } from "./StoryPanel";
+import ActionPanel, { type SuggestedAction } from "./ActionPanel";
 
 // Types for world state data
 interface WorldLocation {
@@ -38,13 +39,7 @@ interface PlayerStats {
   inventoryCount: number;
 }
 
-interface SuggestedAction {
-  id: string;
-  text: string;
-  type: string;
-  targetLocationId?: string;
-  targetNpcId?: string;
-}
+// SuggestedAction type imported from ActionPanel
 
 interface WorldStateResponse {
   currentLocation: WorldLocation;
@@ -309,21 +304,11 @@ export default function WorldApp() {
           )}
 
           {/* Suggested actions */}
-          <div className="actions-section">
-            <h3>Actions</h3>
-            <div className="action-buttons">
-              {worldState.suggestedActions.map((action) => (
-                <button
-                  key={action.id}
-                  className={`action-button ${action.type}`}
-                  onClick={() => handleAction(action)}
-                  disabled={isProcessing}
-                >
-                  {action.text}
-                </button>
-              ))}
-            </div>
-          </div>
+          <ActionPanel
+            actions={worldState.suggestedActions}
+            onActionSelect={handleAction}
+            isProcessing={isProcessing}
+          />
 
           {/* Free-form input placeholder */}
           <div className="freeform-section">
