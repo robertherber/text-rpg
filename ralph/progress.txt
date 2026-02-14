@@ -682,3 +682,19 @@
   - Inventory panel placed below ActionPanel in the right column of WorldApp layout
   - Pre-existing TypeScript errors in codebase are unchanged - no new errors introduced
 ---
+
+## 2026-02-14 - US-046
+- What was implemented: Added home ownership system with state change handlers
+- Files changed:
+  - src/world/types.ts (modified - added 5 new state change types: claim_home, store_item_at_home, retrieve_item_from_home, companion_wait_at_home, companion_rejoin)
+  - src/world/stateManager.ts (modified - added 5 new handler functions in Home Ownership System section)
+- **Learnings for future iterations:**
+  - `homeLocationId` already existed in Player type (line 127 of types.ts), no need to add
+  - `claim_home` handler sets player.homeLocationId to either specified locationId or current location
+  - `store_item_at_home` validates player has home set, finds item in inventory, moves to home location's items array
+  - `retrieve_item_from_home` requires player to be at home location before retrieving
+  - `companion_wait_at_home` moves companion to home location while keeping them as a companion
+  - `companion_rejoin` moves companion from wherever they are to player's current location
+  - Use non-null assertions (`!`) after checking existence to satisfy TypeScript (e.g., `newLocations[homeLocationId]!.presentNpcIds`)
+  - Pre-existing type errors in stateManager.ts (lines 305-361) are documented in Codebase Patterns
+---
