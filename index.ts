@@ -1,4 +1,4 @@
-import index from "./public/index.html";
+import index from "./public/world.html";
 import worldIndex from "./public/world.html";
 import {
   createInitialState,
@@ -12,7 +12,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel, generateInitialCharacter, calculateRumorSpread, applyRumorSpreads } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel, generateInitialCharacter, calculateRumorSpread, applyRumorSpreads, generateLocation } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath, updateBehaviorPatterns } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
@@ -352,8 +352,39 @@ const server = Bun.serve({
         // Resolve the action using GPT
         const actionResult = await resolveAction(worldState, selectedAction.text);
 
+        // Remember previous location before applying state changes
+        const previousLocationId = worldState.player.currentLocationId;
+
         // Apply state changes
         worldState = applyStateChanges(worldState, actionResult.stateChanges);
+
+        // Check if player moved to a location that doesn't exist yet (exploring new area)
+        const currentLocation = worldState.locations[worldState.player.currentLocationId];
+        if (!currentLocation) {
+          // Extract direction from the action text
+          const directionMatch = selectedAction.text.toLowerCase().match(/\b(north|south|east|west|northeast|northwest|southeast|southwest)\b/);
+          const direction = directionMatch ? directionMatch[1] : "unknown";
+
+          console.log(`🗺️ Generating new location ${direction} from ${previousLocationId}...`);
+
+          // Generate the new location
+          const newLocation = await generateLocation(worldState, direction, previousLocationId);
+
+          // Add the new location to world state
+          worldState = {
+            ...worldState,
+            locations: {
+              ...worldState.locations,
+              [newLocation.id]: newLocation,
+            },
+            player: {
+              ...worldState.player,
+              currentLocationId: newLocation.id,
+            },
+          };
+
+          console.log(`✅ Created new location: ${newLocation.name} at (${newLocation.coordinates.x}, ${newLocation.coordinates.y})`);
+        }
 
         // Update behavior patterns based on the action taken
         worldState = updateBehaviorPatterns(
@@ -456,8 +487,39 @@ const server = Bun.serve({
         // Resolve the free-form action using GPT
         const actionResult = await resolveAction(worldState, trimmedText);
 
+        // Remember previous location before applying state changes
+        const previousLocationId = worldState.player.currentLocationId;
+
         // Apply state changes
         worldState = applyStateChanges(worldState, actionResult.stateChanges);
+
+        // Check if player moved to a location that doesn't exist yet (exploring new area)
+        const currentLocation = worldState.locations[worldState.player.currentLocationId];
+        if (!currentLocation) {
+          // Extract direction from the action text
+          const directionMatch = trimmedText.toLowerCase().match(/\b(north|south|east|west|northeast|northwest|southeast|southwest)\b/);
+          const direction = directionMatch ? directionMatch[1] : "unknown";
+
+          console.log(`🗺️ Generating new location ${direction} from ${previousLocationId}...`);
+
+          // Generate the new location
+          const newLocation = await generateLocation(worldState, direction, previousLocationId);
+
+          // Add the new location to world state
+          worldState = {
+            ...worldState,
+            locations: {
+              ...worldState.locations,
+              [newLocation.id]: newLocation,
+            },
+            player: {
+              ...worldState.player,
+              currentLocationId: newLocation.id,
+            },
+          };
+
+          console.log(`✅ Created new location: ${newLocation.name} at (${newLocation.coordinates.x}, ${newLocation.coordinates.y})`);
+        }
 
         // Update behavior patterns based on the action taken
         worldState = updateBehaviorPatterns(
@@ -803,6 +865,9 @@ const server = Bun.serve({
         const body = await req.json() as { name?: string; backstoryHints?: string };
         const { name, backstoryHints } = body;
 
+        console.log("🎭 Character creation started...");
+        const startTime = Date.now();
+
         // Validate name
         if (!name || typeof name !== "string" || name.trim().length === 0) {
           return Response.json(
@@ -821,25 +886,40 @@ const server = Bun.serve({
           );
         }
 
+        console.log(`📝 Creating character: "${trimmedName}"`);
+        console.log(`📜 Backstory hints: ${backstoryHints?.trim() ? `"${backstoryHints.trim().substring(0, 100)}..."` : "(none provided - will auto-generate)"}`);
+
         try {
           // Generate the initial character and fresh world
+          console.log("⏳ Step 1/3: Generating character with GPT...");
+          const gptStartTime = Date.now();
           const result = await generateInitialCharacter(
             trimmedName,
             backstoryHints?.trim() || ""
           );
+          console.log(`✅ Character generated in ${Date.now() - gptStartTime}ms`);
+          console.log(`   - Origin: ${result.player.origin}`);
+          console.log(`   - Stats: STR ${result.player.strength}, DEF ${result.player.defense}, MAG ${result.player.magic}`);
 
           // Replace the current world state with the fresh world
           worldState = result.worldState;
 
           // Save the new world state
+          console.log("⏳ Step 2/3: Saving world state...");
+          const saveStartTime = Date.now();
           await saveWorldState(worldState);
+          console.log(`✅ World state saved in ${Date.now() - saveStartTime}ms`);
 
           // Get starting location details
           const startingLocation = worldState.locations[result.player.currentLocationId];
 
           // Generate initial suggested actions for the player
+          console.log("⏳ Step 3/3: Generating initial suggested actions...");
+          const actionsStartTime = Date.now();
           const suggestedActions = await generateSuggestedActions(worldState);
           lastSuggestedActions = suggestedActions;
+          console.log(`✅ Suggested actions generated in ${Date.now() - actionsStartTime}ms`);
+          console.log(`🎉 Character creation complete! Total time: ${Date.now() - startTime}ms`);
 
           return Response.json({
             player: {
@@ -907,6 +987,16 @@ const server = Bun.serve({
         const result = processWorldCombatAction(worldState, action);
         worldState = result.newState;
 
+        // Log combat state changes for debugging
+        if (result.combatEnded) {
+          console.log(`⚔️ Combat ended - Victory: ${result.playerVictory}, Defeated: ${result.playerDefeated}, Fled: ${result.fled}`);
+          if (result.playerVictory && worldState.combatState === null) {
+            // Find recently killed NPC
+            const deadNpcs = Object.values(worldState.npcs).filter(npc => !npc.isAlive);
+            console.log(`💀 Dead NPCs in world: ${deadNpcs.map(n => `${n.name} (${n.id})`).join(", ") || "none"}`);
+          }
+        }
+
         // Handle player death if defeated
         let deceasedHeroInfo = null;
         let deathNarrative = "";
@@ -947,6 +1037,7 @@ const server = Bun.serve({
 
         // Save the updated world state
         await saveWorldState(worldState);
+        console.log(`💾 World state saved after combat action (action #${worldState.actionCounter})`);
 
         // Get enemy info for UI
         let enemyInfo = null;

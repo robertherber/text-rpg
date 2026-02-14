@@ -40,6 +40,25 @@ interface CharacterCreationProps {
   onCharacterCreated: (response: CharacterCreationResponse) => void;
 }
 
+// Random backstory suggestions for the "Surprise Me" button
+const RANDOM_BACKSTORIES = [
+  "A former court jester who fled after accidentally insulting the king",
+  "An amnesiac who woke up in a field with strange markings on their arms",
+  "A disgraced knight seeking redemption for a sin they won't name",
+  "A hedge witch's apprentice whose master vanished under mysterious circumstances",
+  "A traveling merchant's child who lost everything to bandits",
+  "A runaway noble escaping an arranged marriage",
+  "A scholar obsessed with finding a legendary lost library",
+  "A retired soldier haunted by dreams of a battle that never happened",
+  "A simple farmer who discovered they can hear whispers from the dead",
+  "A thief who stole something they shouldn't have and now something hunts them",
+  "A wandering bard collecting stories of forgotten heroes",
+  "An orphan raised by wolves who recently rejoined human society",
+  "A former temple acolyte who lost their faith after witnessing something terrible",
+  "A shipwreck survivor with no memory of how they got so far inland",
+  "A blacksmith's apprentice who dreams of wielding the sword instead of forging it",
+];
+
 export default function CharacterCreation({ onCharacterCreated }: CharacterCreationProps) {
   const [name, setName] = useState("");
   const [backstoryHints, setBackstoryHints] = useState("");
@@ -51,6 +70,12 @@ export default function CharacterCreation({ onCharacterCreated }: CharacterCreat
   useEffect(() => {
     nameInputRef.current?.focus();
   }, []);
+
+  // Generate a random backstory
+  const handleSurpriseMe = () => {
+    const randomIndex = Math.floor(Math.random() * RANDOM_BACKSTORIES.length);
+    setBackstoryHints(RANDOM_BACKSTORIES[randomIndex]);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -126,18 +151,28 @@ export default function CharacterCreation({ onCharacterCreated }: CharacterCreat
 
           {/* Backstory Hints Textarea */}
           <div className="form-group">
-            <label htmlFor="backstory-hints" className="form-label">
-              Tell us about yourself...
-            </label>
+            <div className="form-label-row">
+              <label htmlFor="backstory-hints" className="form-label">
+                Tell us about yourself...
+              </label>
+              <button
+                type="button"
+                className="surprise-me-button"
+                onClick={handleSurpriseMe}
+                disabled={isCreating}
+              >
+                🎲 Surprise Me!
+              </button>
+            </div>
             <p className="form-hint">
               Share hints about your character's background, personality, or destiny.
-              The fates will weave your story from these threads. (Optional)
+              Leave blank and the fates will craft a mysterious past for you!
             </p>
             <textarea
               id="backstory-hints"
               value={backstoryHints}
               onChange={(e) => setBackstoryHints(e.target.value)}
-              placeholder="Perhaps you were once a blacksmith's apprentice... or a noble in exile... or simply a wanderer seeking purpose..."
+              placeholder="Leave empty for a randomly generated backstory, or describe your character's past..."
               className="form-textarea"
               disabled={isCreating}
               rows={4}
@@ -160,12 +195,18 @@ export default function CharacterCreation({ onCharacterCreated }: CharacterCreat
             {isCreating ? (
               <>
                 <span className="creation-spinner"></span>
-                The fates are weaving your destiny...
+                The fates are weaving your destiny... (this may take a moment)
               </>
             ) : (
               "Begin Your Journey"
             )}
           </button>
+
+          {isCreating && (
+            <p className="creation-progress">
+              Generating your unique backstory, appearance, and starting items...
+            </p>
+          )}
         </form>
 
         <p className="creation-flavor">

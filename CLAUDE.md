@@ -24,6 +24,16 @@ Default to using Bun instead of Node.js.
 - Prefer `Bun.file` over `node:fs`'s readFile/writeFile
 - Bun.$`ls` instead of execa.
 
+## Before Finishing Any Task
+
+**ALWAYS run typecheck and ensure it passes before considering a task complete:**
+
+```sh
+bun run typecheck
+```
+
+Fix all type errors before finishing. Do not leave type errors for the user to resolve.
+
 ## Testing
 
 Use `bun test` to run tests.

@@ -172,7 +172,7 @@ export default function ActionPanel({
           <input
             ref={inputRef}
             type="text"
-            placeholder="Or type your own action..."
+            placeholder="Describe what you want to do... (e.g., 'search the room for hidden items', 'try to sneak past the guard')"
             className="freeform-input"
             value={freeformText}
             onChange={(e) => setFreeformText(e.target.value)}

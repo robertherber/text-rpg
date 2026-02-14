@@ -224,6 +224,17 @@ ${presentNpcs
 ${recentEvents.map((e) => `- ${e.description}`).join("\n")}`
       : "RECENT EVENTS: None";
 
+  // Build context about dead NPCs at current location (for narrative consistency)
+  const deadNpcsHere = Object.values(npcs)
+    .filter((npc) => !npc.isAlive && npc.currentLocationId === player.currentLocationId)
+    .map((npc) => `- ${npc.name}: ${npc.deathDescription || "slain here"}`);
+
+  const deadNpcContext = deadNpcsHere.length > 0
+    ? `SLAIN AT THIS LOCATION:
+${deadNpcsHere.join("\n")}
+(Their corpses/remains may still be here. Other creatures of same type are scared away.)`
+    : "";
+
   // Build player stats summary
   const playerStats = `PLAYER STATUS:
 Name: ${player.name || "Unknown"}
@@ -293,7 +304,7 @@ Recent detected crimes: ${recentCrimes.length > 0 ? `${recentCrimes.length} (${c
 
 ${npcContext}
 
-${eventContext}
+${eventContext}${deadNpcContext ? "\n\n" + deadNpcContext : ""}
 
 ${playerStats}
 
@@ -352,7 +363,89 @@ const ACTION_RESULT_SCHEMA = {
           },
           data: {
             type: "object",
-            additionalProperties: true,
+            properties: {
+              // move_player, move_npc
+              locationId: { type: ["string", "null"] },
+              // move_npc, update_npc_attitude, npc_death, add_companion, remove_companion
+              npcId: { type: ["string", "null"] },
+              // add_item - simplified item object
+              item: {
+                type: ["object", "null"],
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                  description: { type: "string" },
+                  itemType: { type: "string" },
+                  isEquippable: { type: "boolean" },
+                  equipSlot: { type: ["string", "null"] },
+                  statsModifiers: { type: ["object", "null"], properties: {}, additionalProperties: false },
+                  isConsumable: { type: "boolean" },
+                  effectDescription: { type: ["string", "null"] },
+                  value: { type: "number" },
+                  quantity: { type: "number" },
+                },
+                required: ["id", "name", "description", "itemType", "isEquippable", "equipSlot", "statsModifiers", "isConsumable", "effectDescription", "value", "quantity"],
+                additionalProperties: false,
+              },
+              // remove_item
+              itemId: { type: ["string", "null"] },
+              // gold_change, player_damage, player_heal, update_npc_attitude (change)
+              amount: { type: ["number", "null"] },
+              change: { type: ["number", "null"] },
+              // add_knowledge
+              type: { type: ["string", "null"] },
+              value: { type: ["string", "null"] },
+              // npc_death
+              description: { type: ["string", "null"] },
+              // reveal_flashback
+              flashbackContent: { type: ["string", "null"] },
+              revealedSkill: {
+                type: ["object", "null"],
+                properties: {
+                  name: { type: "string" },
+                  level: { type: "string" },
+                },
+                required: ["name", "level"],
+                additionalProperties: false,
+              },
+              // player_transform
+              transformation: { type: ["string", "null"] },
+              physicalDescriptionChange: { type: ["string", "null"] },
+              remove: { type: ["boolean", "null"] },
+              // add_curse, remove_curse
+              curse: { type: ["string", "null"] },
+              source: { type: ["string", "null"] },
+              effects: { type: ["string", "null"] },
+              method: { type: ["string", "null"] },
+              // add_blessing, remove_blessing
+              blessing: { type: ["string", "null"] },
+              reason: { type: ["string", "null"] },
+              // skill_practice
+              skill: { type: ["string", "null"] },
+              improvement: { type: ["string", "null"] },
+              newLevel: { type: ["string", "null"] },
+              requiresTeacher: { type: ["boolean", "null"] },
+              teacherNpcId: { type: ["string", "null"] },
+              // record_crime
+              crimeType: { type: ["string", "null"] },
+              victimNpcId: { type: ["string", "null"] },
+              witnessNpcIds: { type: ["array", "null"], items: { type: "string" } },
+              wasDetected: { type: ["boolean", "null"] },
+              severity: { type: ["string", "null"] },
+              // add_bounty
+              issuedByFactionId: { type: ["string", "null"] },
+              issuedByNpcId: { type: ["string", "null"] },
+              crimeIds: { type: ["array", "null"], items: { type: "string" } },
+            },
+            required: [
+              "locationId", "npcId", "item", "itemId", "amount", "change", "type", "value",
+              "description", "flashbackContent", "revealedSkill", "transformation",
+              "physicalDescriptionChange", "remove", "curse", "source", "effects", "method",
+              "blessing", "reason", "skill", "improvement", "newLevel", "requiresTeacher",
+              "teacherNpcId", "crimeType", "victimNpcId", "witnessNpcIds", "wasDetected",
+              "severity", "issuedByFactionId", "issuedByNpcId", "crimeIds"
+            ],
+            additionalProperties: false,
           },
         },
         required: ["type", "data"],
@@ -387,30 +480,30 @@ const ACTION_RESULT_SCHEMA = {
             ],
           },
           targetLocationId: {
-            type: "string",
+            type: ["string", "null"],
             description: "Location ID if this is a movement action",
           },
           targetNpcId: {
-            type: "string",
+            type: ["string", "null"],
             description: "NPC ID if this targets an NPC",
           },
         },
-        required: ["id", "text", "type"],
+        required: ["id", "text", "type", "targetLocationId", "targetNpcId"],
         additionalProperties: false,
       },
     },
     initiatesCombat: {
-      type: "string",
-      description: "NPC ID to fight if combat starts, omit if no combat",
+      type: ["string", "null"],
+      description: "NPC ID to fight if combat starts, null if no combat",
     },
     revealsFlashback: {
-      type: "string",
-      description: "Flashback content to reveal, omit if none",
+      type: ["string", "null"],
+      description: "Flashback content to reveal, null if none",
     },
     newKnowledge: {
       type: "array",
       items: { type: "string" },
-      description: "New knowledge gained by the player",
+      description: "New knowledge gained by the player (empty array if none)",
     },
     questUpdates: {
       type: "array",
@@ -423,16 +516,17 @@ const ACTION_RESULT_SCHEMA = {
             enum: ["active", "completed", "failed", "impossible"],
           },
           completedObjectives: {
-            type: "array",
+            type: ["array", "null"],
             items: { type: "string" },
           },
         },
-        required: ["questId", "status"],
+        required: ["questId", "status", "completedObjectives"],
         additionalProperties: false,
       },
+      description: "Quest status updates (empty array if none)",
     },
   },
-  required: ["narrative", "stateChanges", "suggestedActions"],
+  required: ["narrative", "stateChanges", "suggestedActions", "initiatesCombat", "revealsFlashback", "newKnowledge", "questUpdates"],
   additionalProperties: false,
 };
 
@@ -462,7 +556,7 @@ ${worldState.player.revealedBackstory.length > 0 ? worldState.player.revealedBac
 Given the current game context and the player's attempted action, determine:
 1. What happens as a result (narrate it dramatically in first person as the chaotic trickster narrator)
 2. What state changes occur in the world
-3. What actions the player might take next (3-6 suggestions)
+3. What actions the player might take next (3 suggestions)
 
 RULES:
 - Almost anything is possible if it makes narrative sense within high fantasy
@@ -472,6 +566,7 @@ RULES:
 - Movement between locations should use the 'move_player' state change
 - NPCs can only be talked to if they're present at the current location
 - Generate unique IDs for new suggested actions using simple lowercase strings like "action_1", "action_2"
+- When NPCs speak, let them speak for themselves in quotes - the narrator should describe their behavior and mannerisms but NEVER repeat or paraphrase what they said
 
 FLASHBACK SYSTEM:
 - Flashbacks reveal pieces of the player's hidden backstory
@@ -483,7 +578,7 @@ FLASHBACK SYSTEM:
 - Don't reveal more than one flashback per action - they should feel special and rare
 ${flashbackContext}
 
-STATE CHANGE TYPES:
+STATE CHANGE TYPES (set unused fields to null):
 - move_player: { locationId: string } - Move player to a location
 - add_item: { item: WorldItem } - Add item to player inventory
 - remove_item: { itemId: string } - Remove item from player inventory
@@ -615,15 +710,15 @@ const SUGGESTED_ACTIONS_SCHEMA = {
             ],
           },
           targetLocationId: {
-            type: "string",
+            type: ["string", "null"],
             description: "Location ID if this is a movement action",
           },
           targetNpcId: {
-            type: "string",
+            type: ["string", "null"],
             description: "NPC ID if this targets an NPC",
           },
         },
-        required: ["id", "text", "type"],
+        required: ["id", "text", "type", "targetLocationId", "targetNpcId"],
         additionalProperties: false,
       },
     },
@@ -753,7 +848,7 @@ Generate a brief, playful rejection in the narrator's voice.`;
 }
 
 /**
- * Generate 3-6 contextual suggested actions based on the current world state.
+ * Generate 3 contextual suggested actions based on the current world state.
  * Includes movement options (step carefully, travel to known locations),
  * NPC interactions, and item/environment interactions.
  */
@@ -783,7 +878,7 @@ export async function generateSuggestedActions(
 
   const systemPrompt = `You are generating contextual action suggestions for a fantasy medieval RPG.
 
-Given the current game context, generate 3-6 suggested actions the player might take.
+Given the current game context, generate exactly 3 suggested actions the player might take.
 
 ACTION REQUIREMENTS:
 1. ALWAYS include at least one movement option:
@@ -809,7 +904,7 @@ Generate unique IDs like "action_1", "action_2", etc.`;
 
   const userPrompt = `${context}
 
-Generate 3-6 contextual suggested actions for the player. Include movement, interaction, and any situationally appropriate options.`;
+Generate exactly 3 contextual suggested actions for the player. Include movement, interaction, and any situationally appropriate options.`;
 
   const response = await callGPT<{ actions: SuggestedAction[] }>({
     systemPrompt,
@@ -1320,14 +1415,14 @@ CONVERSATION RULES:
 5. If the player asks about something ${npc.name} doesn't know, admit ignorance or deflect naturally
 6. If the player is rude or threatening, respond according to ${npc.name}'s personality
 7. Animals cannot speak (isAnimal: ${npc.isAnimal}) - they communicate through actions/sounds
-8. The narrator (narratorFrame) provides witty commentary in chaotic trickster voice
+8. The narrator (narratorFrame) provides witty commentary in chaotic trickster voice - describe NPC behavior, mannerisms, expressions, but NEVER repeat or paraphrase what the NPC says
 9. Don't repeat the player's words back to them
 10. Be concise - tavern conversations are typically brief exchanges
 
 RESPONSE STRUCTURE:
 - npcResponse: What ${npc.name} actually says OUT LOUD (dialogue only)
 - npcInternalThought: What they're thinking but not saying
-- narratorFrame: Brief narrator commentary (can be empty string if not needed)
+- narratorFrame: Brief narrator commentary describing body language, tone, or setting - NEVER quote or paraphrase the NPC's words (those go in npcResponse only)
 - conversationSummary: Brief summary for memory (1-2 sentences)`;
 
   const userPrompt = `The player says to ${npc.name}: "${playerMessage}"
@@ -2877,9 +2972,20 @@ async function generateTravelEncounter(
 
   // Build context for GPT
   const recentEvents = worldState.eventHistory
-    .slice(-3)
+    .slice(-10)
     .map((e) => e.description)
     .join(" ");
+
+  // Find recently slain NPCs in this area to avoid respawning them
+  const deadNpcsNearby = Object.values(worldState.npcs)
+    .filter((npc) => !npc.isAlive && (npc.currentLocationId === from.id || npc.currentLocationId === to.id))
+    .map((npc) => `${npc.name} (${npc.deathDescription || "slain"})`);
+
+  // Find combat events from the player's history for context
+  const recentCombatEvents = worldState.eventHistory
+    .filter((e) => e.type === "combat")
+    .slice(-5)
+    .map((e) => e.description);
 
   const systemPrompt = `You are generating a travel encounter for a fantasy medieval RPG.
 
@@ -2902,6 +3008,8 @@ GUIDELINES:
 6. Lower danger level = more likely discovery or peaceful meeting
 7. The narrative should be in chaotic trickster narrator voice, dramatic but fun
 8. continueToDestination should be false for serious combat, true for everything else usually
+9. CRITICAL: Do NOT spawn the same type of creature that was recently killed in this area. Check SLAIN CREATURES list!
+10. If the player just killed something here, the area should feel safer for a while - corpse scares others away
 
 DANGER CONTEXT:
 - Average route danger: ${dangerLevel.toFixed(1)}/10
@@ -2918,6 +3026,12 @@ Route details:
 - Average danger: ${dangerLevel.toFixed(1)}/10
 - Distance: ${routeInfo.distance} units
 - Terrains crossed: ${terrains.join(", ")}
+
+${deadNpcsNearby.length > 0 ? `SLAIN CREATURES IN THIS AREA (DO NOT RESPAWN THESE):
+${deadNpcsNearby.join(", ")}
+The fresh kills make this route temporarily safer - other creatures avoid the area.` : ""}
+
+${recentCombatEvents.length > 0 ? `Recent combat history: ${recentCombatEvents.join(". ")}` : ""}
 
 Recent events: ${recentEvents || "Nothing notable"}
 
@@ -3734,14 +3848,25 @@ export async function generateInitialCharacter(
   name: string,
   backstoryHints: string
 ): Promise<InitialCharacterResult> {
+  console.log("   📖 generateInitialCharacter: Starting...");
+
   // Import createSeedWorld to get a fresh world
+  console.log("   🌍 Creating fresh seed world...");
   const { createSeedWorld } = await import("./seedWorld");
   const freshWorld = createSeedWorld();
+  console.log("   ✅ Seed world created");
 
   // Get the starting location
   const startingLocationId = "loc_millbrook_square";
   const startingLocation = freshWorld.locations[startingLocationId];
   const startingLocationName = startingLocation?.name || "Millbrook Village Square";
+
+  // If no backstory hints provided, tell GPT to be creative
+  const backstoryContext = backstoryHints
+    ? `The player has provided these hints about their character:\n${backstoryHints}`
+    : `The player has not provided any hints - BE CREATIVE! Generate an interesting, unique backstory with secrets and mysteries. Consider varied archetypes: wandering scholar, disgraced knight, escaped servant, merchant's child, hedge witch apprentice, traveling performer, or something more unusual.`;
+
+  console.log("   🤖 Calling GPT for character generation...");
 
   const systemPrompt = `You are creating the initial character for a fantasy medieval RPG.
 
@@ -3768,19 +3893,21 @@ ${NARRATOR_PERSONALITY}`;
 
 NAME: ${name}
 
-BACKSTORY HINTS FROM PLAYER:
-${backstoryHints || "No specific hints provided - create an interesting background."}
+${backstoryContext}
 
 Generate their complete character profile including physical description, origin, hidden backstory, starting narrative, lore they know, starting items, and appropriate stats.`;
 
+  const gptStartTime = Date.now();
   const response = await callGPT<InitialCharacterData>({
     systemPrompt,
     userPrompt,
     jsonSchema: INITIAL_CHARACTER_SCHEMA,
     maxTokens: 1200,
   });
+  console.log(`   ✅ GPT responded in ${Date.now() - gptStartTime}ms`);
 
   const characterData = response.content;
+  console.log(`   📋 Character data received: origin="${characterData.origin?.substring(0, 50)}..."`)
 
   // Get village locations for starting knowledge
   const villageLocations = Object.values(freshWorld.locations)

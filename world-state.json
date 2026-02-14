@@ -1,49 +1,86 @@
 {
   "version": 1,
-  "actionCounter": 0,
+  "actionCounter": 11,
   "player": {
-    "physicalDescription": "A traveler with road-worn clothes and weary eyes",
-    "hiddenBackstory": "",
-    "revealedBackstory": [],
-    "origin": "unknown",
-    "currentLocationId": "loc_millbrook_square",
+    "name": "rob",
+    "physicalDescription": "Rob stands tall and broad-shouldered, with a weathered complexion that speaks of years under sun and steel. His hair is a wild tangle of chestnut brown, peppered with strands of gray that betray his age. A neatly trimmed beard frames his strong jaw, giving him a rugged inkling of nobility. Clad in simple, yet sturdy, earth-toned garb with a faded tunic and rugged leather boots, he bears the scars of war both on his body and in his gaze. His piercing green eyes, like shards of emerald in the twilight, hold the weight of a thousand unspoken tales.",
+    "hiddenBackstory": "Haunted by dreams of a battle that never unfolded, Rob wrestles with ghosts of the unknown; visions of comrades who never entered the fray, their faces forever etched in shadows. Once, at the cusp of a fateful engagement, he turned his back on war— to protect a secret that could unravel the very threads of loyalty. Long days spent with pen and parchment reveal another truth: a letter tucked away, bearing whispers of betrayal involving a trusted general and the very lands he fought to defend. Will the shards of his past drive him to seek redemption, or will they consume him?",
+    "revealedBackstory": [
+      "You stand on a windswept battlefield, surrounded by the cries of both friend and foe. The scent of blood mingles with the earthy aroma of churned soil. Your heart pounds in your chest as you grip your longsword tightly, a sense of unease clawing at you. Though you aim to strike, memories of faces—lost, yet familiar—haunt you. Friends you never met, battles never fought. Their specters linger over the glinting blade, whispering bygone tales of loyalty and betrayal. The moment hangs thick with possibility, and then, like smoke, it dissipates into nothingness, leaving you shaken yet empowered. \nYou resolve to understand the depths of this sword’s legacy, its true worth still hidden beneath layers of time and choice, waiting for the right moment to surface."
+    ],
+    "origin": "Rob hails from the weary lands of Rivermarch, a village nestled near the tumultuous borders of warring factions. After a lifetime spent retreating from battlefields and the incessant clamor of swords clashing, he now finds himself in Millbrook, seeking solace—or perhaps merely avoiding the shades of the past that whisper amidst the rustling leaves.",
+    "currentLocationId": "loc_ironheart_forge",
     "health": 100,
     "maxHealth": 100,
     "strength": 10,
-    "defense": 10,
-    "magic": 5,
+    "defense": 9,
+    "magic": 4,
     "level": 1,
     "experience": 0,
     "gold": 25,
-    "inventory": [],
+    "inventory": [
+      {
+        "id": "item_starting_0_mlm9rsuc",
+        "name": "Old Longsword",
+        "description": "A simple yet reliable longsword, its blade dulled with age and wear but still serviceable for fending off the occasional bandit or errant critter.",
+        "type": "weapon",
+        "value": 6,
+        "isCanonical": false
+      },
+      {
+        "id": "item_starting_1_mlm9rsuc",
+        "name": "Leather Journal",
+        "description": "A weathered journal filled with Rob's musings, sketches of warriors, and poetry that masks his grief, hidden between the pages lies a single letter with cryptic hieroglyphs.",
+        "type": "book",
+        "value": 1,
+        "isCanonical": false
+      },
+      {
+        "id": "item_dagger",
+        "name": "Arcane Dagger",
+        "description": "A beautifully wrought dagger etched with swirling patterns, gleaming with magical potential.",
+        "type": "misc",
+        "value": 40
+      }
+    ],
     "companionIds": [],
     "knowledge": {
       "locations": [
         "loc_millbrook_square",
         "loc_rusty_tankard",
         "loc_ironheart_forge",
-        "loc_elder_house",
-        "loc_millbrook_gate"
+        "loc_elder_house"
       ],
-      "npcs": [],
+      "npcs": [
+        "npc_pip_stablehand"
+      ],
       "lore": [
-        "Millbrook is a small village at the edge of the known world."
+        "Millbrook is a small village at the edge of the known world.",
+        "The tale of the Whispering Woods—a cryptic forest known to hide secrets from those who dare to enter.",
+        "Rumors of a hidden treasure buried beneath the old Miller's ruin, said to have been protected by a spirit of vengeance.",
+        "Legend speaks of the great battle of Ashendale, where many soldiers perished, yet no true confrontation ever occurred—just like Rob's dreams.",
+        "bandits on the east road",
+        "strange lights in the forest at night"
       ],
       "recipes": [],
-      "skills": {}
+      "skills": {
+        "swordsmanship": "apprentice"
+      }
     },
     "behaviorPatterns": {
-      "combat": 0,
+      "combat": 1,
       "diplomacy": 0,
-      "exploration": 0,
-      "social": 0,
+      "exploration": 1,
+      "social": 1,
       "stealth": 0,
       "magic": 0
     },
     "transformations": [],
     "curses": [],
     "blessings": [],
-    "childrenNpcIds": []
+    "childrenNpcIds": [],
+    "crimes": [],
+    "bounties": []
   },
   "locations": {
     "loc_millbrook_square": {
@@ -57,7 +94,9 @@
       },
       "terrain": "village",
       "dangerLevel": 0,
-      "presentNpcIds": [],
+      "presentNpcIds": [
+        "npc_pip_stablehand"
+      ],
       "items": [],
       "structures": [],
       "notes": [],
@@ -74,7 +113,9 @@
       },
       "terrain": "village",
       "dangerLevel": 0,
-      "presentNpcIds": [],
+      "presentNpcIds": [
+        "npc_marta_barkeep"
+      ],
       "items": [],
       "structures": [],
       "notes": [],
@@ -91,7 +132,9 @@
       },
       "terrain": "village",
       "dangerLevel": 0,
-      "presentNpcIds": [],
+      "presentNpcIds": [
+        "npc_grimjaw_smith"
+      ],
       "items": [],
       "structures": [],
       "notes": [],
@@ -108,7 +151,9 @@
       },
       "terrain": "village",
       "dangerLevel": 0,
-      "presentNpcIds": [],
+      "presentNpcIds": [
+        "npc_bramwell_elder"
+      ],
       "items": [],
       "structures": [],
       "notes": [],
@@ -132,13 +177,260 @@
       "isCanonical": true
     }
   },
-  "npcs": {},
-  "factions": {},
+  "npcs": {
+    "npc_marta_barkeep": {
+      "id": "npc_marta_barkeep",
+      "name": "Marta the Barkeep",
+      "description": "A stout woman with calloused hands and a knowing smile, owner of The Rusty Tankard.",
+      "physicalDescription": "A heavyset woman in her fifties with ruddy cheeks, gray-streaked auburn hair tied in a practical bun, and arms thick from years of hauling kegs. Her apron is perpetually stained, and a wooden ladle hangs from her belt like a sidearm.",
+      "soulInstruction": "Marta has run The Rusty Tankard for thirty years, inheriting it from her late husband Bertram who choked on a fish bone. She knows every secret whispered over ale in Millbrook and trades gossip like currency—she'll share information if you give her something interesting in return. She speaks in a warm but no-nonsense manner, often wiping down the bar mid-conversation. Her goal is to keep her tavern prosperous and learn everyone's business. She's moderately gullible when it comes to flattery about her cooking, but shrewd about money. She refers to everyone as 'dearie' or 'love' regardless of station.",
+      "currentLocationId": "loc_rusty_tankard",
+      "homeLocationId": "loc_rusty_tankard",
+      "knowledge": [
+        "Knows everyone in Millbrook by name",
+        "Heard rumors of wolves in the western forest",
+        "Knows Elder Bramwell has been troubled lately",
+        "Remembers travelers who pass through"
+      ],
+      "conversationHistory": [],
+      "heardRumors": [],
+      "attitude": 50,
+      "isCompanion": false,
+      "isAnimal": false,
+      "inventory": [],
+      "stats": {
+        "health": 80,
+        "maxHealth": 80,
+        "strength": 8,
+        "defense": 5
+      },
+      "isAlive": true,
+      "isCanonical": true,
+      "factionIds": [
+        "faction_golden_scale"
+      ]
+    },
+    "npc_grimjaw_smith": {
+      "id": "npc_grimjaw_smith",
+      "name": "Grimjaw",
+      "description": "A towering blacksmith with burn-scarred arms and a perpetual scowl that belies a gentle heart.",
+      "physicalDescription": "A mountain of a man standing nearly seven feet tall, with skin darkened by forge-soot and arms like tree trunks crisscrossed with old burn scars. His jaw is crooked—hence the name—from a hammer accident in his youth. His leather apron is thick as armor, and his hands are permanently blackened despite washing.",
+      "soulInstruction": "Grimjaw speaks little, preferring the honest language of hammer and metal. He came to Millbrook twenty years ago fleeing some past he never discusses—the scars on his back aren't from forge work. He respects action over words and will only truly warm to those who prove themselves through deeds. He crafts the finest blades within a hundred miles but refuses to make weapons for those he deems unworthy. His goal is to live out his days in peace and perhaps train an apprentice. He speaks in short, gruff sentences and often grunts instead of answering. He's nearly impossible to deceive—his years of judging metal quality have made him excellent at judging character.",
+      "currentLocationId": "loc_ironheart_forge",
+      "homeLocationId": "loc_ironheart_forge",
+      "knowledge": [
+        "Knows metalworking and weapon quality",
+        "Knows of old mines to the north",
+        "Has heard of a dark blade that brings misfortune",
+        "Knows Elder Bramwell from the old days"
+      ],
+      "conversationHistory": [
+        {
+          "actionNumber": 6,
+          "summary": "Grimjaw expresses skepticism about teaching, requiring the player to prove their worth first. He shows a cold demeanor for now.",
+          "playerAsked": [
+            "can you teach me?"
+          ],
+          "npcRevealed": []
+        },
+        {
+          "actionNumber": 7,
+          "summary": "Grimjaw challenges the player to demonstrate their craftsmanship to prove their worthiness.",
+          "playerAsked": [
+            "how do I prove myself?"
+          ],
+          "npcRevealed": []
+        },
+        {
+          "actionNumber": 8,
+          "summary": "Grimjaw remains skeptical of the player's claim, insisting that actions speak louder than words.",
+          "playerAsked": [
+            "I'm the son of a blacksmith"
+          ],
+          "npcRevealed": []
+        },
+        {
+          "actionNumber": 9,
+          "summary": "The player bids Grimjaw farewell, receiving a curt and unyielding response in return. Grimjaw remains guarded and distant, undeterred by the player's departure.",
+          "playerAsked": [
+            "ok then bye"
+          ],
+          "npcRevealed": []
+        }
+      ],
+      "heardRumors": [
+        {
+          "eventId": "event_flashback_4_1771070887103",
+          "content": "A memory from the past was revealed: You stand on a windswept battlefield, surrounded by the cries of both friend and foe. The scent of b...",
+          "heardAtAction": 5,
+          "accuracy": "accurate"
+        }
+      ],
+      "attitude": 5,
+      "isCompanion": false,
+      "isAnimal": false,
+      "inventory": [
+        {
+          "id": "item_simple_dagger",
+          "name": "Simple Iron Dagger",
+          "description": "A well-crafted but plain dagger, suitable for utility work or self-defense.",
+          "type": "weapon",
+          "effect": {
+            "stat": "strength",
+            "value": 3
+          },
+          "value": 15,
+          "isCanonical": true
+        }
+      ],
+      "stats": {
+        "health": 150,
+        "maxHealth": 150,
+        "strength": 18,
+        "defense": 12
+      },
+      "isAlive": true,
+      "isCanonical": true,
+      "factionIds": []
+    },
+    "npc_bramwell_elder": {
+      "id": "npc_bramwell_elder",
+      "name": "Elder Bramwell",
+      "description": "The aged village elder whose cloudy eyes seem to see more than they should.",
+      "physicalDescription": "A wispy old man with a long white beard stained yellow at the tips from pipe smoke. His eyes are milky with cataracts yet unnervingly perceptive. He walks with a gnarled oak staff carved with forgotten runes, and his robes are patched so many times they're more repair than original cloth.",
+      "soulInstruction": "Elder Bramwell has guided Millbrook for forty years and carries the weight of every decision—good and ill—in his stooped shoulders. He speaks in riddles and parables not to be cryptic but because direct answers have cost him dearly in the past. He knows fragments of old magic, just enough to be dangerous, and fears the return of something he helped seal away in his youth. His goal is to find someone worthy of carrying his burden before death claims him. He tests newcomers with seemingly simple requests that reveal character. He speaks slowly, often trailing off mid-sentence as if listening to voices others cannot hear. He's impossible to fool but rarely calls out lies—he simply remembers them.",
+      "currentLocationId": "loc_elder_house",
+      "homeLocationId": "loc_elder_house",
+      "knowledge": [
+        "Knows the old lore and forgotten places",
+        "Remembers when the forest was different",
+        "Knows fragments of protective magic",
+        "Knows every soul born in Millbrook",
+        "Remembers heroes who came before"
+      ],
+      "conversationHistory": [],
+      "heardRumors": [],
+      "attitude": 30,
+      "isCompanion": false,
+      "isAnimal": false,
+      "inventory": [],
+      "stats": {
+        "health": 40,
+        "maxHealth": 40,
+        "strength": 3,
+        "defense": 2
+      },
+      "isAlive": true,
+      "isCanonical": true,
+      "factionIds": [
+        "faction_house_valdris"
+      ]
+    },
+    "npc_pip_stablehand": {
+      "id": "npc_pip_stablehand",
+      "name": "Pip",
+      "description": "A bright-eyed young stablehand who dreams of adventure beyond Millbrook's gates.",
+      "physicalDescription": "A scrawny youth of perhaps fifteen summers with a shock of straw-colored hair that refuses to lie flat. Freckles dust his sun-tanned face, and his clothes are perpetually covered in hay. His boots are too big—hand-me-downs—and he walks with the boundless energy of youth.",
+      "soulInstruction": "Pip is an orphan raised by the village, sleeping in the hayloft and earning his keep tending to travelers' horses and the village's few mules. He's desperate for adventure and treats any stranger as a potential hero from the stories he's heard. He speaks quickly, often interrupting himself with new thoughts, and asks far too many questions. His goal is to prove himself worthy of becoming a hero's companion. He's incredibly gullible and will believe almost anything told with conviction, though he'll eventually figure out lies and feel deeply betrayed. He knows every hiding spot in Millbrook and often overhears things he shouldn't.",
+      "currentLocationId": "loc_millbrook_square",
+      "homeLocationId": "loc_millbrook_square",
+      "knowledge": [
+        "Knows all the hiding spots in Millbrook",
+        "Overheard merchants talking about bandits on the east road",
+        "Knows which villagers are kind and which are cruel",
+        "Has seen strange lights in the forest at night"
+      ],
+      "conversationHistory": [
+        {
+          "actionNumber": 1,
+          "summary": "Pip greets the player with an enthusiastic and friendly manner, expressing curiosity about their presence in Millbrook.",
+          "playerAsked": [
+            "hey what's up"
+          ],
+          "npcRevealed": []
+        },
+        {
+          "actionNumber": 2,
+          "summary": "Pip excitedly shares tales of nearby bandits and mysterious lights in the forest, offering his assistance for the pursuit of adventure. He seems eager to join the player on any ventures!",
+          "playerAsked": [
+            "just arrived. is there anything exciting going on around here?"
+          ],
+          "npcRevealed": [
+            "bandits on the east road",
+            "strange lights in the forest at night"
+          ]
+        }
+      ],
+      "heardRumors": [],
+      "attitude": 80,
+      "isCompanion": false,
+      "isAnimal": false,
+      "inventory": [],
+      "stats": {
+        "health": 50,
+        "maxHealth": 50,
+        "strength": 5,
+        "defense": 3
+      },
+      "isAlive": true,
+      "isCanonical": true,
+      "factionIds": []
+    }
+  },
+  "factions": {
+    "faction_shadow_hand": {
+      "id": "faction_shadow_hand",
+      "name": "The Shadow Hand",
+      "description": "A secretive network of thieves, pickpockets, and information brokers operating in the shadows of every major settlement. They value loyalty, cunning, and discretion above all else. Their motives are profit, but they maintain a strict code: never steal from the destitute, and always honor a contract.",
+      "memberNpcIds": [],
+      "playerReputation": 0,
+      "isCanonical": true
+    },
+    "faction_golden_scale": {
+      "id": "faction_golden_scale",
+      "name": "The Golden Scale Consortium",
+      "description": "A powerful alliance of merchants, traders, and craftsmen who control most legitimate commerce in the region. They protect their members from bandits and unfair competition, set fair prices, and maintain trade routes. Marta at The Rusty Tankard pays dues to remain in good standing.",
+      "memberNpcIds": [
+        "npc_marta_barkeep"
+      ],
+      "playerReputation": 0,
+      "isCanonical": true
+    },
+    "faction_house_valdris": {
+      "id": "faction_house_valdris",
+      "name": "House Valdris",
+      "description": "The noble house that rules these lands from their distant castle. They collect taxes, maintain the King's peace, and dispense justice through appointed magistrates. Elder Bramwell serves as their local representative in Millbrook, though his loyalties are complex. The common folk have mixed feelings—the house provides protection but demands much in return.",
+      "memberNpcIds": [
+        "npc_bramwell_elder"
+      ],
+      "playerReputation": 0,
+      "isCanonical": true
+    }
+  },
   "quests": {},
   "deceasedHeroes": [],
-  "eventHistory": [],
+  "eventHistory": [
+    {
+      "id": "event_flashback_4_1771070887103",
+      "actionNumber": 4,
+      "description": "A memory from the past was revealed: You stand on a windswept battlefield, surrounded by the cries of both friend and foe. The scent of b...",
+      "type": "discovery",
+      "involvedNpcIds": [],
+      "locationId": "loc_ironheart_forge",
+      "isSignificant": true
+    },
+    {
+      "id": "event_skill_4_1771070887109",
+      "actionNumber": 4,
+      "description": "rob practiced swordsmanship: Your understanding of the longsword deepens, and you wield it with renewed confidence.",
+      "type": "discovery",
+      "involvedNpcIds": [],
+      "locationId": "loc_ironheart_forge",
+      "isSignificant": false
+    }
+  ],
   "messageLog": [
-    "You find yourself standing in the village square of Millbrook, a modest hamlet at the edge of civilization. The afternoon sun casts long shadows across the cobblestones, and the bustle of village life surrounds you. How you came to be here, you cannot quite recall..."
+    "As the sun dips below the horizon, painting the sky in splashes of fiery orange and deep purple hues, Rob strides into Millbrook, his well-worn boots thumping against the cobblestone streets like a heart reluctant to beat. The gusty winds carry echoes of laughter and distant melodies—life, unhinged and undeterred, unfurls before him. What indeed, dear reader, is a retired soldier doing in a quaint village where the bards spin tales of glories yet to be encountered? Perhaps he is here to nurse old wounds, or perhaps it is the village’s charm that lured him—a siren’s song amidst the mundane hustle."
   ],
   "combatState": null
 }
