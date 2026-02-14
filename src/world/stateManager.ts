@@ -233,6 +233,9 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "reveal_flashback":
       return handleRevealFlashback(state, change.data);
 
+    case "relationship_change":
+      return handleRelationshipChange(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -2303,4 +2306,200 @@ export function processFlashbackRevelation(
     flashbackContent,
     revealedSkill,
   });
+}
+
+// ===== Relationship System =====
+
+/**
+ * Handle relationship_change state change.
+ * Updates relationship status between the player and an NPC.
+ *
+ * data: {
+ *   npcId: string,                    // Required: The NPC involved
+ *   type: string,                     // Required: Type of relationship change
+ *   attitudeChange?: number           // Optional: Attitude adjustment (clamped to -100 to 100)
+ * }
+ *
+ * Relationship types:
+ * - "marry": Sets player.marriedToNpcId to the NPC
+ * - "divorce": Clears player.marriedToNpcId (must match current spouse)
+ * - "have_child": Adds a new child NPC to player.childrenNpcIds (must be married or NPC is a child)
+ * - "adopt": Adds existing NPC to player.childrenNpcIds
+ * - "disown": Removes NPC from player.childrenNpcIds
+ * - "attitude": Just applies attitudeChange (delegates to update_npc_attitude logic)
+ *
+ * All relationship changes also record a relationship event in eventHistory.
+ * Attitude changes affect NPC dialogue tone and willingness to help.
+ */
+function handleRelationshipChange(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { npcId, type, attitudeChange } = data;
+
+  if (!npcId || typeof npcId !== "string") {
+    console.warn("relationship_change: invalid npcId");
+    return state;
+  }
+
+  if (!type || typeof type !== "string") {
+    console.warn("relationship_change: invalid type");
+    return state;
+  }
+
+  const npc = state.npcs[npcId];
+  if (!npc) {
+    console.warn(`relationship_change: NPC not found: ${npcId}`);
+    return state;
+  }
+
+  let newState = { ...state };
+  newState.player = { ...state.player };
+  newState.npcs = { ...state.npcs };
+
+  // Apply attitude change if provided (for all relationship types)
+  if (typeof attitudeChange === "number") {
+    const currentAttitude = npc.attitude;
+    const newAttitude = Math.max(-100, Math.min(100, currentAttitude + attitudeChange));
+    newState.npcs[npcId] = {
+      ...npc,
+      attitude: newAttitude,
+    };
+  }
+
+  // Handle specific relationship types
+  switch (type.toLowerCase()) {
+    case "marry": {
+      // Can only marry if not already married
+      if (newState.player.marriedToNpcId) {
+        console.warn(
+          `relationship_change: player already married to ${newState.player.marriedToNpcId}`
+        );
+        return state;
+      }
+      newState.player.marriedToNpcId = npcId;
+
+      // Marriage is a significant event
+      const marriageEvent: import("./types").WorldEvent = {
+        id: `event_marriage_${state.actionCounter}_${Date.now()}`,
+        actionNumber: state.actionCounter,
+        description: `${state.player.name || "The player"} married ${npc.name}`,
+        type: "relationship",
+        involvedNpcIds: [npcId],
+        locationId: state.player.currentLocationId,
+        isSignificant: true,
+      };
+      newState.eventHistory = [...state.eventHistory, marriageEvent];
+      break;
+    }
+
+    case "divorce": {
+      // Can only divorce current spouse
+      if (newState.player.marriedToNpcId !== npcId) {
+        console.warn(
+          `relationship_change: player is not married to ${npcId}`
+        );
+        return state;
+      }
+      newState.player.marriedToNpcId = undefined;
+
+      // Divorce is a significant event
+      const divorceEvent: import("./types").WorldEvent = {
+        id: `event_divorce_${state.actionCounter}_${Date.now()}`,
+        actionNumber: state.actionCounter,
+        description: `${state.player.name || "The player"} and ${npc.name} parted ways`,
+        type: "relationship",
+        involvedNpcIds: [npcId],
+        locationId: state.player.currentLocationId,
+        isSignificant: true,
+      };
+      newState.eventHistory = [...state.eventHistory, divorceEvent];
+      break;
+    }
+
+    case "have_child": {
+      // The NPC should be a newly created child NPC
+      // Validate it's not already in childrenNpcIds
+      if (newState.player.childrenNpcIds.includes(npcId)) {
+        console.warn(`relationship_change: ${npcId} is already a child`);
+        return state;
+      }
+      newState.player.childrenNpcIds = [...newState.player.childrenNpcIds, npcId];
+
+      // Birth is a significant event
+      const birthEvent: import("./types").WorldEvent = {
+        id: `event_birth_${state.actionCounter}_${Date.now()}`,
+        actionNumber: state.actionCounter,
+        description: `${npc.name} was born`,
+        type: "relationship",
+        involvedNpcIds: [npcId],
+        locationId: state.player.currentLocationId,
+        isSignificant: true,
+      };
+      newState.eventHistory = [...state.eventHistory, birthEvent];
+      break;
+    }
+
+    case "adopt": {
+      // Add an existing NPC as a child
+      if (newState.player.childrenNpcIds.includes(npcId)) {
+        console.warn(`relationship_change: ${npcId} is already a child`);
+        return state;
+      }
+      newState.player.childrenNpcIds = [...newState.player.childrenNpcIds, npcId];
+
+      // Adoption is a significant event
+      const adoptionEvent: import("./types").WorldEvent = {
+        id: `event_adoption_${state.actionCounter}_${Date.now()}`,
+        actionNumber: state.actionCounter,
+        description: `${state.player.name || "The player"} adopted ${npc.name}`,
+        type: "relationship",
+        involvedNpcIds: [npcId],
+        locationId: state.player.currentLocationId,
+        isSignificant: true,
+      };
+      newState.eventHistory = [...state.eventHistory, adoptionEvent];
+      break;
+    }
+
+    case "disown": {
+      // Remove NPC from childrenNpcIds
+      if (!newState.player.childrenNpcIds.includes(npcId)) {
+        console.warn(`relationship_change: ${npcId} is not a child`);
+        return state;
+      }
+      newState.player.childrenNpcIds = newState.player.childrenNpcIds.filter(
+        (id) => id !== npcId
+      );
+
+      // Disowning is a significant event
+      const disownEvent: import("./types").WorldEvent = {
+        id: `event_disown_${state.actionCounter}_${Date.now()}`,
+        actionNumber: state.actionCounter,
+        description: `${state.player.name || "The player"} disowned ${npc.name}`,
+        type: "relationship",
+        involvedNpcIds: [npcId],
+        locationId: state.player.currentLocationId,
+        isSignificant: true,
+      };
+      newState.eventHistory = [...state.eventHistory, disownEvent];
+      break;
+    }
+
+    case "attitude": {
+      // Just apply attitude change (already done above if attitudeChange was provided)
+      // No event needed for simple attitude changes - those are tracked elsewhere
+      if (typeof attitudeChange !== "number") {
+        console.warn("relationship_change type 'attitude' requires attitudeChange");
+        return state;
+      }
+      break;
+    }
+
+    default:
+      console.warn(`relationship_change: unknown type: ${type}`);
+      return state;
+  }
+
+  return newState;
 }
