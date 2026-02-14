@@ -198,7 +198,31 @@ const server = Bun.serve({
     // Get current world state with suggested actions
     "/api/world/state": {
       GET: async () => {
-        const { player, locations, npcs } = worldState;
+        const { player, locations, npcs, deceasedHeroes } = worldState;
+
+        // Check if player needs character creation (no name = new character needed)
+        if (!player.name || player.name.trim() === "") {
+          // Get the most recent deceased hero if any
+          const lastDeceasedHero = deceasedHeroes.length > 0
+            ? deceasedHeroes[deceasedHeroes.length - 1]
+            : null;
+
+          return Response.json({
+            needsCharacterCreation: true,
+            playerStats: { name: "" },
+            deceasedHero: lastDeceasedHero ? {
+              id: lastDeceasedHero.id,
+              name: lastDeceasedHero.name,
+              physicalDescription: lastDeceasedHero.physicalDescription,
+              origin: lastDeceasedHero.origin,
+              diedAtAction: lastDeceasedHero.diedAtAction,
+              deathDescription: lastDeceasedHero.deathDescription,
+              deathLocationId: lastDeceasedHero.deathLocationId,
+              majorDeeds: lastDeceasedHero.majorDeeds,
+            } : null,
+          });
+        }
+
         const currentLocation = locations[player.currentLocationId];
 
         if (!currentLocation) {
@@ -876,14 +900,35 @@ const server = Bun.serve({
         worldState = result.newState;
 
         // Handle player death if defeated
+        let deceasedHeroInfo = null;
+        let deathNarrative = "";
         if (result.playerDefeated) {
           // Generate death description from combat context
           const enemyNpc = worldState.npcs[worldState.combatState?.enemyNpcId || ""];
+          const previousPlayerName = worldState.player.name;
+          deathNarrative = enemyNpc
+            ? `Alas, ${previousPlayerName || "our hero"} has fallen in combat against ${enemyNpc.name}! The world grows darker, yet hope springs eternal...`
+            : `Alas, ${previousPlayerName || "our hero"} has fallen in combat! The world grows darker, yet hope springs eternal...`;
           const deathDescription = enemyNpc
             ? `Fell in combat against ${enemyNpc.name}`
             : "Fell in combat";
 
           worldState = handlePlayerDeath(worldState, deathDescription);
+
+          // Get the deceased hero info for the death screen
+          const lastDeceasedHero = worldState.deceasedHeroes[worldState.deceasedHeroes.length - 1];
+          if (lastDeceasedHero) {
+            deceasedHeroInfo = {
+              id: lastDeceasedHero.id,
+              name: lastDeceasedHero.name,
+              physicalDescription: lastDeceasedHero.physicalDescription,
+              origin: lastDeceasedHero.origin,
+              diedAtAction: lastDeceasedHero.diedAtAction,
+              deathDescription: lastDeceasedHero.deathDescription,
+              deathLocationId: lastDeceasedHero.deathLocationId,
+              majorDeeds: lastDeceasedHero.majorDeeds,
+            };
+          }
         }
 
         // Increment action counter
@@ -923,6 +968,9 @@ const server = Bun.serve({
           playerMaxHealth: worldState.player.maxHealth,
           enemy: enemyInfo,
           inCombat: worldState.combatState !== null,
+          // Include death info when player is defeated
+          deathNarrative: result.playerDefeated ? deathNarrative : undefined,
+          deceasedHero: result.playerDefeated ? deceasedHeroInfo : undefined,
         });
       },
     },
@@ -990,6 +1038,35 @@ const server = Bun.serve({
           },
           inCombat: true,
         });
+      },
+    },
+
+    // Reset the world and start fresh
+    "/api/world/reset": {
+      POST: async () => {
+        try {
+          // Create a completely fresh seed world
+          worldState = createSeedWorld();
+
+          // Save the new world state
+          await saveWorldState(worldState);
+
+          // Clear last suggested actions
+          lastSuggestedActions = [];
+
+          console.log("🔄 World has been reset to initial state");
+
+          return Response.json({
+            success: true,
+            message: "World has been reset. Create a new character to begin.",
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Failed to reset world";
+          return Response.json(
+            { error: errorMessage },
+            { status: 500 }
+          );
+        }
       },
     },
 

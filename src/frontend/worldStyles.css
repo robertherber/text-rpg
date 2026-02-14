@@ -1372,6 +1372,312 @@ body {
   line-height: 1.5;
 }
 
+/* Death Screen */
+.death-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem;
+  background: radial-gradient(ellipse at center, #2a1a1a 0%, var(--bg-primary) 100%);
+}
+
+.death-container {
+  max-width: 700px;
+  width: 100%;
+  text-align: center;
+}
+
+.death-icon {
+  font-size: 5rem;
+  margin-bottom: 1rem;
+  animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.7; transform: scale(0.95); }
+}
+
+.death-title {
+  font-size: 2.5rem;
+  color: var(--accent-red);
+  font-variant: small-caps;
+  margin-bottom: 1.5rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.5);
+  letter-spacing: 0.1em;
+}
+
+.death-narrative {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-red);
+  border-radius: 0.75rem;
+  padding: 1.5rem 2rem;
+  margin-bottom: 2rem;
+}
+
+.death-narrative p {
+  color: var(--text-primary);
+  font-size: 1.1rem;
+  line-height: 1.7;
+  font-style: italic;
+}
+
+/* Hero summary / memorial */
+.hero-summary {
+  margin-bottom: 2rem;
+}
+
+.summary-title {
+  color: var(--accent-gold);
+  font-size: 1.5rem;
+  font-variant: small-caps;
+  margin-bottom: 1rem;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.hero-card {
+  background: var(--bg-secondary);
+  border: 2px solid var(--border-color);
+  border-radius: 0.75rem;
+  padding: 1.5rem;
+  text-align: left;
+  border-left: 4px solid var(--accent-gold);
+}
+
+.hero-card-name {
+  color: var(--accent-gold);
+  font-size: 1.25rem;
+  margin-bottom: 0.5rem;
+  font-variant: small-caps;
+}
+
+.hero-card-origin {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  font-style: italic;
+  margin-bottom: 0.75rem;
+}
+
+.hero-card-description {
+  color: var(--text-primary);
+  font-size: 0.9rem;
+  line-height: 1.5;
+  margin-bottom: 1rem;
+}
+
+.hero-card-deeds {
+  margin-bottom: 1rem;
+}
+
+.deeds-heading {
+  color: var(--accent-gold);
+  font-size: 0.9rem;
+  font-weight: bold;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.deeds-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.deeds-list li {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  padding: 0.25rem 0;
+  padding-left: 1.5rem;
+  position: relative;
+}
+
+.deeds-list li::before {
+  content: "◆";
+  color: var(--accent-gold);
+  position: absolute;
+  left: 0;
+  font-size: 0.7rem;
+}
+
+.hero-card-stats {
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border-color);
+}
+
+.stat-item {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+/* Death closing narrator comment */
+.death-closing {
+  margin-bottom: 2rem;
+}
+
+.closing-text {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+/* Death action buttons */
+.death-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.death-button {
+  padding: 1rem 2rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-family: inherit;
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+}
+
+.death-button.primary {
+  background: linear-gradient(135deg, var(--accent-gold) 0%, #d4a843 100%);
+  color: var(--bg-primary);
+}
+
+.death-button.primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(255, 215, 0, 0.3);
+}
+
+.death-button.secondary {
+  background: var(--bg-tertiary);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+}
+
+.death-button.secondary:hover:not(:disabled) {
+  background: var(--bg-secondary);
+  color: var(--text-primary);
+  border-color: var(--accent-red);
+}
+
+.death-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.death-button:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+/* Reset confirmation overlay */
+.reset-confirm-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.8);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.reset-confirm-dialog {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-red);
+  border-radius: 1rem;
+  padding: 2rem;
+  max-width: 450px;
+  text-align: center;
+}
+
+.confirm-title {
+  color: var(--accent-red);
+  font-size: 1.5rem;
+  margin-bottom: 1rem;
+}
+
+.confirm-text {
+  color: var(--text-primary);
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 0.75rem;
+}
+
+.confirm-warning {
+  color: var(--accent-red);
+  font-size: 0.9rem;
+  font-weight: bold;
+  margin-bottom: 1.5rem;
+}
+
+.confirm-buttons {
+  display: flex;
+  gap: 1rem;
+}
+
+.confirm-button {
+  flex: 1;
+  padding: 0.875rem 1rem;
+  border: none;
+  border-radius: 0.5rem;
+  font-family: inherit;
+  font-size: 1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.confirm-button.cancel {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border: 1px solid var(--border-color);
+}
+
+.confirm-button.cancel:hover:not(:disabled) {
+  background: var(--bg-primary);
+  border-color: var(--accent-gold);
+}
+
+.confirm-button.confirm {
+  background: var(--accent-red);
+  color: white;
+}
+
+.confirm-button.confirm:hover:not(:disabled) {
+  background: #c62836;
+}
+
+.confirm-button:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.death-spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+/* Death flavor text */
+.death-flavor {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+  font-style: italic;
+  line-height: 1.4;
+}
+
 /* Responsive design */
 @media (max-width: 1200px) {
   .world-main {

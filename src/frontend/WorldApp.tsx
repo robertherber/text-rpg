@@ -8,6 +8,7 @@ import JournalPanel from "./JournalPanel";
 import StatsPanel from "./StatsPanel";
 import InventoryPanel, { type InventoryItem } from "./InventoryPanel";
 import CharacterCreation, { type CharacterCreationResponse } from "./CharacterCreation";
+import DeathScreen, { type DeceasedHeroDisplay } from "./DeathScreen";
 
 // Types for world state data
 interface WorldLocation {
@@ -63,6 +64,12 @@ interface ConversationState {
   npcName: string;
 }
 
+// Death state type
+interface DeathState {
+  deathNarrative: string;
+  deceasedHero: DeceasedHeroDisplay;
+}
+
 export default function WorldApp() {
   const [worldState, setWorldState] = useState<WorldStateResponse | null>(null);
   const [storyMessages, setStoryMessages] = useState<StoryMessage[]>([]);
@@ -72,6 +79,7 @@ export default function WorldApp() {
   const [activePanel, setActivePanel] = useState<"story" | "map" | "journal">("story");
   const [conversationState, setConversationState] = useState<ConversationState | null>(null);
   const [needsCharacterCreation, setNeedsCharacterCreation] = useState(false);
+  const [deathState, setDeathState] = useState<DeathState | null>(null);
   const messageIdRef = useRef(0);
 
   // Fetch initial world state
@@ -83,10 +91,24 @@ export default function WorldApp() {
     try {
       setIsLoading(true);
       const response = await fetch("/api/world/state");
-      const data = (await response.json()) as WorldStateResponse & { needsCharacterCreation?: boolean };
+      const data = (await response.json()) as WorldStateResponse & {
+        needsCharacterCreation?: boolean;
+        deceasedHero?: DeceasedHeroDisplay;
+      };
 
       // Check if character creation is needed (no player name or API indicates it)
       if (data.needsCharacterCreation || !data.playerStats?.name) {
+        // Check if we have a deceased hero - show death screen first
+        if (data.deceasedHero) {
+          setDeathState({
+            deathNarrative: `Alas, ${data.deceasedHero.name || "our hero"} has fallen! ${data.deceasedHero.deathDescription}`,
+            deceasedHero: data.deceasedHero,
+          });
+          setIsLoading(false);
+          return;
+        }
+
+        // No deceased hero - just show character creation
         setNeedsCharacterCreation(true);
         setIsLoading(false);
         return;
@@ -104,6 +126,21 @@ export default function WorldApp() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  // Handle creating a new character from death screen (in persistent world)
+  const handleCreateNewCharacterFromDeath = () => {
+    setDeathState(null);
+    setNeedsCharacterCreation(true);
+  };
+
+  // Handle starting fresh world from death screen
+  const handleStartFreshWorld = () => {
+    // Reset all local state and show character creation
+    setDeathState(null);
+    setStoryMessages([]);
+    setWorldState(null);
+    setNeedsCharacterCreation(true);
   };
 
   const handleCharacterCreated = (response: CharacterCreationResponse) => {
@@ -389,6 +426,18 @@ export default function WorldApp() {
         <p>{error}</p>
         <button onClick={fetchWorldState}>Retry</button>
       </div>
+    );
+  }
+
+  // Show death screen if player has died
+  if (deathState) {
+    return (
+      <DeathScreen
+        deathNarrative={deathState.deathNarrative}
+        deceasedHero={deathState.deceasedHero}
+        onCreateNewCharacter={handleCreateNewCharacterFromDeath}
+        onStartFreshWorld={handleStartFreshWorld}
+      />
     );
   }
 
