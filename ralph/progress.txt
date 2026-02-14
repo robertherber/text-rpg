@@ -290,3 +290,20 @@
   - The caller must apply the state changes (npcMovements, npcArrivals) using stateManager
 ---
 
+## 2026-02-14 - US-022
+- What was implemented: Added world image generation with NPCs present
+- Files changed:
+  - src/imageService.ts (modified - added NPC-aware image generation functions)
+- **Learnings for future iterations:**
+  - `generateWorldImage(worldState, locationId)` is the main entry point for world system image generation
+  - Returns `{ imageUrl: string, stateHash: string }` - stateHash can be stored in location.imageStateHash
+  - `generateImageStateHash(location, presentNpcs)` creates a 12-char SHA256 hash from location+NPC state
+  - Hash includes: locationId, description, imagePrompt, and sorted array of alive NPC (id, name, physicalDescription)
+  - `buildImagePromptWithNpcs(location, presentNpcs)` combines location.imagePrompt with NPC physical descriptions
+  - NPC descriptions appended as: ". Characters present: [npc1 physicalDescription]; [npc2 physicalDescription]"
+  - Cache files now named `locationId_stateHash.png` for proper invalidation
+  - Backwards compatible: getCachedImage() falls back to old-style `locationId.png` if no hash match
+  - Type predicate `(npc): npc is NPC =>` used to filter undefined NPCs from map results
+  - Pre-existing type error in imageService.ts on `response.data[0]?.url` - this is documented and ignored
+---
+
