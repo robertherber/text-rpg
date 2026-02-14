@@ -11,8 +11,8 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction } from "./src/world/gptService";
-import { applyStateChanges } from "./src/world/stateManager";
+import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection } from "./src/world/gptService";
+import { applyStateChanges, validateKnowledge } from "./src/world/stateManager";
 import type { SuggestedAction } from "./src/world/types";
 
 // Module-level world state for API access
@@ -321,8 +321,37 @@ const server = Bun.serve({
           );
         }
 
+        const trimmedText = text.trim();
+
+        // Extract potential references from player input
+        const references = extractReferences(trimmedText);
+
+        // Validate each reference against player knowledge
+        const unknownReferences: string[] = [];
+        for (const ref of references) {
+          if (!validateKnowledge(worldState, ref)) {
+            unknownReferences.push(ref);
+          }
+        }
+
+        // If player referenced something they don't know about, reject playfully
+        if (unknownReferences.length > 0) {
+          const rejection = await generateNarratorRejection(unknownReferences, trimmedText);
+
+          // Generate new suggested actions for the player
+          const suggestedActions = await generateSuggestedActions(worldState);
+          lastSuggestedActions = suggestedActions;
+
+          return Response.json({
+            narrative: rejection,
+            suggestedActions,
+            knowledgeRejection: true,
+            unknownReferences,
+          });
+        }
+
         // Resolve the free-form action using GPT
-        const actionResult = await resolveAction(worldState, text.trim());
+        const actionResult = await resolveAction(worldState, trimmedText);
 
         // Apply state changes
         worldState = applyStateChanges(worldState, actionResult.stateChanges);

@@ -504,6 +504,126 @@ const SUGGESTED_ACTIONS_SCHEMA = {
 };
 
 /**
+ * Extract potential entity references (locations, NPCs, items) from player input text.
+ * Returns an array of potential references that should be validated against player knowledge.
+ *
+ * Uses heuristics to identify proper nouns and entity references:
+ * - Capitalized words not at sentence start
+ * - Quoted text
+ * - Words following articles/prepositions that could be names
+ */
+export function extractReferences(text: string): string[] {
+  const references: string[] = [];
+
+  // Extract quoted text
+  const quotedMatches = text.match(/"([^"]+)"|'([^']+)'/g);
+  if (quotedMatches) {
+    for (const match of quotedMatches) {
+      references.push(match.replace(/['"]/g, "").trim());
+    }
+  }
+
+  // Extract capitalized words (potential proper nouns)
+  // Split into sentences first to avoid treating sentence-start words as proper nouns
+  const sentences = text.split(/[.!?]+/);
+  for (const sentence of sentences) {
+    const trimmed = sentence.trim();
+    if (!trimmed) continue;
+
+    // Get words after the first word (which would naturally be capitalized)
+    const words = trimmed.split(/\s+/);
+    for (let i = 1; i < words.length; i++) {
+      const word = words[i];
+      if (!word) continue;
+      // Check if word starts with capital letter (and isn't "I")
+      if (word.length > 1 && /^[A-Z][a-z]/.test(word)) {
+        // Remove trailing punctuation
+        const cleanWord = word.replace(/[,;:!?'"]+$/, "");
+        if (cleanWord.length > 1) {
+          references.push(cleanWord);
+        }
+      }
+    }
+  }
+
+  // Extract phrases after certain keywords that often precede entity names
+  const patterns = [
+    /go to the?\s+([A-Za-z][A-Za-z\s]+?)(?:\.|,|!|\?|$)/gi,
+    /travel to the?\s+([A-Za-z][A-Za-z\s]+?)(?:\.|,|!|\?|$)/gi,
+    /visit the?\s+([A-Za-z][A-Za-z\s]+?)(?:\.|,|!|\?|$)/gi,
+    /find the?\s+([A-Za-z][A-Za-z\s]+?)(?:\.|,|!|\?|$)/gi,
+    /talk to the?\s+([A-Za-z][A-Za-z\s]+?)(?:\.|,|!|\?|$)/gi,
+    /speak with the?\s+([A-Za-z][A-Za-z\s]+?)(?:\.|,|!|\?|$)/gi,
+    /ask the?\s+([A-Za-z][A-Za-z\s]+?)\s+(?:about|for)/gi,
+    /tell the?\s+([A-Za-z][A-Za-z\s]+?)\s+(?:about|that)/gi,
+  ];
+
+  for (const pattern of patterns) {
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const ref = match[1];
+      if (ref && ref.trim().length > 1) {
+        references.push(ref.trim());
+      }
+    }
+  }
+
+  // Remove duplicates and filter out common words that aren't entity names
+  const commonWords = new Set([
+    "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+    "of", "with", "by", "from", "it", "this", "that", "these", "those",
+    "here", "there", "my", "your", "his", "her", "their", "our",
+    "north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest",
+    "left", "right", "up", "down", "forward", "back", "around",
+    "something", "someone", "nothing", "anything", "everything"
+  ]);
+
+  const uniqueRefs = [...new Set(references.map((r) => r.toLowerCase().trim()))]
+    .filter((r) => r.length > 2 && !commonWords.has(r));
+
+  return uniqueRefs;
+}
+
+/**
+ * Generate a playful narrator rejection for when player references something they don't know about.
+ * Uses the chaotic trickster narrator personality.
+ */
+export async function generateNarratorRejection(
+  unknownReferences: string[],
+  originalText: string
+): Promise<string> {
+  const refsFormatted =
+    unknownReferences.length === 1
+      ? `"${unknownReferences[0]}"`
+      : unknownReferences.map((r) => `"${r}"`).join(", ");
+
+  const systemPrompt = `Generate a short (1-3 sentences) playful rejection in your chaotic trickster narrator voice.
+
+The player has mentioned something they don't know about yet in the game world. Reject their action with humor and wit, hinting they need to discover this information through gameplay.
+
+RULES:
+- Be playful, never harsh or mean
+- Use your chaotic trickster voice with dramatic flair
+- Gently tease the player for trying to know things they haven't discovered
+- Keep it brief (1-3 sentences max)
+- Don't explicitly tell them what they're missing or where to find it
+
+EXAMPLES:
+- "Ah, 'The Crimson Keep' you say? How curious that you speak of places as yet unknown to your mortal eyes. Perhaps stick to what you've actually seen, hmm?"
+- "My, my! Inventing locations now, are we? I admire the creativity, truly I do, but this tale follows what YOU discover, not what you dream up."
+- "Lord Vexmoor? *I* certainly haven't introduced you to any Lord Vexmoor. One might almost think you're peeking at someone else's adventure notes!"`;
+
+  const userPrompt = `The player tried to: "${originalText}"
+
+They mentioned these unknown references: ${refsFormatted}
+
+Generate a brief, playful rejection in the narrator's voice.`;
+
+  const response = await callGPTNarrative(userPrompt, systemPrompt);
+  return response;
+}
+
+/**
  * Generate 3-6 contextual suggested actions based on the current world state.
  * Includes movement options (step carefully, travel to known locations),
  * NPC interactions, and item/environment interactions.
