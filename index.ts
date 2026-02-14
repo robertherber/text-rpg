@@ -11,6 +11,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
+import { generateSuggestedActions } from "./src/world/gptService";
 
 // Module-level world state for API access
 let worldState: WorldState;
@@ -181,6 +182,71 @@ const server = Bun.serve({
 
         const newState = processCombatAction(state, action);
         return Response.json({ state: newState });
+      },
+    },
+
+    // ===== Open World API Endpoints =====
+
+    // Get current world state with suggested actions
+    "/api/world/state": {
+      GET: async () => {
+        const { player, locations, npcs } = worldState;
+        const currentLocation = locations[player.currentLocationId];
+
+        if (!currentLocation) {
+          return Response.json(
+            { error: "Current location not found" },
+            { status: 500 }
+          );
+        }
+
+        // Get NPCs present at current location
+        const presentNpcs = currentLocation.presentNpcIds
+          .map((id) => npcs[id])
+          .filter((npc): npc is NonNullable<typeof npc> => npc != null && npc.isAlive)
+          .map((npc) => ({
+            id: npc.id,
+            name: npc.name,
+            description: npc.description,
+            physicalDescription: npc.physicalDescription,
+            attitude: npc.attitude,
+            isCompanion: npc.isCompanion,
+            isAnimal: npc.isAnimal,
+          }));
+
+        // Generate suggested actions using GPT
+        const suggestedActions = await generateSuggestedActions(worldState);
+
+        // Build player stats summary
+        const playerStats = {
+          name: player.name,
+          health: player.health,
+          maxHealth: player.maxHealth,
+          gold: player.gold,
+          level: player.level,
+          strength: player.strength,
+          defense: player.defense,
+          magic: player.magic,
+          experience: player.experience,
+          companionCount: player.companionIds.length,
+          inventoryCount: player.inventory.length,
+        };
+
+        return Response.json({
+          currentLocation: {
+            id: currentLocation.id,
+            name: currentLocation.name,
+            description: currentLocation.description,
+            terrain: currentLocation.terrain,
+            dangerLevel: currentLocation.dangerLevel,
+            coordinates: currentLocation.coordinates,
+            items: currentLocation.items,
+            structures: currentLocation.structures,
+          },
+          presentNpcs,
+          playerStats,
+          suggestedActions,
+        });
       },
     },
   },
