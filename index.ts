@@ -8,6 +8,29 @@ import {
 } from "./src/gameEngine";
 import { generateImage } from "./src/imageService";
 import type { GameState } from "./src/types";
+import type { WorldState } from "./src/world/types";
+import { loadWorldState, saveWorldState } from "./src/world/persistence";
+import { createSeedWorld } from "./src/world/seedWorld";
+
+// Module-level world state for API access
+let worldState: WorldState;
+
+// Initialize world state - load existing or create seed world
+async function initializeWorldState(): Promise<void> {
+  const existingState = await loadWorldState();
+
+  if (existingState) {
+    worldState = existingState;
+    console.log("✅ Loaded existing world state");
+  } else {
+    worldState = createSeedWorld();
+    await saveWorldState(worldState);
+    console.log("🌱 Created new world with Millbrook village");
+  }
+}
+
+// Initialize world state before starting server
+await initializeWorldState();
 
 const server = Bun.serve({
   port: 3000,
