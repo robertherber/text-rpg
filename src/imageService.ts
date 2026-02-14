@@ -1,6 +1,8 @@
 import OpenAI from "openai";
 import { mkdir } from "node:fs/promises";
 import { existsSync } from "node:fs";
+import { createHash } from "node:crypto";
+import type { Location, NPC, WorldState } from "./world/types";
 
 const CACHE_DIR = "./image-cache";
 
@@ -26,30 +28,91 @@ function getOpenAI(): OpenAI | null {
   return openai;
 }
 
-// Get cached image path for a location
-function getCachePath(locationId: string): string {
+// Get cached image path for a location with state hash
+function getCachePath(locationId: string, stateHash?: string): string {
+  if (stateHash) {
+    return `${CACHE_DIR}/${locationId}_${stateHash}.png`;
+  }
   return `${CACHE_DIR}/${locationId}.png`;
 }
 
-// Check if image is cached locally
-export async function getCachedImage(locationId: string): Promise<string | null> {
-  const cachePath = getCachePath(locationId);
-  if (existsSync(cachePath)) {
+// Generate a hash of the current state for cache invalidation
+// This includes the location description, present NPCs, and their physical descriptions
+export function generateImageStateHash(location: Location, presentNpcs: NPC[]): string {
+  const stateData = {
+    locationId: location.id,
+    locationDescription: location.description,
+    locationImagePrompt: location.imagePrompt,
+    npcs: presentNpcs
+      .filter(npc => npc.isAlive)
+      .sort((a, b) => a.id.localeCompare(b.id))
+      .map(npc => ({
+        id: npc.id,
+        name: npc.name,
+        physicalDescription: npc.physicalDescription,
+      })),
+  };
+
+  const hash = createHash("sha256")
+    .update(JSON.stringify(stateData))
+    .digest("hex")
+    .substring(0, 12); // Use first 12 chars for brevity
+
+  return hash;
+}
+
+// Build image prompt from location and present NPCs
+export function buildImagePromptWithNpcs(location: Location, presentNpcs: NPC[]): string {
+  let prompt = location.imagePrompt || location.description;
+
+  // Add NPC descriptions
+  const aliveNpcs = presentNpcs.filter(npc => npc.isAlive);
+  if (aliveNpcs.length > 0) {
+    const npcDescriptions = aliveNpcs
+      .map(npc => {
+        // Use physical description if available, otherwise name
+        if (npc.physicalDescription) {
+          return npc.physicalDescription;
+        }
+        return npc.name;
+      })
+      .join("; ");
+
+    prompt += `. Characters present: ${npcDescriptions}`;
+  }
+
+  return prompt;
+}
+
+// Check if image is cached locally with matching state hash
+export async function getCachedImage(locationId: string, stateHash?: string): Promise<string | null> {
+  if (stateHash) {
+    const cachePath = getCachePath(locationId, stateHash);
+    if (existsSync(cachePath)) {
+      return `/image-cache/${locationId}_${stateHash}.png`;
+    }
+  }
+  // Fallback to old-style cache without hash
+  const oldCachePath = getCachePath(locationId);
+  if (existsSync(oldCachePath)) {
     return `/image-cache/${locationId}.png`;
   }
   return null;
 }
 
-// Download and cache image locally
-async function cacheImage(locationId: string, imageUrl: string): Promise<string> {
+// Download and cache image locally with state hash
+async function cacheImage(locationId: string, imageUrl: string, stateHash?: string): Promise<string> {
   await ensureCacheDir();
-  const cachePath = getCachePath(locationId);
+  const cachePath = getCachePath(locationId, stateHash);
 
   try {
     const response = await fetch(imageUrl);
     const buffer = await response.arrayBuffer();
     await Bun.write(cachePath, buffer);
-    console.log(`Cached image for ${locationId}`);
+    console.log(`Cached image for ${locationId}${stateHash ? ` (hash: ${stateHash})` : ""}`);
+    if (stateHash) {
+      return `/image-cache/${locationId}_${stateHash}.png`;
+    }
     return `/image-cache/${locationId}.png`;
   } catch (error) {
     console.error(`Failed to cache image for ${locationId}:`, error);
@@ -57,11 +120,11 @@ async function cacheImage(locationId: string, imageUrl: string): Promise<string>
   }
 }
 
-export async function generateImage(locationId: string, prompt: string): Promise<string> {
-  // Check local cache first
-  const cached = await getCachedImage(locationId);
+export async function generateImage(locationId: string, prompt: string, stateHash?: string): Promise<string> {
+  // Check local cache first with state hash
+  const cached = await getCachedImage(locationId, stateHash);
   if (cached) {
-    console.log(`Using cached image for ${locationId}`);
+    console.log(`Using cached image for ${locationId}${stateHash ? ` (hash: ${stateHash})` : ""}`);
     return cached;
   }
 
@@ -72,7 +135,7 @@ export async function generateImage(locationId: string, prompt: string): Promise
     return `https://placehold.co/800x500/2a1a4a/gold?text=${encodeURIComponent(prompt.slice(0, 30))}`;
   }
 
-  console.log(`Generating image for ${locationId}...`);
+  console.log(`Generating image for ${locationId}${stateHash ? ` (hash: ${stateHash})` : ""}...`);
 
   try {
     const response = await client.images.generate({
@@ -85,8 +148,8 @@ export async function generateImage(locationId: string, prompt: string): Promise
 
     const imageUrl = response.data[0]?.url;
     if (imageUrl) {
-      // Download and cache the image locally
-      const cachedUrl = await cacheImage(locationId, imageUrl);
+      // Download and cache the image locally with state hash
+      const cachedUrl = await cacheImage(locationId, imageUrl, stateHash);
       return cachedUrl;
     }
 
@@ -96,4 +159,39 @@ export async function generateImage(locationId: string, prompt: string): Promise
     // Return placeholder on error
     return `https://placehold.co/800x500/2a1a4a/gold?text=${encodeURIComponent("Image Generation Failed")}`;
   }
+}
+
+// Generate image for a location with NPCs included
+// This is the main entry point for the world system
+export async function generateWorldImage(
+  worldState: WorldState,
+  locationId: string
+): Promise<{ imageUrl: string; stateHash: string }> {
+  const location = worldState.locations[locationId];
+  if (!location) {
+    throw new Error(`Location not found: ${locationId}`);
+  }
+
+  // Get present NPCs
+  const presentNpcs = location.presentNpcIds
+    .map(id => worldState.npcs[id])
+    .filter((npc): npc is NPC => npc !== undefined && npc.isAlive);
+
+  // Generate state hash
+  const stateHash = generateImageStateHash(location, presentNpcs);
+
+  // Check if we already have a cached image with this hash
+  const cached = await getCachedImage(locationId, stateHash);
+  if (cached) {
+    console.log(`Using cached world image for ${locationId} (hash: ${stateHash})`);
+    return { imageUrl: cached, stateHash };
+  }
+
+  // Build the prompt with NPCs
+  const prompt = buildImagePromptWithNpcs(location, presentNpcs);
+
+  // Generate the image
+  const imageUrl = await generateImage(locationId, prompt, stateHash);
+
+  return { imageUrl, stateHash };
 }
