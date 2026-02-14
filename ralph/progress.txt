@@ -748,3 +748,23 @@
   - Structure info now includes `actionsSinceBuilt` calculation for GPT context
   - Location details expanded to show item type/value for decay decisions
 ---
+
+## 2026-02-14 - US-050
+- What was implemented: Added emergent storyline tracking based on player behavior patterns
+- Files changed:
+  - src/world/stateManager.ts (modified - added updateBehaviorPatterns and getDominantPatterns functions)
+  - src/world/gptService.ts (modified - added behavior patterns to buildActionContext)
+  - index.ts (modified - call updateBehaviorPatterns in /api/world/action and /api/world/freeform endpoints)
+- **Learnings for future iterations:**
+  - `updateBehaviorPatterns(state, action, stateChanges, initiatesCombat)` analyzes actions and updates player.behaviorPatterns
+  - Six behavior patterns tracked: combat, diplomacy, social, exploration, stealth, magic
+  - Combat detection: initiatesCombat flag (+2), action words like "attack", "fight", "kill" (+1)
+  - Diplomacy detection: words like "negotiate", "persuade", "convince", "mediate" (+2)
+  - Social detection: positive NPC attitude changes from state changes (+1), words like "talk to", "help", "befriend" (+1)
+  - Exploration detection: move_player/create_location state changes (+1), words like "explore", "search", "journey" (+1)
+  - Stealth detection: words like "sneak", "hide", "steal", "quietly" (+2)
+  - Magic detection: magic item acquisitions (+1), words like "cast", "spell", "enchant", "summon" (+2)
+  - `getDominantPatterns(patterns)` returns pattern names that are >1.5x the mean AND have at least 3 actions
+  - GPT context includes dominant patterns with instruction to generate aligned story hooks
+  - Behavior patterns only appear in context once they become dominant (avoids noise early game)
+---
