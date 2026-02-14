@@ -245,6 +245,25 @@ ${inventoryItems.length > 0 ? inventoryItems.map((i) => `- ${i.name} (${i.type})
   const knowledgeSummary = `KNOWN LOCATIONS: ${player.knowledge.locations.length > 0 ? player.knowledge.locations.slice(0, 5).join(", ") : "None"}${player.knowledge.locations.length > 5 ? ` (+${player.knowledge.locations.length - 5} more)` : ""}
 KNOWN NPCS: ${player.knowledge.npcs.length > 0 ? player.knowledge.npcs.slice(0, 5).join(", ") : "None"}${player.knowledge.npcs.length > 5 ? ` (+${player.knowledge.npcs.length - 5} more)` : ""}`;
 
+  // Build behavior patterns context for emergent storylines
+  const patterns = player.behaviorPatterns;
+  const dominantPatterns: string[] = [];
+  const total = Object.values(patterns).reduce((sum, val) => sum + val, 0);
+  const mean = total / 6 || 0;
+
+  // Identify patterns that are significantly above average (> 1.5x mean) and have at least 3 actions
+  if (patterns.combat > mean * 1.5 && patterns.combat > 3) dominantPatterns.push(`combat (${patterns.combat})`);
+  if (patterns.diplomacy > mean * 1.5 && patterns.diplomacy > 3) dominantPatterns.push(`diplomacy (${patterns.diplomacy})`);
+  if (patterns.social > mean * 1.5 && patterns.social > 3) dominantPatterns.push(`social (${patterns.social})`);
+  if (patterns.exploration > mean * 1.5 && patterns.exploration > 3) dominantPatterns.push(`exploration (${patterns.exploration})`);
+  if (patterns.stealth > mean * 1.5 && patterns.stealth > 3) dominantPatterns.push(`stealth (${patterns.stealth})`);
+  if (patterns.magic > mean * 1.5 && patterns.magic > 3) dominantPatterns.push(`magic (${patterns.magic})`);
+
+  const behaviorContext = dominantPatterns.length > 0
+    ? `PLAYER BEHAVIOR PATTERNS: ${dominantPatterns.join(", ")}
+(Generate story hooks, NPC reactions, and opportunities that align with these dominant playstyles)`
+    : "";
+
   // Combine all context sections
   return `${locationContext}
 
@@ -256,7 +275,7 @@ ${playerStats}
 
 ${inventorySummary}
 
-${knowledgeSummary}`;
+${knowledgeSummary}${behaviorContext ? "\n\n" + behaviorContext : ""}`;
 }
 
 // JSON Schema for ActionResult response from GPT

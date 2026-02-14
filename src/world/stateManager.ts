@@ -2051,3 +2051,160 @@ export function processWorldCombatAction(
     leveledUp: false,
   };
 }
+
+// ===== Emergent Storyline Tracking =====
+
+/**
+ * Analyzes an action and its results to update player behavior patterns.
+ * These patterns influence GPT's generation of aligned story hooks.
+ *
+ * @param state - The current world state
+ * @param action - The action text the player took
+ * @param actionResult - The result from resolving the action
+ * @returns New WorldState with updated behavior patterns
+ */
+export function updateBehaviorPatterns(
+  state: WorldState,
+  action: string,
+  stateChanges: StateChange[],
+  initiatesCombat?: string
+): WorldState {
+  // Parse the action text and state changes to determine behavior type
+  const actionLower = action.toLowerCase();
+  const patterns = { ...state.player.behaviorPatterns };
+
+  // Combat patterns - fighting, attacking, aggression
+  if (initiatesCombat) {
+    patterns.combat += 2;
+  }
+  if (
+    actionLower.includes("attack") ||
+    actionLower.includes("fight") ||
+    actionLower.includes("kill") ||
+    actionLower.includes("strike") ||
+    actionLower.includes("battle") ||
+    actionLower.includes("slay")
+  ) {
+    patterns.combat += 1;
+  }
+
+  // Diplomacy patterns - negotiation, persuasion, peacemaking
+  if (
+    actionLower.includes("negotiate") ||
+    actionLower.includes("persuade") ||
+    actionLower.includes("convince") ||
+    actionLower.includes("bargain") ||
+    actionLower.includes("compromise") ||
+    actionLower.includes("mediate") ||
+    actionLower.includes("diplomacy") ||
+    actionLower.includes("peace")
+  ) {
+    patterns.diplomacy += 2;
+  }
+
+  // Social patterns - talking, helping, making friends
+  const hasTalkStateChange = stateChanges.some(
+    (sc) => sc.type === "update_npc_attitude" && (sc.data.change > 0 || sc.data.attitude > 0)
+  );
+  if (hasTalkStateChange) {
+    patterns.social += 1;
+  }
+  if (
+    actionLower.includes("talk to") ||
+    actionLower.includes("speak with") ||
+    actionLower.includes("chat") ||
+    actionLower.includes("help") ||
+    actionLower.includes("befriend") ||
+    actionLower.includes("greet")
+  ) {
+    patterns.social += 1;
+  }
+
+  // Exploration patterns - discovering, traveling, searching
+  const hasExploreStateChange = stateChanges.some(
+    (sc) =>
+      sc.type === "move_player" ||
+      sc.type === "create_location" ||
+      (sc.type === "add_knowledge" && sc.data.type === "location")
+  );
+  if (hasExploreStateChange) {
+    patterns.exploration += 1;
+  }
+  if (
+    actionLower.includes("explore") ||
+    actionLower.includes("search") ||
+    actionLower.includes("investigate") ||
+    actionLower.includes("discover") ||
+    actionLower.includes("travel") ||
+    actionLower.includes("journey") ||
+    actionLower.includes("venture")
+  ) {
+    patterns.exploration += 1;
+  }
+
+  // Stealth patterns - sneaking, hiding, stealing
+  if (
+    actionLower.includes("sneak") ||
+    actionLower.includes("hide") ||
+    actionLower.includes("steal") ||
+    actionLower.includes("pickpocket") ||
+    actionLower.includes("shadow") ||
+    actionLower.includes("creep") ||
+    actionLower.includes("stealthy") ||
+    actionLower.includes("quietly") ||
+    actionLower.includes("unseen") ||
+    actionLower.includes("covert")
+  ) {
+    patterns.stealth += 2;
+  }
+
+  // Magic patterns - casting spells, using magic items, studying arcane
+  const hasMagicItem = stateChanges.some(
+    (sc) => sc.type === "add_item" && sc.data.item?.type === "magic"
+  );
+  if (hasMagicItem) {
+    patterns.magic += 1;
+  }
+  if (
+    actionLower.includes("cast") ||
+    actionLower.includes("spell") ||
+    actionLower.includes("magic") ||
+    actionLower.includes("enchant") ||
+    actionLower.includes("arcane") ||
+    actionLower.includes("conjure") ||
+    actionLower.includes("summon") ||
+    actionLower.includes("mystic") ||
+    actionLower.includes("sorcery")
+  ) {
+    patterns.magic += 2;
+  }
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      behaviorPatterns: patterns,
+    },
+  };
+}
+
+/**
+ * Get the dominant behavior pattern(s) for the player.
+ * Returns patterns that are significantly above average (> 1.5x mean).
+ *
+ * @param patterns - The player's behavior patterns
+ * @returns Array of dominant pattern names sorted by value (highest first)
+ */
+export function getDominantPatterns(
+  patterns: WorldState["player"]["behaviorPatterns"]
+): string[] {
+  const entries = Object.entries(patterns) as [string, number][];
+  const total = entries.reduce((sum, [, value]) => sum + value, 0);
+  const mean = total / entries.length || 0;
+  const threshold = mean * 1.5;
+
+  return entries
+    .filter(([, value]) => value > threshold && value > 3) // Must be above threshold AND have at least 3 actions
+    .sort((a, b) => b[1] - a[1])
+    .map(([name]) => name);
+}

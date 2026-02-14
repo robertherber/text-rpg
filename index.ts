@@ -13,7 +13,7 @@ import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
 import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel } from "./src/world/gptService";
-import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath } from "./src/world/stateManager";
+import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath, updateBehaviorPatterns } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
 
@@ -323,6 +323,14 @@ const server = Bun.serve({
         // Apply state changes
         worldState = applyStateChanges(worldState, actionResult.stateChanges);
 
+        // Update behavior patterns based on the action taken
+        worldState = updateBehaviorPatterns(
+          worldState,
+          selectedAction.text,
+          actionResult.stateChanges,
+          actionResult.initiatesCombat
+        );
+
         // Check if combat should be initiated
         let combatStarted = false;
         let enemyInfo = null;
@@ -418,6 +426,14 @@ const server = Bun.serve({
 
         // Apply state changes
         worldState = applyStateChanges(worldState, actionResult.stateChanges);
+
+        // Update behavior patterns based on the action taken
+        worldState = updateBehaviorPatterns(
+          worldState,
+          trimmedText,
+          actionResult.stateChanges,
+          actionResult.initiatesCombat
+        );
 
         // Check if combat should be initiated
         let combatStarted = false;
