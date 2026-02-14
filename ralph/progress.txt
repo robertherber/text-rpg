@@ -137,3 +137,17 @@
 
 ---
 
+## 2026-02-14 - US-011
+- What was implemented: Added enhanced image loading states with parchment placeholder, error handling with retry, and graceful fallbacks
+- Files changed:
+  - src/frontend/ImagePanel.tsx - Added parchment-style loading state with thematic messages ("Revealing...", "The scene unfolds...", etc.), error state with retry button, graceful fallback placeholder with terrain icons, and onError handler for broken image URLs
+  - src/frontend/worldStyles.css - Added CSS for parchment-loading, parchment-placeholder, image-error state, loading animations (quill-pulse, reveal-text-fade), and terrain icons styling
+- **Learnings for future iterations:**
+  - The ImagePanel already had isLoading state - enhanced it rather than replacing
+  - useCallback for loadImage allows retry functionality to call the same loading logic
+  - onError handler on <img> catches broken image URLs and shows error state
+  - Parchment texture uses multiple layered linear-gradients for aged paper effect
+  - getTerrainIcon helper maps terrain types to emoji icons for placeholder display
+
+---
+
