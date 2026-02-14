@@ -109,3 +109,16 @@
 
 ---
 
+## 2026-02-14 - US-009
+- What was implemented: Added thematic loading indicators with pulsing animation and random text variations
+- Files changed:
+  - src/frontend/StoryPanel.tsx - Added LOADING_MESSAGES array with 8 thematic variations, added LoadingIndicator component using useState for random message selection, added isLoading prop, renders indicator inline after messages
+  - src/frontend/WorldApp.tsx - Added isLoading={isProcessing} prop to StoryPanel
+  - src/frontend/worldStyles.css - Added .loading-indicator and .loading-text styles with loading-pulse keyframe animation (2s ease-in-out infinite, 0.4-1.0 opacity)
+- **Learnings for future iterations:**
+  - useState with initializer function (() => getRandomLoadingMessage()) ensures the random message is selected once on mount, not on every render
+  - The isProcessing state in WorldApp is already used by ActionPanel to disable buttons, so reusing it for loading indicator is consistent
+  - The loading indicator auto-scrolls by including isLoading in the useEffect dependency array for scrollTop
+
+---
+
