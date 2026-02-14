@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player, WorldItem } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location, NPC, ConversationSummary, Player, WorldItem, StateChange } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -1887,6 +1887,504 @@ Create an item that feels natural for this situation. Return the item details as
   };
 
   return newItem;
+}
+
+// JSON Schema for travel encounter response from GPT
+const TRAVEL_ENCOUNTER_SCHEMA = {
+  type: "object",
+  properties: {
+    encounterType: {
+      type: "string",
+      enum: ["combat", "discovery", "npc_meeting", "environmental", "none"],
+      description: "The type of encounter that occurred during travel",
+    },
+    narrative: {
+      type: "string",
+      description: "A dramatic narrative describing the journey and encounter (3-5 sentences in chaotic trickster narrator voice)",
+    },
+    encounterLocationDescription: {
+      type: "string",
+      description: "Brief description of where the encounter takes place (e.g., 'a bend in the forest road', 'an old bridge crossing')",
+    },
+    combatNpcDescription: {
+      type: "string",
+      description: "If encounterType is 'combat', a description of the hostile creature/NPC to generate (otherwise empty string)",
+    },
+    discoveryDescription: {
+      type: "string",
+      description: "If encounterType is 'discovery', what was discovered (item, location feature, secret path, etc.) (otherwise empty string)",
+    },
+    npcMeetingContext: {
+      type: "string",
+      description: "If encounterType is 'npc_meeting', context for generating a traveler NPC (otherwise empty string)",
+    },
+    environmentalHazard: {
+      type: "string",
+      description: "If encounterType is 'environmental', description of the hazard and its effect (otherwise empty string)",
+    },
+    damageAmount: {
+      type: "number",
+      description: "If the encounter causes damage to the player (environmental or minor combat), the amount (0 if none)",
+    },
+    itemFound: {
+      type: "object",
+      properties: {
+        name: { type: "string" },
+        description: { type: "string" },
+        type: {
+          type: "string",
+          enum: ["weapon", "armor", "potion", "food", "key", "misc", "material", "book", "magic"],
+        },
+        value: { type: "number" },
+      },
+      required: ["name", "description", "type", "value"],
+      additionalProperties: false,
+      description: "If an item is found during travel/discovery, its details (null properties if none)",
+    },
+    continueToDestination: {
+      type: "boolean",
+      description: "Whether the player continues to their destination after the encounter (false if encounter blocks travel)",
+    },
+  },
+  required: [
+    "encounterType",
+    "narrative",
+    "encounterLocationDescription",
+    "combatNpcDescription",
+    "discoveryDescription",
+    "npcMeetingContext",
+    "environmentalHazard",
+    "damageAmount",
+    "continueToDestination",
+  ],
+  additionalProperties: false,
+};
+
+export interface TravelEncounterData {
+  encounterType: "combat" | "discovery" | "npc_meeting" | "environmental" | "none";
+  narrative: string;
+  encounterLocationDescription: string;
+  combatNpcDescription: string;
+  discoveryDescription: string;
+  npcMeetingContext: string;
+  environmentalHazard: string;
+  damageAmount: number;
+  itemFound?: {
+    name: string;
+    description: string;
+    type: "weapon" | "armor" | "potion" | "food" | "key" | "misc" | "material" | "book" | "magic";
+    value: number;
+  };
+  continueToDestination: boolean;
+}
+
+export interface TravelResult {
+  narrative: string;
+  arrived: boolean;
+  finalLocationId: string;
+  encounter?: {
+    type: "combat" | "discovery" | "npc_meeting" | "environmental";
+    combatNpcId?: string; // If combat, the generated enemy NPC ID
+    metNpcId?: string; // If NPC meeting, the generated NPC ID
+    itemFound?: WorldItem; // If discovery with item
+    damage?: number; // If environmental hazard
+  };
+  stateChanges: Array<{ type: string; data: Record<string, unknown> }>;
+}
+
+/**
+ * Calculate the danger level of a route between two locations.
+ * Examines terrain types that would be crossed and returns an average danger value.
+ */
+function calculateRouteDanger(
+  worldState: WorldState,
+  fromLocation: Location,
+  toLocation: Location
+): { averageDanger: number; terrainsCrossed: string[]; distance: number } {
+  // Calculate Manhattan distance
+  const dx = Math.abs(toLocation.coordinates.x - fromLocation.coordinates.x);
+  const dy = Math.abs(toLocation.coordinates.y - fromLocation.coordinates.y);
+  const distance = dx + dy;
+
+  // Find locations along the approximate route
+  const routeLocations: Location[] = [];
+  const allLocations = Object.values(worldState.locations);
+
+  // Get the bounding box of the route
+  const minX = Math.min(fromLocation.coordinates.x, toLocation.coordinates.x);
+  const maxX = Math.max(fromLocation.coordinates.x, toLocation.coordinates.x);
+  const minY = Math.min(fromLocation.coordinates.y, toLocation.coordinates.y);
+  const maxY = Math.max(fromLocation.coordinates.y, toLocation.coordinates.y);
+
+  // Find all known locations within or near the route
+  for (const loc of allLocations) {
+    const inBounds =
+      loc.coordinates.x >= minX - 1 &&
+      loc.coordinates.x <= maxX + 1 &&
+      loc.coordinates.y >= minY - 1 &&
+      loc.coordinates.y <= maxY + 1;
+    if (inBounds && loc.id !== fromLocation.id && loc.id !== toLocation.id) {
+      routeLocations.push(loc);
+    }
+  }
+
+  // Calculate average danger from route + endpoints
+  const allRouteDangers = [
+    fromLocation.dangerLevel,
+    toLocation.dangerLevel,
+    ...routeLocations.map((loc) => loc.dangerLevel),
+  ];
+  const averageDanger =
+    allRouteDangers.reduce((sum, d) => sum + d, 0) / allRouteDangers.length;
+
+  // Collect unique terrains
+  const terrains = new Set([
+    fromLocation.terrain,
+    toLocation.terrain,
+    ...routeLocations.map((loc) => loc.terrain),
+  ]);
+
+  return {
+    averageDanger,
+    terrainsCrossed: Array.from(terrains),
+    distance,
+  };
+}
+
+/**
+ * Terrain danger modifiers - some terrains are more likely to have encounters.
+ */
+const TERRAIN_DANGER_MODIFIER: Record<string, number> = {
+  village: -2, // Safer, less chance of encounters
+  road: -1, // Relatively safe
+  plains: 0, // Neutral
+  forest: 1, // Some danger
+  swamp: 2, // More dangerous
+  mountain: 2, // More dangerous
+  cave: 3, // Dangerous
+  dungeon: 4, // Very dangerous
+  desert: 2, // Harsh conditions
+  water: 1, // Some danger
+};
+
+/**
+ * Handle fast travel to a known location with potential encounters.
+ *
+ * Calculates route danger from terrain types crossed and rolls for encounters.
+ * Encounters can be: combat, discovery, NPC meeting, or environmental hazard.
+ *
+ * @param worldState - The current world state
+ * @param destinationId - ID of the destination location (must be in player knowledge)
+ * @returns TravelResult with narrative, arrival status, and any encounter details
+ */
+export async function handleTravel(
+  worldState: WorldState,
+  destinationId: string
+): Promise<TravelResult> {
+  const { player, locations } = worldState;
+  const fromLocation = locations[player.currentLocationId];
+  const toLocation = locations[destinationId];
+
+  if (!fromLocation) {
+    throw new Error(`handleTravel: current location not found: ${player.currentLocationId}`);
+  }
+
+  if (!toLocation) {
+    throw new Error(`handleTravel: destination not found: ${destinationId}`);
+  }
+
+  // If already at destination, return immediately
+  if (fromLocation.id === toLocation.id) {
+    return {
+      narrative: "Ah, look around you - you're already here! Sometimes the journey is measured in steps, and yours today numbers precisely zero.",
+      arrived: true,
+      finalLocationId: destinationId,
+      stateChanges: [],
+    };
+  }
+
+  // Calculate route danger
+  const routeInfo = calculateRouteDanger(worldState, fromLocation, toLocation);
+
+  // Calculate encounter chance based on route danger and distance
+  // Base chance: 10% per distance unit, modified by average danger
+  // Higher danger = higher chance, capped at 90%
+  const baseDangerChance = routeInfo.averageDanger / 10; // 0-1 based on 0-10 danger scale
+  const distanceModifier = Math.min(routeInfo.distance * 0.05, 0.3); // Up to +30% for long distances
+
+  // Apply terrain modifiers
+  const terrainModifier = routeInfo.terrainsCrossed.reduce((sum, terrain) => {
+    return sum + (TERRAIN_DANGER_MODIFIER[terrain] || 0) * 0.02;
+  }, 0);
+
+  const encounterChance = Math.min(0.9, Math.max(0.05,
+    0.15 + baseDangerChance * 0.4 + distanceModifier + terrainModifier
+  ));
+
+  // Roll for encounter
+  const encounterRoll = Math.random();
+  const hasEncounter = encounterRoll < encounterChance;
+
+  // If no encounter, simple travel
+  if (!hasEncounter) {
+    const simpleNarrative = await generateSimpleTravelNarrative(
+      worldState,
+      fromLocation,
+      toLocation,
+      routeInfo.terrainsCrossed
+    );
+
+    return {
+      narrative: simpleNarrative,
+      arrived: true,
+      finalLocationId: destinationId,
+      stateChanges: [
+        { type: "move_player", data: { locationId: destinationId } },
+      ],
+    };
+  }
+
+  // Generate encounter
+  const encounterData = await generateTravelEncounter(
+    worldState,
+    fromLocation,
+    toLocation,
+    routeInfo
+  );
+
+  // Build the result based on encounter type
+  const result: TravelResult = {
+    narrative: encounterData.narrative,
+    arrived: encounterData.continueToDestination,
+    finalLocationId: encounterData.continueToDestination ? destinationId : fromLocation.id,
+    stateChanges: [],
+  };
+
+  // Handle different encounter types
+  switch (encounterData.encounterType) {
+    case "combat": {
+      // Generate a hostile NPC for combat
+      if (encounterData.combatNpcDescription) {
+        const combatNpc = await generateNPC(
+          worldState,
+          `A hostile creature/bandit encountered during travel: ${encounterData.combatNpcDescription}`,
+          fromLocation.id // Spawn at departure point since combat interrupts travel
+        );
+        // Make the NPC hostile
+        combatNpc.attitude = -80;
+
+        result.encounter = {
+          type: "combat",
+          combatNpcId: combatNpc.id,
+        };
+        result.stateChanges.push({
+          type: "create_npc",
+          data: { ...combatNpc },
+        });
+        // Don't move player - combat happens on the road
+        result.arrived = false;
+        result.finalLocationId = fromLocation.id;
+      }
+      break;
+    }
+
+    case "discovery": {
+      // Handle discovery - might include an item
+      result.encounter = { type: "discovery" };
+
+      if (encounterData.itemFound && encounterData.itemFound.name) {
+        const itemId = `item_found_${Date.now().toString(36)}`;
+        const foundItem: WorldItem = {
+          id: itemId,
+          name: encounterData.itemFound.name,
+          description: encounterData.itemFound.description,
+          type: encounterData.itemFound.type,
+          value: encounterData.itemFound.value,
+          isCanonical: false,
+        };
+        result.encounter.itemFound = foundItem;
+        result.stateChanges.push({
+          type: "add_item",
+          data: { item: foundItem },
+        });
+      }
+
+      // Player continues to destination after discovery
+      if (encounterData.continueToDestination) {
+        result.stateChanges.push({
+          type: "move_player",
+          data: { locationId: destinationId },
+        });
+      }
+      break;
+    }
+
+    case "npc_meeting": {
+      // Generate a friendly/neutral traveler NPC
+      if (encounterData.npcMeetingContext) {
+        const travelerNpc = await generateNPC(
+          worldState,
+          `A traveler met on the road: ${encounterData.npcMeetingContext}`,
+          toLocation.id // They're heading the same way or coming from there
+        );
+
+        result.encounter = {
+          type: "npc_meeting",
+          metNpcId: travelerNpc.id,
+        };
+        result.stateChanges.push({
+          type: "create_npc",
+          data: { ...travelerNpc },
+        });
+        // Add to player knowledge
+        result.stateChanges.push({
+          type: "add_knowledge",
+          data: { type: "npc", value: travelerNpc.name },
+        });
+      }
+
+      // Player continues to destination after meeting
+      if (encounterData.continueToDestination) {
+        result.stateChanges.push({
+          type: "move_player",
+          data: { locationId: destinationId },
+        });
+      }
+      break;
+    }
+
+    case "environmental": {
+      // Environmental hazard - might cause damage
+      result.encounter = {
+        type: "environmental",
+        damage: encounterData.damageAmount,
+      };
+
+      if (encounterData.damageAmount > 0) {
+        result.stateChanges.push({
+          type: "player_damage",
+          data: { amount: encounterData.damageAmount },
+        });
+      }
+
+      // Player might or might not continue
+      if (encounterData.continueToDestination) {
+        result.stateChanges.push({
+          type: "move_player",
+          data: { locationId: destinationId },
+        });
+      }
+      break;
+    }
+
+    case "none":
+    default:
+      // No encounter after all, just move
+      result.stateChanges.push({
+        type: "move_player",
+        data: { locationId: destinationId },
+      });
+      break;
+  }
+
+  return result;
+}
+
+/**
+ * Generate a simple travel narrative when no encounter occurs.
+ */
+async function generateSimpleTravelNarrative(
+  worldState: WorldState,
+  from: Location,
+  to: Location,
+  terrainsCrossed: string[]
+): Promise<string> {
+  const systemPrompt = `Generate a brief (2-3 sentences) travel narrative in chaotic trickster narrator voice.
+The player is traveling safely from one location to another. Make it atmospheric but uneventful.
+Keep high fantasy tone. Mention the terrain types crossed if relevant.`;
+
+  const userPrompt = `The player travels from "${from.name}" (${from.terrain}) to "${to.name}" (${to.terrain}).
+Terrains along the way: ${terrainsCrossed.join(", ")}.
+
+Generate a brief, atmospheric narrative describing the uneventful journey.`;
+
+  return await callGPTNarrative(userPrompt, systemPrompt);
+}
+
+/**
+ * Generate a travel encounter based on route danger.
+ */
+async function generateTravelEncounter(
+  worldState: WorldState,
+  from: Location,
+  to: Location,
+  routeInfo: { averageDanger: number; terrainsCrossed: string[]; distance: number }
+): Promise<TravelEncounterData> {
+  // Determine likely encounter types based on terrain and danger
+  const dangerLevel = routeInfo.averageDanger;
+  const terrains = routeInfo.terrainsCrossed;
+
+  // Build context for GPT
+  const recentEvents = worldState.eventHistory
+    .slice(-3)
+    .map((e) => e.description)
+    .join(" ");
+
+  const systemPrompt = `You are generating a travel encounter for a fantasy medieval RPG.
+
+The player is traveling between two locations and something happens along the way.
+Choose an encounter type that fits the danger level and terrain:
+
+ENCOUNTER TYPES:
+- combat: Bandits, wild beasts, monsters ambush the player (use for danger level 4+)
+- discovery: Player finds something interesting - a hidden item, secret path, old ruins (use for exploration)
+- npc_meeting: Player meets a traveler, merchant, or wanderer on the road (good for social/story)
+- environmental: Weather hazard, dangerous terrain, natural obstacle (storms, rockslides, quicksand)
+- none: Nothing happens (only use if explicitly told)
+
+GUIDELINES:
+1. Combat encounters should match the terrain (wolves in forest, bandits on roads, etc.)
+2. Discovery encounters are positive - finding useful items or interesting locations
+3. NPC meetings create story opportunities - the traveler might have information or needs help
+4. Environmental hazards should fit the terrain (no sandstorms in forest)
+5. Higher danger level = more likely combat or serious environmental hazard
+6. Lower danger level = more likely discovery or peaceful meeting
+7. The narrative should be in chaotic trickster narrator voice, dramatic but fun
+8. continueToDestination should be false for serious combat, true for everything else usually
+
+DANGER CONTEXT:
+- Average route danger: ${dangerLevel.toFixed(1)}/10
+- Distance: ${routeInfo.distance} grid units
+- Terrains: ${terrains.join(", ")}
+
+${dangerLevel >= 6 ? "HIGH DANGER - Combat or serious hazard is appropriate" :
+    dangerLevel >= 3 ? "MODERATE DANGER - Any encounter type works" :
+    "LOW DANGER - Discovery or peaceful encounter preferred"}`;
+
+  const userPrompt = `Generate an encounter for travel from "${from.name}" (${from.terrain}) to "${to.name}" (${to.terrain}).
+
+Route details:
+- Average danger: ${dangerLevel.toFixed(1)}/10
+- Distance: ${routeInfo.distance} units
+- Terrains crossed: ${terrains.join(", ")}
+
+Recent events: ${recentEvents || "Nothing notable"}
+
+Player stats:
+- Health: ${worldState.player.health}/${worldState.player.maxHealth}
+- Strength: ${worldState.player.strength}, Defense: ${worldState.player.defense}
+- Level: ${worldState.player.level}
+
+Generate an appropriate travel encounter. Make it dramatic and memorable!`;
+
+  const response = await callGPT<TravelEncounterData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: TRAVEL_ENCOUNTER_SCHEMA,
+    maxTokens: 1000,
+  });
+
+  return response.content;
 }
 
 export async function generateNPC(
