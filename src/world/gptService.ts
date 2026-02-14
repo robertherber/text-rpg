@@ -490,6 +490,16 @@ CURSES AND BLESSINGS SYSTEM:
 - Examples of curses: marked by shadow, blood debt, cursed tongue, unlucky, haunted, weakened, compelled, branded
 - Examples of blessings: favored by fortune, protected by spirits, blessed sight, divine protection, healer's touch, lucky
 
+SKILL PRACTICE SYSTEM:
+- Skills are tracked with qualitative levels: novice, apprentice, journeyman, adept, expert, master
+- Use skill_practice: { skill: "skill name", improvement?: "description of what improved", newLevel?: "explicit level", requiresTeacher?: boolean, teacherNpcId?: "npc id" }
+- Skill practice happens through: repetitive actions, training, studying, learning from mistakes, or being taught
+- Describe skill improvement narratively (e.g., "your sword work flows more smoothly", "you notice patterns you missed before")
+- Some advancements require teachers (especially past journeyman level) - set requiresTeacher: true if the player needs a mentor
+- Skills affect action resolution: higher skill levels mean better chances of success and more elegant outcomes
+- Examples of skills: swordsmanship, archery, lockpicking, herbalism, persuasion, stealth, tracking, blacksmithing, alchemy, healing, riding, swimming
+- Consider the player's existing skills when resolving actions - an expert swordsman should rarely fumble, while a novice might struggle with basic techniques
+
 SUGGESTED ACTION TYPES:
 - move: Walk to an adjacent location
 - talk: Speak with an NPC

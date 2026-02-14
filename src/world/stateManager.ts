@@ -251,6 +251,9 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "remove_blessing":
       return handleRemoveBlessing(state, change.data);
 
+    case "skill_practice":
+      return handleSkillPractice(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -2884,5 +2887,141 @@ function handleRemoveBlessing(
       blessings: newBlessings,
     },
     eventHistory: [...state.eventHistory, removalEvent],
+  };
+}
+
+// ===== Skill Practice System =====
+
+/**
+ * Skill level progression (qualitative descriptions):
+ * - novice: Just learning, makes frequent mistakes
+ * - apprentice: Can perform basic tasks with concentration
+ * - journeyman: Competent, can work independently
+ * - adept: Skilled, recognized for ability
+ * - expert: Master-level, teaches others
+ * - master: Legendary skill, known far and wide
+ */
+const SKILL_LEVEL_PROGRESSION = [
+  "novice",
+  "apprentice",
+  "journeyman",
+  "adept",
+  "expert",
+  "master",
+] as const;
+
+/**
+ * Handle skill_practice state change.
+ * Improves a skill through practice, potentially advancing the skill level.
+ *
+ * data: {
+ *   skill: string,                     // Required: Name of the skill being practiced
+ *   improvement?: string,              // Optional: Description of the improvement (used for narrative)
+ *   newLevel?: string,                 // Optional: Explicit new level to set (overrides progression)
+ *   requiresTeacher?: boolean,         // Optional: If true, advancement beyond current level needs a teacher
+ *   teacherNpcId?: string              // Optional: NPC who taught this advancement
+ * }
+ *
+ * Skill Practice Rules:
+ * - Skills are tracked qualitatively with descriptive levels (novice, apprentice, journeyman, etc.)
+ * - Practice can improve a skill's level over time
+ * - Some skill advancements require teachers (indicated by requiresTeacher)
+ * - GPT describes improvement narratively rather than with numbers
+ * - Skills affect what actions are possible and their success chances
+ */
+function handleSkillPractice(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { skill, improvement, newLevel, requiresTeacher, teacherNpcId } = data;
+
+  if (!skill || typeof skill !== "string") {
+    console.warn("skill_practice: invalid skill");
+    return state;
+  }
+
+  const normalizedSkill = skill.toLowerCase().trim();
+  const currentLevel = state.player.knowledge.skills[normalizedSkill];
+
+  // If newLevel is explicitly provided, use it
+  let finalLevel: string;
+  if (newLevel && typeof newLevel === "string") {
+    finalLevel = newLevel.toLowerCase().trim();
+  } else if (currentLevel) {
+    // Try to advance to the next level in progression
+    const currentIndex = SKILL_LEVEL_PROGRESSION.findIndex(
+      (level) => currentLevel.toLowerCase().includes(level)
+    );
+
+    if (currentIndex >= 0 && currentIndex < SKILL_LEVEL_PROGRESSION.length - 1) {
+      // Check if teacher is required for advancement past journeyman
+      const advancingPastJourneyman = currentIndex >= 2;
+      if (advancingPastJourneyman && requiresTeacher && !teacherNpcId) {
+        // Can't advance without a teacher - just reinforce current level
+        finalLevel = `${SKILL_LEVEL_PROGRESSION[currentIndex]} (practiced)`;
+      } else {
+        // Advance to next level
+        const nextLevel = SKILL_LEVEL_PROGRESSION[currentIndex + 1];
+        finalLevel = nextLevel ?? "apprentice"; // Fallback should never happen due to bounds check
+      }
+    } else if (currentIndex === SKILL_LEVEL_PROGRESSION.length - 1) {
+      // Already at master level
+      finalLevel = "master (legendary)";
+    } else {
+      // Current level doesn't match progression - just add improvement note
+      finalLevel = improvement
+        ? `${currentLevel}, ${improvement}`
+        : `${currentLevel} (improved)`;
+    }
+  } else {
+    // New skill - start at novice
+    finalLevel = "novice";
+  }
+
+  // Build improvement description for event
+  let eventDescription: string;
+  if (improvement && typeof improvement === "string") {
+    eventDescription = `${state.player.name || "The player"} practiced ${normalizedSkill}: ${improvement}`;
+  } else if (teacherNpcId && state.npcs[teacherNpcId]) {
+    const teacher = state.npcs[teacherNpcId];
+    eventDescription = `${state.player.name || "The player"} trained ${normalizedSkill} with ${teacher.name}`;
+  } else {
+    eventDescription = `${state.player.name || "The player"} practiced ${normalizedSkill}`;
+  }
+
+  // Determine if this is a significant improvement (level-up)
+  const isLevelUp = Boolean(
+    currentLevel &&
+      SKILL_LEVEL_PROGRESSION.some(
+        (level) =>
+          finalLevel.toLowerCase().startsWith(level) &&
+          !currentLevel.toLowerCase().includes(level)
+      )
+  );
+
+  // Create an event for the skill practice
+  const practiceEvent: import("./types").WorldEvent = {
+    id: `event_skill_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: eventDescription,
+    type: "discovery",
+    involvedNpcIds: teacherNpcId ? [teacherNpcId] : [],
+    locationId: state.player.currentLocationId,
+    isSignificant: isLevelUp, // Only significant if it's a level-up
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      knowledge: {
+        ...state.player.knowledge,
+        skills: {
+          ...state.player.knowledge.skills,
+          [normalizedSkill]: finalLevel,
+        },
+      },
+    },
+    eventHistory: [...state.eventHistory, practiceEvent],
   };
 }
