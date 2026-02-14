@@ -323,3 +323,17 @@
   - Pre-generation happens AFTER response is prepared but BEFORE it's returned - truly non-blocking
 ---
 
+## 2026-02-14 - US-024
+- What was implemented: Created canvas map data structure function for rendering explored areas
+- Files changed:
+  - src/world/mapService.ts (created)
+- **Learnings for future iterations:**
+  - `getMapData(worldState)` returns `MapLocation[]` with id, name, x, y, terrain, isCurrent
+  - MapLocation interface exported for use by API endpoint and frontend
+  - Function filters locations to only those in `player.knowledge.locations`
+  - Current location is always included even if not in knowledge (edge case safety)
+  - Handles both location IDs and location names in knowledge array (via fallback lookup)
+  - Deduplicates results in case both ID and name match the same location
+  - No new type errors introduced - verified with `bun run tsc --noEmit --skipLibCheck`
+---
+
