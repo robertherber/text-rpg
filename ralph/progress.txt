@@ -524,3 +524,16 @@
   - Pre-existing DOM lib errors (scrollTop, scrollHeight, document) appear in new components same as App.tsx
   - Story panel CSS already existed in worldStyles.css from US-035, no new styles needed
 ---
+
+## 2026-02-14 - US-037
+- What was implemented: Created ActionPanel.tsx component for rendering suggested action buttons
+- Files changed:
+  - src/frontend/ActionPanel.tsx (created - reusable action buttons component)
+  - src/frontend/WorldApp.tsx (modified - replaced inline buttons with ActionPanel component)
+- **Learnings for future iterations:**
+  - Component extracts the action buttons from WorldApp.tsx following same pattern as StoryPanel
+  - Export `SuggestedAction` interface from ActionPanel for reuse across components
+  - Props pattern: actions array, onActionSelect callback, isProcessing boolean
+  - Action button CSS already existed in worldStyles.css from US-035, no new styles needed
+  - The handleAction function in WorldApp.tsx already handles API call and story panel update
+---
