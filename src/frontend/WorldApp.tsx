@@ -5,6 +5,7 @@ import ActionPanel, { type SuggestedAction } from "./ActionPanel";
 import ImagePanel from "./ImagePanel";
 import MapPanel from "./MapPanel";
 import JournalPanel from "./JournalPanel";
+import StatsPanel from "./StatsPanel";
 
 // Types for world state data
 interface WorldLocation {
@@ -288,45 +289,18 @@ export default function WorldApp() {
   return (
     <div className="world-container">
       {/* Header with player stats */}
-      <header className="world-header">
-        <div className="player-name">{worldState.playerStats.name || "Unnamed Hero"}</div>
-        <div className="player-stats">
-          <div className="stat">
-            <span className="stat-icon">❤️</span>
-            <div className="health-bar">
-              <div
-                className="health-fill"
-                style={{
-                  width: `${(worldState.playerStats.health / worldState.playerStats.maxHealth) * 100}%`,
-                }}
-              />
-              <span className="health-text">
-                {worldState.playerStats.health}/{worldState.playerStats.maxHealth}
-              </span>
-            </div>
-          </div>
-          <div className="stat">
-            <span className="stat-icon">⚔️</span>
-            <span>{worldState.playerStats.strength}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-icon">🛡️</span>
-            <span>{worldState.playerStats.defense}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-icon">✨</span>
-            <span>{worldState.playerStats.magic}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-icon">💰</span>
-            <span>{worldState.playerStats.gold}</span>
-          </div>
-          <div className="stat">
-            <span className="stat-icon">📊</span>
-            <span>Lv.{worldState.playerStats.level}</span>
-          </div>
-        </div>
-      </header>
+      <StatsPanel
+        name={worldState.playerStats.name}
+        health={worldState.playerStats.health}
+        maxHealth={worldState.playerStats.maxHealth}
+        gold={worldState.playerStats.gold}
+        strength={worldState.playerStats.strength}
+        defense={worldState.playerStats.defense}
+        magic={worldState.playerStats.magic}
+        level={worldState.playerStats.level}
+        experience={worldState.playerStats.experience}
+        companionCount={worldState.playerStats.companionCount}
+      />
 
       {/* Main content area */}
       <main className="world-main">
