@@ -785,3 +785,19 @@
   - `processFlashbackRevelation` is exported for direct API use if needed (beyond state change mechanism)
   - Skills revealed through flashbacks are added to player.knowledge.skills with qualitative level descriptions
 ---
+
+## 2026-02-14 - US-052
+- What was implemented: Added character creation flow for initial game start
+- Files changed:
+  - src/world/gptService.ts (modified - added generateInitialCharacter function, INITIAL_CHARACTER_SCHEMA, InitialCharacterData and InitialCharacterResult interfaces)
+  - index.ts (modified - added /api/world/create-character endpoint, imported generateInitialCharacter)
+- **Learnings for future iterations:**
+  - `generateInitialCharacter(name, backstoryHints)` differs from `generateNewCharacter` - creates a **fresh world** not post-death continuation
+  - Uses dynamic import `await import("./seedWorld")` to get `createSeedWorld()` - keeps gptService.ts independent
+  - Name validation: 2-50 characters, required, trimmed
+  - Starting items are capped at value 50 to avoid overpowered starting gear
+  - Stats are clamped: strength/defense 8-12, magic 3-10 based on character concept
+  - GPT generates: physicalDescription, origin, hiddenBackstory, startingNarrative, knownLore, startingItems, suggestedStats
+  - Endpoint returns player info, narrative, startingLocation (with coordinates), and initial suggestedActions
+  - After creating character, `lastSuggestedActions` is populated so player can immediately act
+---
