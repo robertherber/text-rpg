@@ -394,3 +394,19 @@
   - Starting location object contains: id, name, description, terrain (or null if not found)
 ---
 
+## 2026-02-14 - US-029
+- What was implemented: Created quest tracking handlers for adding and updating quests
+- Files changed:
+  - src/world/stateManager.ts (modified - added handleAddQuest and handleUpdateQuest handlers)
+  - src/world/types.ts (modified - added "update_quest" to StateChange type union)
+- **Learnings for future iterations:**
+  - `add_quest` handler accepts either a full Quest object OR individual fields (title, description, giverNpcId, objectives, rewards)
+  - Quest IDs are auto-generated in format: `quest_{timestamp}_{randomSuffix}`
+  - Quests start with status "active" and empty completedObjectives array
+  - `update_quest` handler supports partial updates: can update status alone, completedObjectives alone, or both
+  - Auto-completion: when all objectives are marked complete, quest status automatically changes to "completed"
+  - Duplicate quest IDs are rejected (returns state unchanged with warning)
+  - Duplicate objective completions are ignored (idempotent)
+  - Quest type already existed in types.ts with: id, title, description, giverNpcId, status, objectives, completedObjectives, rewards
+---
+
