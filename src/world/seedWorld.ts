@@ -1,7 +1,7 @@
 // Seed World Data for Dragon's Bane
 // Creates the initial world state with Millbrook village
 
-import type { WorldState, Location, Player, NPC } from "./types";
+import type { WorldState, Location, Player, NPC, Faction } from "./types";
 
 /**
  * Creates a unique ID for seed content
@@ -306,6 +306,51 @@ export function createSeedWorld(): WorldState {
     stablehand.id, // Pip is in the village square where player starts
   ];
 
+  // Create seed factions
+  const thievesGuild: Faction = {
+    id: seedId("faction", "shadow_hand"),
+    name: "The Shadow Hand",
+    description:
+      "A secretive network of thieves, pickpockets, and information brokers operating in the shadows of every major settlement. They value loyalty, cunning, and discretion above all else. Their motives are profit, but they maintain a strict code: never steal from the destitute, and always honor a contract.",
+    leaderNpcId: undefined, // Leader operates from a larger city, unknown to villagers
+    memberNpcIds: [],
+    playerReputation: 0,
+    isCanonical: true,
+  };
+
+  const merchantConsortium: Faction = {
+    id: seedId("faction", "golden_scale"),
+    name: "The Golden Scale Consortium",
+    description:
+      "A powerful alliance of merchants, traders, and craftsmen who control most legitimate commerce in the region. They protect their members from bandits and unfair competition, set fair prices, and maintain trade routes. Marta at The Rusty Tankard pays dues to remain in good standing.",
+    leaderNpcId: undefined, // Guild leadership is in the capital
+    memberNpcIds: [barkeep.id], // Marta is a member
+    playerReputation: 0,
+    isCanonical: true,
+  };
+
+  const nobleHouse: Faction = {
+    id: seedId("faction", "house_valdris"),
+    name: "House Valdris",
+    description:
+      "The noble house that rules these lands from their distant castle. They collect taxes, maintain the King's peace, and dispense justice through appointed magistrates. Elder Bramwell serves as their local representative in Millbrook, though his loyalties are complex. The common folk have mixed feelings—the house provides protection but demands much in return.",
+    leaderNpcId: undefined, // Lord Valdris is far away
+    memberNpcIds: [elder.id], // Elder Bramwell represents them locally
+    playerReputation: 0,
+    isCanonical: true,
+  };
+
+  // Assemble factions record
+  const factions: Record<string, Faction> = {
+    [thievesGuild.id]: thievesGuild,
+    [merchantConsortium.id]: merchantConsortium,
+    [nobleHouse.id]: nobleHouse,
+  };
+
+  // Update NPCs with their faction affiliations
+  barkeep.factionIds = [merchantConsortium.id];
+  elder.factionIds = [nobleHouse.id];
+
   // Create and return the complete world state
   const worldState: WorldState = {
     version: 1,
@@ -313,7 +358,7 @@ export function createSeedWorld(): WorldState {
     player,
     locations,
     npcs,
-    factions: {},
+    factions,
     quests: {},
     deceasedHeroes: [],
     eventHistory: [],

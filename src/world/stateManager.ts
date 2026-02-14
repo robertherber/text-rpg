@@ -212,6 +212,9 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
     case "update_quest":
       return handleUpdateQuest(state, change.data);
 
+    case "update_faction":
+      return handleUpdateFaction(state, change.data);
+
     default:
       // Unknown state change type - return state unchanged
       // Future stories will add more handlers
@@ -1339,6 +1342,61 @@ function handleUpdateQuest(
     quests: {
       ...state.quests,
       [questId]: updatedQuest,
+    },
+  };
+}
+
+/**
+ * Handle update_faction state change
+ * data: { factionId: string, reputationChange?: number, reputation?: number }
+ *
+ * Updates player's reputation with a faction. Can use either:
+ * - `reputationChange`: relative change (e.g., +10 or -5)
+ * - `reputation`: absolute value to set (e.g., 50)
+ *
+ * Reputation is clamped to -100 to 100 range.
+ */
+function handleUpdateFaction(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { factionId, reputationChange, reputation } = data;
+
+  if (!factionId || typeof factionId !== "string") {
+    console.warn("update_faction: invalid factionId");
+    return state;
+  }
+
+  const existingFaction = state.factions[factionId];
+  if (!existingFaction) {
+    console.warn(`update_faction: faction not found: ${factionId}`);
+    return state;
+  }
+
+  let newReputation: number;
+
+  if (typeof reputation === "number") {
+    // Set absolute reputation
+    newReputation = reputation;
+  } else if (typeof reputationChange === "number") {
+    // Apply relative change
+    newReputation = existingFaction.playerReputation + reputationChange;
+  } else {
+    console.warn("update_faction: invalid reputationChange or reputation value");
+    return state;
+  }
+
+  // Clamp reputation to -100 to 100
+  newReputation = Math.max(-100, Math.min(100, newReputation));
+
+  return {
+    ...state,
+    factions: {
+      ...state.factions,
+      [factionId]: {
+        ...existingFaction,
+        playerReputation: newReputation,
+      },
     },
   };
 }
