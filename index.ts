@@ -12,7 +12,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel, generateInitialCharacter } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath, updateBehaviorPatterns } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
@@ -754,6 +754,90 @@ const server = Bun.serve({
               description: startingLocation.description,
               terrain: startingLocation.terrain,
             } : null,
+          });
+        } catch (error) {
+          const errorMessage = error instanceof Error ? error.message : "Character creation failed";
+          return Response.json(
+            { error: errorMessage },
+            { status: 500 }
+          );
+        }
+      },
+    },
+
+    // Create a new character with a fresh world
+    "/api/world/create-character": {
+      POST: async (req) => {
+        const body = await req.json() as { name?: string; backstoryHints?: string };
+        const { name, backstoryHints } = body;
+
+        // Validate name
+        if (!name || typeof name !== "string" || name.trim().length === 0) {
+          return Response.json(
+            { error: "name is required and must be a non-empty string" },
+            { status: 400 }
+          );
+        }
+
+        const trimmedName = name.trim();
+
+        // Validate name length
+        if (trimmedName.length < 2 || trimmedName.length > 50) {
+          return Response.json(
+            { error: "name must be between 2 and 50 characters" },
+            { status: 400 }
+          );
+        }
+
+        try {
+          // Generate the initial character and fresh world
+          const result = await generateInitialCharacter(
+            trimmedName,
+            backstoryHints?.trim() || ""
+          );
+
+          // Replace the current world state with the fresh world
+          worldState = result.worldState;
+
+          // Save the new world state
+          await saveWorldState(worldState);
+
+          // Get starting location details
+          const startingLocation = worldState.locations[result.player.currentLocationId];
+
+          // Generate initial suggested actions for the player
+          const suggestedActions = await generateSuggestedActions(worldState);
+          lastSuggestedActions = suggestedActions;
+
+          return Response.json({
+            player: {
+              name: result.player.name,
+              physicalDescription: result.player.physicalDescription,
+              origin: result.player.origin,
+              health: result.player.health,
+              maxHealth: result.player.maxHealth,
+              strength: result.player.strength,
+              defense: result.player.defense,
+              magic: result.player.magic,
+              gold: result.player.gold,
+              level: result.player.level,
+              inventory: result.player.inventory.map((item) => ({
+                id: item.id,
+                name: item.name,
+                description: item.description,
+                type: item.type,
+                value: item.value,
+              })),
+            },
+            narrative: result.narrative,
+            startingLocation: startingLocation ? {
+              id: startingLocation.id,
+              name: startingLocation.name,
+              description: startingLocation.description,
+              terrain: startingLocation.terrain,
+              coordinates: startingLocation.coordinates,
+            } : null,
+            suggestedActions,
           });
         } catch (error) {
           const errorMessage = error instanceof Error ? error.message : "Character creation failed";

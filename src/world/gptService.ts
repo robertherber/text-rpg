@@ -3166,3 +3166,241 @@ Consider:
     skillImprovement: result.skillImprovement || undefined,
   };
 }
+
+// ===== Initial Character Creation =====
+
+// JSON Schema for initial character generation response from GPT
+const INITIAL_CHARACTER_SCHEMA = {
+  type: "object",
+  properties: {
+    physicalDescription: {
+      type: "string",
+      description: "Detailed physical appearance for image generation (hair color, build, clothing style, distinguishing features)",
+    },
+    origin: {
+      type: "string",
+      description: "A brief description of where the character comes from (e.g., 'a small fishing village to the south', 'wandering mercenary from the eastern plains')",
+    },
+    hiddenBackstory: {
+      type: "string",
+      description: "A hidden backstory paragraph (4-6 sentences) containing secrets, past events, formative experiences, and mysteries that can be revealed through flashbacks during gameplay",
+    },
+    startingNarrative: {
+      type: "string",
+      description: "An atmospheric narrator introduction (3-5 sentences) in chaotic trickster voice describing how this hero arrives in Millbrook and what drew them here",
+    },
+    knownLore: {
+      type: "array",
+      items: { type: "string" },
+      description: "1-3 pieces of lore or knowledge the character would bring from their background",
+    },
+    startingItems: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          description: { type: "string" },
+          type: {
+            type: "string",
+            enum: ["weapon", "armor", "potion", "food", "key", "misc", "material", "book", "magic"]
+          },
+          value: { type: "number" },
+        },
+        required: ["name", "description", "type", "value"],
+        additionalProperties: false,
+      },
+      description: "0-2 simple starting items appropriate for the character's background (nothing too powerful)",
+    },
+    suggestedStats: {
+      type: "object",
+      properties: {
+        strength: { type: "number", description: "8-12 based on background (warrior types higher)" },
+        defense: { type: "number", description: "8-12 based on background (armored types higher)" },
+        magic: { type: "number", description: "3-10 based on background (magic users higher)" },
+      },
+      required: ["strength", "defense", "magic"],
+      additionalProperties: false,
+      description: "Stat suggestions based on character background",
+    },
+  },
+  required: [
+    "physicalDescription",
+    "origin",
+    "hiddenBackstory",
+    "startingNarrative",
+    "knownLore",
+    "startingItems",
+    "suggestedStats",
+  ],
+  additionalProperties: false,
+};
+
+export interface InitialCharacterData {
+  physicalDescription: string;
+  origin: string;
+  hiddenBackstory: string;
+  startingNarrative: string;
+  knownLore: string[];
+  startingItems: Array<{
+    name: string;
+    description: string;
+    type: WorldItem["type"];
+    value: number;
+  }>;
+  suggestedStats: {
+    strength: number;
+    defense: number;
+    magic: number;
+  };
+}
+
+export interface InitialCharacterResult {
+  player: Player;
+  narrative: string;
+  worldState: WorldState;
+}
+
+/**
+ * Generate an initial character for a fresh game.
+ * Creates a new world with seed content and a new player based on their name and backstory hints.
+ *
+ * @param name - The player's chosen character name
+ * @param backstoryHints - Player-provided hints about their character's background
+ * @returns InitialCharacterResult with player, narrative, and fresh WorldState
+ */
+export async function generateInitialCharacter(
+  name: string,
+  backstoryHints: string
+): Promise<InitialCharacterResult> {
+  // Import createSeedWorld to get a fresh world
+  const { createSeedWorld } = await import("./seedWorld");
+  const freshWorld = createSeedWorld();
+
+  // Get the starting location
+  const startingLocationId = "loc_millbrook_square";
+  const startingLocation = freshWorld.locations[startingLocationId];
+  const startingLocationName = startingLocation?.name || "Millbrook Village Square";
+
+  const systemPrompt = `You are creating the initial character for a fantasy medieval RPG.
+
+The player has chosen their name and provided some hints about their background. Generate a complete character with physical description, origin, hidden backstory, and starting items.
+
+WORLD CONTEXT:
+- Setting: High fantasy medieval world
+- Starting location: ${startingLocationName} - a modest village at the edge of civilization
+- This is the beginning of a new adventure
+
+CHARACTER NAME: ${name}
+
+RULES:
+1. Physical description should be vivid and suitable for image generation
+2. Origin should tie into why they've come to Millbrook
+3. Hidden backstory should contain 2-3 secrets/mysteries to reveal through flashbacks
+4. Starting narrative should be dramatic and in the chaotic trickster narrator voice
+5. Starting items should be simple and appropriate for the background (nothing powerful)
+6. Stats should reflect the character concept (warriors get higher strength, scholars get higher magic, etc.)
+
+${NARRATOR_PERSONALITY}`;
+
+  const userPrompt = `Create a character for this player:
+
+NAME: ${name}
+
+BACKSTORY HINTS FROM PLAYER:
+${backstoryHints || "No specific hints provided - create an interesting background."}
+
+Generate their complete character profile including physical description, origin, hidden backstory, starting narrative, lore they know, starting items, and appropriate stats.`;
+
+  const response = await callGPT<InitialCharacterData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: INITIAL_CHARACTER_SCHEMA,
+    maxTokens: 1200,
+  });
+
+  const characterData = response.content;
+
+  // Get village locations for starting knowledge
+  const villageLocations = Object.values(freshWorld.locations)
+    .filter((loc) => loc.terrain === "village" || loc.id === startingLocationId)
+    .map((loc) => loc.id);
+
+  // Find NPCs visible at starting location
+  const visibleNpcs = startingLocation?.presentNpcIds
+    .filter((npcId) => {
+      const npc = freshWorld.npcs[npcId];
+      return npc && npc.isAlive;
+    }) || [];
+
+  // Create starting items with proper IDs
+  const startingItems: WorldItem[] = characterData.startingItems.map((item, index) => ({
+    id: `item_starting_${index}_${Date.now().toString(36)}`,
+    name: item.name,
+    description: item.description,
+    type: item.type,
+    value: Math.max(1, Math.min(50, item.value)), // Cap starting item values
+    isCanonical: false,
+  }));
+
+  // Clamp stats to reasonable starting values
+  const clampStat = (val: number, min: number, max: number) =>
+    Math.max(min, Math.min(max, val));
+
+  // Create the new player
+  const newPlayer: Player = {
+    name,
+    physicalDescription: characterData.physicalDescription,
+    hiddenBackstory: characterData.hiddenBackstory,
+    revealedBackstory: [],
+    origin: characterData.origin,
+    currentLocationId: startingLocationId,
+    homeLocationId: undefined,
+    health: 100,
+    maxHealth: 100,
+    strength: clampStat(characterData.suggestedStats.strength, 8, 12),
+    defense: clampStat(characterData.suggestedStats.defense, 8, 12),
+    magic: clampStat(characterData.suggestedStats.magic, 3, 10),
+    level: 1,
+    experience: 0,
+    gold: 25,
+    inventory: startingItems,
+    companionIds: [],
+    knowledge: {
+      locations: villageLocations,
+      npcs: visibleNpcs,
+      lore: [
+        "Millbrook is a small village at the edge of the known world.",
+        ...characterData.knownLore,
+      ],
+      recipes: [],
+      skills: {},
+    },
+    behaviorPatterns: {
+      combat: 0,
+      diplomacy: 0,
+      exploration: 0,
+      social: 0,
+      stealth: 0,
+      magic: 0,
+    },
+    transformations: [],
+    curses: [],
+    blessings: [],
+    marriedToNpcId: undefined,
+    childrenNpcIds: [],
+  };
+
+  // Update the world state with the new player
+  const worldState: WorldState = {
+    ...freshWorld,
+    player: newPlayer,
+    messageLog: [characterData.startingNarrative],
+  };
+
+  return {
+    player: newPlayer,
+    narrative: characterData.startingNarrative,
+    worldState,
+  };
+}
