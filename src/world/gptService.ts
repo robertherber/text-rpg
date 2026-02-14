@@ -1256,6 +1256,15 @@ export interface GeneratedNPCData {
  * @param locationId - Optional specific location to place the NPC (defaults to player's current location)
  * @returns A complete NPC object ready to be added to worldState
  */
+// Suggested dialog response type
+export type SuggestedResponseType = "contextual" | "generic";
+
+export interface SuggestedResponse {
+  id: string;
+  text: string;
+  type: SuggestedResponseType;
+}
+
 // JSON Schema for conversation response from GPT
 const CONVERSATION_RESPONSE_SCHEMA = {
   type: "object",
@@ -1294,6 +1303,28 @@ const CONVERSATION_RESPONSE_SCHEMA = {
       type: "string",
       description: "Optional narrator commentary before/after the NPC speaks (in chaotic trickster voice)",
     },
+    suggestedResponses: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "The suggested dialog response with tone in brackets, e.g. '[Friendly] How's business?'",
+          },
+          type: {
+            type: "string",
+            enum: ["contextual", "generic"],
+            description: "Whether this is a contextual response specific to the conversation or a generic option",
+          },
+        },
+        required: ["text", "type"],
+        additionalProperties: false,
+      },
+      minItems: 3,
+      maxItems: 3,
+      description: "3 suggested responses for the adventurer: 2 contextual (specific to this conversation) + 1 generic (farewell, ask about rumors, etc). Each starts with tone in brackets like '[Curious] What do you mean?'",
+    },
   },
   required: [
     "npcResponse",
@@ -1304,6 +1335,7 @@ const CONVERSATION_RESPONSE_SCHEMA = {
     "conversationSummary",
     "suggestsEndConversation",
     "narratorFrame",
+    "suggestedResponses",
   ],
   additionalProperties: false,
 };
@@ -1317,6 +1349,7 @@ export interface ConversationResponse {
   conversationSummary: string;
   suggestsEndConversation: boolean;
   narratorFrame: string;
+  suggestedResponses: Array<{ text: string; type: SuggestedResponseType }>;
 }
 
 export interface ConversationResult {
@@ -1326,6 +1359,7 @@ export interface ConversationResult {
   newKnowledge: string[];
   conversationSummary: string;
   suggestsEndConversation: boolean;
+  suggestedResponses: SuggestedResponse[]; // 3 suggested responses: 2 contextual + 1 generic
 }
 
 /**
@@ -1433,11 +1467,19 @@ CONVERSATION RULES:
 10. BREVITY: NPC dialog (npcResponse) should be 1-2 sentences typically. Narrator frame should be 1 sentence. NPCs are busy people with things to do - they don't monologue.
 11. IMPORTANT: When addressing or referring to the protagonist, use immersive terms like "adventurer", "traveler", "stranger", "friend", or their name if known - NEVER use the word "player"
 
+SUGGESTED RESPONSES:
+Generate exactly 3 suggested responses the adventurer might say next:
+- 2 "contextual" suggestions: specific to this conversation topic, what ${npc.name} said, or information revealed
+- 1 "generic" suggestion: a fallback like asking about rumors, saying farewell, or changing subject
+Each suggestion MUST start with a tone in brackets like: "[Curious] What do you mean by that?", "[Friendly] Thanks for the help!", "[Suspicious] That sounds too good to be true."
+Tone options: Friendly, Curious, Suspicious, Aggressive, Grateful, Nervous, Confident, Playful, Serious, Dismissive
+
 RESPONSE STRUCTURE:
 - npcResponse: What ${npc.name} actually says OUT LOUD (1-2 sentences max, dialogue only)
 - npcInternalThought: What they're thinking but not saying (1 sentence)
 - narratorFrame: Brief narrator commentary (1 sentence max) describing body language, tone, or setting - NEVER quote or paraphrase the NPC's words
-- conversationSummary: Brief summary for memory (1-2 sentences)`;
+- conversationSummary: Brief summary for memory (1-2 sentences)
+- suggestedResponses: Array of 3 suggested adventurer responses with tone and type`;
 
   const userPrompt = `The adventurer says to ${npc.name}: "${playerMessage}"
 
@@ -1468,6 +1510,13 @@ Generate ${npc.name}'s response, staying true to their soul instruction and curr
   // Convert revealed information to knowledge strings
   const newKnowledge = data.informationRevealed.filter((info) => info.length > 0);
 
+  // Convert suggested responses to include unique IDs
+  const suggestedResponses: SuggestedResponse[] = data.suggestedResponses.map((suggestion, index) => ({
+    id: `suggestion-${Date.now()}-${index}`,
+    text: suggestion.text,
+    type: suggestion.type,
+  }));
+
   return {
     narrative,
     npcResponse: data.npcResponse,
@@ -1475,6 +1524,7 @@ Generate ${npc.name}'s response, staying true to their soul instruction and curr
     newKnowledge,
     conversationSummary: data.conversationSummary,
     suggestsEndConversation: data.suggestsEndConversation,
+    suggestedResponses,
   };
 }
 
