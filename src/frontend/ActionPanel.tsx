@@ -12,6 +12,14 @@ export interface SuggestedAction {
 }
 
 /**
+ * Conversation mode state type
+ */
+export interface ConversationMode {
+  npcId: string;
+  npcName: string;
+}
+
+/**
  * Props for the ActionPanel component
  */
 interface ActionPanelProps {
@@ -19,6 +27,9 @@ interface ActionPanelProps {
   onActionSelect: (action: SuggestedAction) => void;
   onFreeformSubmit: (text: string) => void;
   isProcessing: boolean;
+  conversationMode?: ConversationMode | null;
+  onConversationMessage?: (message: string) => void;
+  onEndConversation?: () => void;
 }
 
 /**
@@ -37,17 +48,34 @@ export default function ActionPanel({
   onActionSelect,
   onFreeformSubmit,
   isProcessing,
+  conversationMode,
+  onConversationMessage,
+  onEndConversation,
 }: ActionPanelProps) {
   const [freeformText, setFreeformText] = useState("");
+  const [dialogueText, setDialogueText] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
+  const dialogueInputRef = useRef<HTMLInputElement>(null);
 
   // Clear input when processing finishes (action completed)
   useEffect(() => {
     if (!isProcessing && freeformText === "") {
       // Focus input after action completes for quick follow-up
-      inputRef.current?.focus();
+      if (conversationMode) {
+        dialogueInputRef.current?.focus();
+      } else {
+        inputRef.current?.focus();
+      }
     }
-  }, [isProcessing]);
+  }, [isProcessing, conversationMode]);
+
+  // Focus dialogue input when entering conversation mode
+  useEffect(() => {
+    if (conversationMode) {
+      setDialogueText("");
+      dialogueInputRef.current?.focus();
+    }
+  }, [conversationMode]);
 
   const handleFreeformSubmit = () => {
     const trimmedText = freeformText.trim();
@@ -64,6 +92,64 @@ export default function ActionPanel({
     }
   };
 
+  const handleDialogueSubmit = () => {
+    const trimmedText = dialogueText.trim();
+    if (trimmedText && !isProcessing && onConversationMessage) {
+      onConversationMessage(trimmedText);
+      setDialogueText("");
+    }
+  };
+
+  const handleDialogueKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      handleDialogueSubmit();
+    }
+  };
+
+  // Render conversation mode UI when in conversation
+  if (conversationMode) {
+    return (
+      <div className="actions-section conversation-mode">
+        <h3>Speaking with {conversationMode.npcName}</h3>
+
+        {/* Dialogue text input */}
+        <div className="dialogue-section">
+          <div className="dialogue-input-wrapper">
+            <input
+              ref={dialogueInputRef}
+              type="text"
+              placeholder={`Say something to ${conversationMode.npcName}...`}
+              className="dialogue-input"
+              value={dialogueText}
+              onChange={(e) => setDialogueText(e.target.value)}
+              onKeyDown={handleDialogueKeyDown}
+              disabled={isProcessing}
+            />
+            <button
+              className="dialogue-submit"
+              onClick={handleDialogueSubmit}
+              disabled={isProcessing || !dialogueText.trim()}
+              title="Send message"
+            >
+              →
+            </button>
+          </div>
+        </div>
+
+        {/* End conversation button */}
+        <button
+          className="end-conversation-button"
+          onClick={onEndConversation}
+          disabled={isProcessing}
+        >
+          End Conversation
+        </button>
+      </div>
+    );
+  }
+
+  // Normal actions mode
   return (
     <div className="actions-section">
       <h3>Actions</h3>

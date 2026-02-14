@@ -603,3 +603,23 @@
   - Pre-existing DOM lib errors in other files are unchanged - no new errors introduced in JournalPanel.tsx
   - Empty states have atmospheric placeholder text matching the game's tone
 ---
+
+## 2026-02-14 - US-042
+- What was implemented: Added NPC dialogue mode to UI for extended conversations
+- Files changed:
+  - src/frontend/ActionPanel.tsx (modified - added conversation mode UI with dialogue input)
+  - src/frontend/WorldApp.tsx (modified - added conversation state and handlers)
+  - src/frontend/worldStyles.css (modified - added conversation mode styles)
+- **Learnings for future iterations:**
+  - Conversation mode is tracked via `conversationState: { npcId, npcName } | null` in WorldApp
+  - When player clicks "Talk to" action (type === "talk" with targetNpcId), UI enters conversation mode
+  - ActionPanel conditionally renders normal actions OR conversation mode based on `conversationMode` prop
+  - Conversation mode shows: dialogue text input, submit button, "End Conversation" button
+  - Uses `/api/world/talk` endpoint which returns: narrative, npcResponse, npcName, attitudeChange, newAttitude, suggestsEndConversation, newKnowledge
+  - NPC responses displayed in story panel with format: `${npcName}: "${npcResponse}"`
+  - Knowledge gained shown as system message: `[Learned: ${items.join(", ")}]`
+  - Auto-exits conversation if NPC's `suggestsEndConversation` is true
+  - Separate `dialogueInputRef` for focusing dialogue input when entering conversation mode
+  - Conversation mode wrapper has green border (`--accent-green`) to visually distinguish from normal action mode
+  - Export `ConversationMode` interface from ActionPanel for type reuse
+---

@@ -809,6 +809,106 @@ body {
   cursor: not-allowed;
 }
 
+/* Conversation mode */
+.actions-section.conversation-mode {
+  background: var(--bg-secondary);
+  border: 2px solid var(--accent-green);
+  border-radius: 0.5rem;
+  padding: 1rem;
+  margin: 0.5rem;
+}
+
+.actions-section.conversation-mode h3 {
+  color: var(--accent-green);
+  margin-bottom: 1rem;
+}
+
+.dialogue-section {
+  margin-bottom: 1rem;
+}
+
+.dialogue-input-wrapper {
+  display: flex;
+  gap: 0.5rem;
+  align-items: stretch;
+}
+
+.dialogue-input {
+  flex: 1;
+  padding: 0.75rem 1rem;
+  background: var(--bg-primary);
+  border: 1px solid var(--accent-green);
+  border-radius: 0.5rem;
+  color: var(--text-primary);
+  font-family: inherit;
+  font-size: 0.9rem;
+}
+
+.dialogue-input:focus {
+  outline: none;
+  border-color: var(--accent-gold);
+  box-shadow: 0 0 0 2px rgba(42, 157, 143, 0.2);
+}
+
+.dialogue-input:disabled {
+  opacity: 0.5;
+}
+
+.dialogue-input::placeholder {
+  color: var(--text-secondary);
+  font-style: italic;
+}
+
+.dialogue-submit {
+  padding: 0.75rem 1rem;
+  background: var(--accent-green);
+  border: none;
+  border-radius: 0.5rem;
+  color: var(--bg-primary);
+  font-size: 1.1rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.1s;
+}
+
+.dialogue-submit:hover:not(:disabled) {
+  background: #238b7e;
+  transform: scale(1.05);
+}
+
+.dialogue-submit:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.dialogue-submit:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.end-conversation-button {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: transparent;
+  border: 1px solid var(--border-color);
+  border-radius: 0.5rem;
+  color: var(--text-secondary);
+  font-family: inherit;
+  font-size: 0.9rem;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.end-conversation-button:hover:not(:disabled) {
+  background: var(--bg-tertiary);
+  color: var(--text-primary);
+  border-color: var(--accent-red);
+}
+
+.end-conversation-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
 /* Responsive design */
 @media (max-width: 1200px) {
   .world-main {

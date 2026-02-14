@@ -53,6 +53,12 @@ interface WorldStateResponse {
 
 // StoryMessage type imported from StoryPanel
 
+// Conversation state type
+interface ConversationState {
+  npcId: string;
+  npcName: string;
+}
+
 export default function WorldApp() {
   const [worldState, setWorldState] = useState<WorldStateResponse | null>(null);
   const [storyMessages, setStoryMessages] = useState<StoryMessage[]>([]);
@@ -60,6 +66,7 @@ export default function WorldApp() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<"story" | "map" | "journal">("story");
+  const [conversationState, setConversationState] = useState<ConversationState | null>(null);
   const messageIdRef = useRef(0);
 
   // Fetch initial world state
@@ -96,6 +103,20 @@ export default function WorldApp() {
 
   const handleAction = async (action: SuggestedAction) => {
     if (isProcessing) return;
+
+    // Check if this is a "talk" action - enter conversation mode
+    if (action.type === "talk" && action.targetNpcId) {
+      const targetNpc = worldState?.presentNpcs.find(npc => npc.id === action.targetNpcId);
+      if (targetNpc) {
+        setConversationState({
+          npcId: targetNpc.id,
+          npcName: targetNpc.name,
+        });
+        addStoryMessage(`> ${action.text}`, "action");
+        addStoryMessage(`You approach ${targetNpc.name}. What would you like to say?`, "narrative");
+        return;
+      }
+    }
 
     setIsProcessing(true);
     addStoryMessage(`> ${action.text}`, "action");
@@ -171,6 +192,74 @@ export default function WorldApp() {
       console.error(err);
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  const handleConversationMessage = async (message: string) => {
+    if (isProcessing || !conversationState) return;
+
+    setIsProcessing(true);
+    addStoryMessage(`> "${message}"`, "action");
+
+    try {
+      const response = await fetch("/api/world/talk", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          npcId: conversationState.npcId,
+          message,
+        }),
+      });
+
+      const data = (await response.json()) as {
+        error?: string;
+        narrative?: string;
+        npcResponse?: string;
+        npcName?: string;
+        attitudeChange?: number;
+        newAttitude?: number;
+        suggestsEndConversation?: boolean;
+        newKnowledge?: string[];
+      };
+
+      if (data.error) {
+        addStoryMessage(data.error, "system");
+      } else {
+        // Display the narrator framing if present
+        if (data.narrative) {
+          addStoryMessage(data.narrative, "narrative");
+        }
+        // Display the NPC's response
+        if (data.npcResponse) {
+          addStoryMessage(`${data.npcName || conversationState.npcName}: "${data.npcResponse}"`, "narrative");
+        }
+        // Show knowledge gained
+        if (data.newKnowledge && data.newKnowledge.length > 0) {
+          addStoryMessage(`[Learned: ${data.newKnowledge.join(", ")}]`, "system");
+        }
+        // Auto-end conversation if NPC suggests it
+        if (data.suggestsEndConversation) {
+          addStoryMessage(`${conversationState.npcName} seems to have nothing more to say.`, "narrative");
+          setConversationState(null);
+        }
+      }
+
+      // Re-fetch world state to keep it up to date
+      const stateResponse = await fetch("/api/world/state");
+      const newState = (await stateResponse.json()) as WorldStateResponse;
+      setWorldState(newState);
+    } catch (err) {
+      addStoryMessage("Something went wrong...", "system");
+      console.error(err);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleEndConversation = () => {
+    if (conversationState) {
+      addStoryMessage(`You end your conversation with ${conversationState.npcName}.`, "narrative");
+      setConversationState(null);
     }
   };
 
@@ -307,6 +396,9 @@ export default function WorldApp() {
             onActionSelect={handleAction}
             onFreeformSubmit={handleFreeformSubmit}
             isProcessing={isProcessing}
+            conversationMode={conversationState}
+            onConversationMessage={handleConversationMessage}
+            onEndConversation={handleEndConversation}
           />
         </section>
       </main>
