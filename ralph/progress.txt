@@ -211,3 +211,19 @@
   - Frontend will need to use EventSource or fetch with readable stream to consume SSE
 
 ---
+
+## 2026-02-14 - US-016
+- What was implemented: Added streaming response support to frontend with progressive text rendering
+- Files changed:
+  - src/frontend/WorldApp.tsx - Added streamingMessageId state, appendToMessage and updateMessageText helpers, updated handleFreeformSubmit and handleConversationMessage to use SSE streaming endpoints with fetch ReadableStream
+  - src/frontend/StoryPanel.tsx - Added streamingMessageId prop, streaming cursor (▍) display, conditional streaming class, hide loading indicator during streaming
+  - src/frontend/worldStyles.css - Added .streaming-cursor with blink animation, .story-message.streaming with gold border styling
+- **Learnings for future iterations:**
+  - Use fetch with ReadableStream for SSE instead of EventSource - gives more control over POST requests and headers
+  - SSE parsing: split buffer by "\n\n" to get complete events, keep incomplete event in buffer
+  - addStoryMessage returns the message ID to enable tracking which message is being streamed
+  - Use appendToMessage for chunk-by-chunk updates rather than setting full text each time
+  - Hide loading indicator during streaming (streamingMessageId check) since cursor provides visual feedback
+  - Streaming cursor blink animation creates typewriter-like effect users expect from AI responses
+
+---
