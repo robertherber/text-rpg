@@ -1306,8 +1306,26 @@ const LOCATION_SIMULATION_SCHEMA = {
       items: { type: "string" },
       description: "IDs of items that were taken or disappeared from this location",
     },
+    decayedStructures: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          structureId: { type: "string", description: "ID of the structure that decayed/collapsed" },
+          reason: { type: "string", description: "Why the structure decayed (weather, neglect, time, etc.)" },
+          severity: {
+            type: "string",
+            enum: ["minor_damage", "major_damage", "collapsed"],
+            description: "How severe the decay is - minor_damage for cosmetic issues, major_damage for structural problems, collapsed for complete destruction",
+          },
+        },
+        required: ["structureId", "reason", "severity"],
+        additionalProperties: false,
+      },
+      description: "Structures that have decayed or collapsed since last visit",
+    },
   },
-  required: ["hasChanges", "narrative", "npcMovements", "npcArrivals", "environmentalChanges", "newItems", "removedItemIds"],
+  required: ["hasChanges", "narrative", "npcMovements", "npcArrivals", "environmentalChanges", "newItems", "removedItemIds", "decayedStructures"],
   additionalProperties: false,
 };
 
@@ -1332,6 +1350,11 @@ export interface LocationSimulationResult {
     value: number;
   }>;
   removedItemIds: string[];
+  decayedStructures: Array<{
+    structureId: string;
+    reason: string;
+    severity: "minor_damage" | "major_damage" | "collapsed";
+  }>;
 }
 
 /**
@@ -1367,6 +1390,7 @@ export async function simulateLocationChanges(
       environmentalChanges: [],
       newItems: [],
       removedItemIds: [],
+      decayedStructures: [],
     };
   }
 
@@ -1386,6 +1410,7 @@ export async function simulateLocationChanges(
       environmentalChanges: [],
       newItems: [],
       removedItemIds: [],
+      decayedStructures: [],
     };
   }
 
@@ -1432,6 +1457,26 @@ SIMULATION RULES:
 8. If an NPC's home is this location, they're more likely to return here
 9. Companions (isCompanion: true) should NEVER move independently - they stay with the player
 
+STRUCTURE DECAY RULES:
+10. Structures decay over time without maintenance - especially player-built structures (isCanonical: false)
+11. Decay severity depends on age and structure type:
+    - "camp" structures are temporary and collapse quickly (30-50 actions without maintenance)
+    - "shelter" structures last longer but still need care (80-120 actions)
+    - "trap" structures may be triggered by animals or weather (20-40 actions)
+    - "marker" structures can decay slowly (100-200 actions)
+    - "house" and "fort" structures are more durable but still decay eventually (150-300 actions)
+    - "grave" structures are very durable (300+ actions)
+12. Canonical structures (from the original world) do NOT decay - they are permanent
+13. Weather/terrain affects decay speed: swamp and water terrain causes faster decay, caves and dungeons preserve structures
+14. For each player-built structure, decide if it shows minor_damage, major_damage, or has collapsed
+15. If a structure collapses, items stored there might scatter to the location or disappear
+
+ITEM DECAY RULES:
+16. Food items spoil and disappear over time (10-20 actions)
+17. Low-value items (value < 5) left unattended may disappear (taken by NPCs/animals)
+18. Valuable items attract thieves - higher chance of disappearing in dangerous areas
+19. Items in structures are protected until the structure collapses
+
 IMPORTANT:
 - Only move NPCs to locations that actually exist (use provided location IDs)
 - NPCs should only arrive from nearby locations (the ones listed)
@@ -1455,8 +1500,13 @@ LOCATION DETAILS:
 - Name: ${location.name}
 - Terrain: ${location.terrain}
 - Description: ${location.description}
-- Current items: ${location.items.map((i) => `${i.name} (ID: ${i.id})`).join(", ") || "None"}
-- Structures: ${location.structures.map((s) => s.name).join(", ") || "None"}
+- Current items: ${location.items.map((i) => `${i.name} (ID: ${i.id}, type: ${i.type}, value: ${i.value})`).join(", ") || "None"}
+- Structures: ${location.structures.length > 0
+    ? location.structures.map((s) => {
+        const actionsSinceBuilt = worldState.actionCounter - s.builtAtAction;
+        return `${s.name} (ID: ${s.id}, type: ${s.type}, built ${actionsSinceBuilt} actions ago, owner: ${s.ownerId || "none"}, canonical: ${s.ownerId === undefined || s.ownerId === "player" ? "false" : "unknown"})`;
+      }).join(", ")
+    : "None"}
 
 RECENT EVENTS AT THIS LOCATION:
 ${recentLocationEvents.length > 0
