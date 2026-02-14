@@ -206,3 +206,19 @@
   - Reference extraction doesn't catch generic words like "tavern" - player must use proper names like "The Rusty Tankard"
 ---
 
+## 2026-02-14 - US-017
+- What was implemented: Created dynamic location generator for discovering new areas
+- Files changed:
+  - src/world/gptService.ts (modified - added generateLocation function, GENERATED_LOCATION_SCHEMA, GeneratedLocationData interface)
+- **Learnings for future iterations:**
+  - `generateLocation(worldState, direction, fromLocationId)` generates new locations via GPT when player explores unknown areas
+  - Function calculates coordinates using `calculateCoordinatesFromDirection()` (same logic as stateManager.ts)
+  - Checks if location already exists at target coordinates - returns existing if found
+  - Context includes: departure point details, nearby terrains, nearby location names, average danger level
+  - GPT generates: name, description, imagePrompt, terrain, dangerLevel, features, possibleEncounters
+  - Generated locations get `isCanonical: false` and empty arrays for presentNpcIds, items, structures, notes
+  - Danger level is clamped to 0-10 range
+  - Location ID format: `loc_{direction}_{timestamp}_{randomSuffix}`
+  - Geographic coherence: prompts GPT to consider nearby terrain types for natural transitions
+---
+
