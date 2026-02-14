@@ -1,6 +1,6 @@
 // State Manager for applying state changes to WorldState
 
-import type { WorldState, StateChange, WorldItem, Quest } from "./types";
+import type { WorldState, StateChange, WorldItem, Quest, Crime, Bounty } from "./types";
 
 /**
  * Validates whether the player knows about a referenced entity (location, NPC, or item).
@@ -253,6 +253,18 @@ function applySingleChange(state: WorldState, change: StateChange): WorldState {
 
     case "skill_practice":
       return handleSkillPractice(state, change.data);
+
+    case "record_crime":
+      return handleRecordCrime(state, change.data);
+
+    case "add_bounty":
+      return handleAddBounty(state, change.data);
+
+    case "remove_bounty":
+      return handleRemoveBounty(state, change.data);
+
+    case "update_bounty":
+      return handleUpdateBounty(state, change.data);
 
     default:
       // Unknown state change type - return state unchanged
@@ -1253,6 +1265,8 @@ export function handlePlayerDeath(
     blessings: [],
     marriedToNpcId: undefined,
     childrenNpcIds: [],
+    crimes: [],
+    bounties: [],
   };
 
   return {
@@ -3025,4 +3039,451 @@ function handleSkillPractice(
     },
     eventHistory: [...state.eventHistory, practiceEvent],
   };
+}
+
+// ===== Crime and Consequences System =====
+
+/**
+ * Handle record_crime state change
+ * Records a crime in the player's criminal history and applies consequences.
+ * data: {
+ *   type: "theft" | "assault" | "murder" | "trespassing" | "fraud" | "vandalism" | "smuggling" | "other",
+ *   description: string,
+ *   victimNpcId?: string,
+ *   witnessNpcIds?: string[],
+ *   wasDetected: boolean,
+ *   severity: "minor" | "moderate" | "severe",
+ *   attitudeChanges?: { npcId: string, change: number }[],
+ *   factionReputationChanges?: { factionId: string, change: number }[]
+ * }
+ */
+function handleRecordCrime(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const {
+    type,
+    description,
+    victimNpcId,
+    witnessNpcIds = [],
+    wasDetected,
+    severity = "minor",
+    attitudeChanges = [],
+    factionReputationChanges = [],
+  } = data;
+
+  // Validate required fields
+  if (!type || !description || typeof wasDetected !== "boolean") {
+    console.warn("record_crime: missing required fields (type, description, wasDetected)");
+    return state;
+  }
+
+  // Validate crime type
+  const validTypes = ["theft", "assault", "murder", "trespassing", "fraud", "vandalism", "smuggling", "other"];
+  if (!validTypes.includes(type)) {
+    console.warn(`record_crime: invalid crime type "${type}"`);
+    return state;
+  }
+
+  // Validate severity
+  const validSeverities = ["minor", "moderate", "severe"];
+  if (!validSeverities.includes(severity)) {
+    console.warn(`record_crime: invalid severity "${severity}"`);
+    return state;
+  }
+
+  // Generate crime ID
+  const crimeId = `crime_${type}_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+
+  // Create the crime record
+  const crime: Crime = {
+    id: crimeId,
+    type: type as Crime["type"],
+    description: description.trim(),
+    committedAtAction: state.actionCounter,
+    locationId: state.player.currentLocationId,
+    victimNpcId,
+    witnessNpcIds: witnessNpcIds.filter((id: string) => typeof id === "string"),
+    wasDetected,
+    severity: severity as Crime["severity"],
+  };
+
+  // Start building new state
+  let newNpcs = { ...state.npcs };
+  let newFactions = { ...state.factions };
+
+  // Apply attitude changes to NPCs who witnessed or heard about the crime
+  if (wasDetected && attitudeChanges.length > 0) {
+    for (const { npcId, change } of attitudeChanges) {
+      if (typeof npcId === "string" && typeof change === "number" && newNpcs[npcId]) {
+        const npc = newNpcs[npcId]!;
+        const newAttitude = Math.max(-100, Math.min(100, npc.attitude + change));
+        newNpcs = {
+          ...newNpcs,
+          [npcId]: {
+            ...npc,
+            attitude: newAttitude,
+          },
+        };
+      }
+    }
+  }
+
+  // Apply faction reputation changes
+  if (wasDetected && factionReputationChanges.length > 0) {
+    for (const { factionId, change } of factionReputationChanges) {
+      if (typeof factionId === "string" && typeof change === "number" && newFactions[factionId]) {
+        const faction = newFactions[factionId]!;
+        const newReputation = Math.max(-100, Math.min(100, faction.playerReputation + change));
+        newFactions = {
+          ...newFactions,
+          [factionId]: {
+            ...faction,
+            playerReputation: newReputation,
+          },
+        };
+      }
+    }
+  }
+
+  // Create a world event for the crime
+  const crimeEvent: import("./types").WorldEvent = {
+    id: `event_crime_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: wasDetected
+      ? `${state.player.name || "A stranger"} committed ${type}: ${description}`
+      : `A ${type} occurred at ${state.locations[state.player.currentLocationId]?.name || "an unknown location"}`,
+    type: "crime",
+    involvedNpcIds: victimNpcId ? [victimNpcId, ...witnessNpcIds] : witnessNpcIds,
+    locationId: state.player.currentLocationId,
+    isSignificant: wasDetected || severity === "severe", // Detected crimes and severe crimes spread as rumors
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      crimes: [...state.player.crimes, crime],
+    },
+    npcs: newNpcs,
+    factions: newFactions,
+    eventHistory: [...state.eventHistory, crimeEvent],
+  };
+}
+
+/**
+ * Handle add_bounty state change
+ * Issues a bounty on the player for their crimes.
+ * data: {
+ *   issuedByFactionId?: string,
+ *   issuedByNpcId?: string,
+ *   reason: string,
+ *   amount: number,
+ *   crimeIds?: string[],
+ *   locationScope?: string[]
+ * }
+ */
+function handleAddBounty(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const {
+    issuedByFactionId,
+    issuedByNpcId,
+    reason,
+    amount,
+    crimeIds = [],
+    locationScope,
+  } = data;
+
+  // Validate required fields
+  if (!reason || typeof amount !== "number" || amount <= 0) {
+    console.warn("add_bounty: missing or invalid required fields (reason, amount > 0)");
+    return state;
+  }
+
+  // At least one issuer must be specified
+  if (!issuedByFactionId && !issuedByNpcId) {
+    console.warn("add_bounty: must specify either issuedByFactionId or issuedByNpcId");
+    return state;
+  }
+
+  // Generate bounty ID
+  const bountyId = `bounty_${Date.now().toString(36)}_${Math.random().toString(36).substring(2, 6)}`;
+
+  // Create the bounty record
+  const bounty: Bounty = {
+    id: bountyId,
+    issuedByFactionId: typeof issuedByFactionId === "string" ? issuedByFactionId : undefined,
+    issuedByNpcId: typeof issuedByNpcId === "string" ? issuedByNpcId : undefined,
+    reason: reason.trim(),
+    amount: Math.max(1, Math.round(amount)), // Ensure positive integer
+    issuedAtAction: state.actionCounter,
+    crimeIds: crimeIds.filter((id: string) => typeof id === "string"),
+    locationScope: locationScope?.filter((id: string) => typeof id === "string"),
+    isActive: true,
+  };
+
+  // Create a world event for the bounty
+  const issuerName = issuedByFactionId
+    ? state.factions[issuedByFactionId]?.name || "an unknown faction"
+    : state.npcs[issuedByNpcId || ""]?.name || "someone";
+
+  const bountyEvent: import("./types").WorldEvent = {
+    id: `event_bounty_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: `A bounty of ${amount} gold has been placed on ${state.player.name || "the adventurer"} by ${issuerName}: "${reason}"`,
+    type: "faction",
+    involvedNpcIds: issuedByNpcId ? [issuedByNpcId] : [],
+    locationId: state.player.currentLocationId,
+    isSignificant: true, // Bounties always spread as rumors
+  };
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      bounties: [...state.player.bounties, bounty],
+    },
+    eventHistory: [...state.eventHistory, bountyEvent],
+  };
+}
+
+/**
+ * Handle remove_bounty state change
+ * Removes a bounty from the player (paid off, pardoned, or fulfilled).
+ * data: {
+ *   bountyId: string,
+ *   reason?: string
+ * }
+ */
+function handleRemoveBounty(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { bountyId, reason } = data;
+
+  if (!bountyId || typeof bountyId !== "string") {
+    console.warn("remove_bounty: missing or invalid bountyId");
+    return state;
+  }
+
+  // Find the bounty
+  const bountyIndex = state.player.bounties.findIndex((b) => b.id === bountyId);
+  if (bountyIndex === -1) {
+    console.warn(`remove_bounty: bounty "${bountyId}" not found`);
+    return state;
+  }
+
+  const bounty = state.player.bounties[bountyIndex]!;
+
+  // Create a world event for bounty removal
+  const issuerName = bounty.issuedByFactionId
+    ? state.factions[bounty.issuedByFactionId]?.name || "an unknown faction"
+    : state.npcs[bounty.issuedByNpcId || ""]?.name || "someone";
+
+  const removalEvent: import("./types").WorldEvent = {
+    id: `event_bounty_removed_${state.actionCounter}_${Date.now()}`,
+    actionNumber: state.actionCounter,
+    description: reason
+      ? `The bounty on ${state.player.name || "the adventurer"} from ${issuerName} has been resolved: ${reason}`
+      : `The bounty on ${state.player.name || "the adventurer"} from ${issuerName} has been lifted`,
+    type: "faction",
+    involvedNpcIds: bounty.issuedByNpcId ? [bounty.issuedByNpcId] : [],
+    locationId: state.player.currentLocationId,
+    isSignificant: true,
+  };
+
+  // Remove the bounty from the array
+  const newBounties = [
+    ...state.player.bounties.slice(0, bountyIndex),
+    ...state.player.bounties.slice(bountyIndex + 1),
+  ];
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      bounties: newBounties,
+    },
+    eventHistory: [...state.eventHistory, removalEvent],
+  };
+}
+
+/**
+ * Handle update_bounty state change
+ * Updates an existing bounty (increase amount, add crimes, change status).
+ * data: {
+ *   bountyId: string,
+ *   amountIncrease?: number,
+ *   addCrimeIds?: string[],
+ *   isActive?: boolean,
+ *   newReason?: string
+ * }
+ */
+function handleUpdateBounty(
+  state: WorldState,
+  data: Record<string, any>
+): WorldState {
+  const { bountyId, amountIncrease, addCrimeIds, isActive, newReason } = data;
+
+  if (!bountyId || typeof bountyId !== "string") {
+    console.warn("update_bounty: missing or invalid bountyId");
+    return state;
+  }
+
+  // Find the bounty
+  const bountyIndex = state.player.bounties.findIndex((b) => b.id === bountyId);
+  if (bountyIndex === -1) {
+    console.warn(`update_bounty: bounty "${bountyId}" not found`);
+    return state;
+  }
+
+  const existingBounty = state.player.bounties[bountyIndex]!;
+
+  // Build updated bounty
+  const updatedBounty: Bounty = {
+    ...existingBounty,
+    amount:
+      typeof amountIncrease === "number"
+        ? Math.max(1, existingBounty.amount + amountIncrease)
+        : existingBounty.amount,
+    crimeIds:
+      Array.isArray(addCrimeIds) && addCrimeIds.length > 0
+        ? [...existingBounty.crimeIds, ...addCrimeIds.filter((id: string) => typeof id === "string")]
+        : existingBounty.crimeIds,
+    isActive: typeof isActive === "boolean" ? isActive : existingBounty.isActive,
+    reason: typeof newReason === "string" ? newReason.trim() : existingBounty.reason,
+  };
+
+  // Create update event if amount increased
+  const events = [...state.eventHistory];
+  if (typeof amountIncrease === "number" && amountIncrease > 0) {
+    const issuerName = existingBounty.issuedByFactionId
+      ? state.factions[existingBounty.issuedByFactionId]?.name || "an unknown faction"
+      : state.npcs[existingBounty.issuedByNpcId || ""]?.name || "someone";
+
+    events.push({
+      id: `event_bounty_increase_${state.actionCounter}_${Date.now()}`,
+      actionNumber: state.actionCounter,
+      description: `The bounty on ${state.player.name || "the adventurer"} from ${issuerName} has increased by ${amountIncrease} gold to ${updatedBounty.amount} gold`,
+      type: "faction",
+      involvedNpcIds: existingBounty.issuedByNpcId ? [existingBounty.issuedByNpcId] : [],
+      locationId: state.player.currentLocationId,
+      isSignificant: true,
+    });
+  }
+
+  // Update the bounties array
+  const newBounties = [
+    ...state.player.bounties.slice(0, bountyIndex),
+    updatedBounty,
+    ...state.player.bounties.slice(bountyIndex + 1),
+  ];
+
+  return {
+    ...state,
+    player: {
+      ...state.player,
+      bounties: newBounties,
+    },
+    eventHistory: events,
+  };
+}
+
+/**
+ * Check if the player is wanted (has active bounties) and return relevant info.
+ * Useful for NPC behavior decisions.
+ */
+export function getPlayerWantedStatus(worldState: WorldState): {
+  isWanted: boolean;
+  totalBountyAmount: number;
+  activeBounties: Bounty[];
+  recentCrimes: Crime[];
+  mostSevereCrimeType: Crime["severity"] | null;
+} {
+  const activeBounties = worldState.player.bounties.filter((b) => b.isActive);
+  const totalBountyAmount = activeBounties.reduce((sum, b) => sum + b.amount, 0);
+
+  // Get crimes from last 50 actions for "recent"
+  const recentCrimes = worldState.player.crimes.filter(
+    (c) => worldState.actionCounter - c.committedAtAction <= 50 && c.wasDetected
+  );
+
+  // Determine most severe crime type
+  let mostSevereCrimeType: Crime["severity"] | null = null;
+  for (const crime of recentCrimes) {
+    if (crime.severity === "severe") {
+      mostSevereCrimeType = "severe";
+      break;
+    } else if (crime.severity === "moderate" && mostSevereCrimeType !== "severe") {
+      mostSevereCrimeType = "moderate";
+    } else if (crime.severity === "minor" && !mostSevereCrimeType) {
+      mostSevereCrimeType = "minor";
+    }
+  }
+
+  return {
+    isWanted: activeBounties.length > 0,
+    totalBountyAmount,
+    activeBounties,
+    recentCrimes,
+    mostSevereCrimeType,
+  };
+}
+
+/**
+ * Check if an NPC should refuse service to the player based on criminal status.
+ * Returns a reason string if service should be refused, null otherwise.
+ */
+export function shouldNpcRefuseService(
+  worldState: WorldState,
+  npcId: string
+): string | null {
+  const npc = worldState.npcs[npcId];
+  if (!npc || !npc.isAlive) {
+    return null;
+  }
+
+  const wantedStatus = getPlayerWantedStatus(worldState);
+
+  // Check if this NPC is hostile due to attitude
+  if (npc.attitude < -50) {
+    return `${npc.name} refuses to deal with someone they despise.`;
+  }
+
+  // Check if NPC was a victim of player's crimes
+  const victimOf = worldState.player.crimes.filter(
+    (c) => c.victimNpcId === npcId && c.wasDetected
+  );
+  if (victimOf.length > 0) {
+    return `${npc.name} remembers what you did to them and refuses to help you.`;
+  }
+
+  // Check if NPC witnessed crimes
+  const witnessed = worldState.player.crimes.filter(
+    (c) => c.witnessNpcIds.includes(npcId) && c.severity === "severe"
+  );
+  if (witnessed.length > 0) {
+    return `${npc.name} witnessed your crimes and wants nothing to do with you.`;
+  }
+
+  // Check if NPC belongs to a faction with very low reputation
+  for (const factionId of npc.factionIds) {
+    const faction = worldState.factions[factionId];
+    if (faction && faction.playerReputation < -50) {
+      return `${npc.name}, a member of ${faction.name}, refuses to serve someone with your reputation.`;
+    }
+  }
+
+  // Check if NPC is aware of large bounties
+  if (wantedStatus.totalBountyAmount >= 100) {
+    // NPC might recognize wanted player - chance based on attitude and bounty size
+    const recognitionChance = Math.min(0.8, 0.2 + (wantedStatus.totalBountyAmount / 500));
+    if (Math.random() < recognitionChance && npc.attitude < 30) {
+      return `${npc.name} eyes you suspiciously. "I know your face from the wanted posters. Get out."`;
+    }
+  }
+
+  return null;
 }

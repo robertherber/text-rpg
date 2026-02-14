@@ -164,6 +164,8 @@ export interface Player {
   blessings: string[];
   marriedToNpcId?: string;
   childrenNpcIds: string[];
+  crimes: Crime[]; // Criminal history
+  bounties: Bounty[]; // Active bounties on the player
 }
 
 export interface DeceasedHero {
@@ -181,11 +183,35 @@ export interface DeceasedHero {
   graveLocationId?: string;
 }
 
+export interface Crime {
+  id: string;
+  type: "theft" | "assault" | "murder" | "trespassing" | "fraud" | "vandalism" | "smuggling" | "other";
+  description: string;
+  committedAtAction: number;
+  locationId: string;
+  victimNpcId?: string; // NPC who was the victim, if any
+  witnessNpcIds: string[]; // NPCs who witnessed the crime
+  wasDetected: boolean;
+  severity: "minor" | "moderate" | "severe"; // Affects bounty amount and NPC reactions
+}
+
+export interface Bounty {
+  id: string;
+  issuedByFactionId?: string; // Faction that issued the bounty
+  issuedByNpcId?: string; // Individual NPC who issued the bounty
+  reason: string; // Description of why the bounty was issued
+  amount: number; // Gold reward for capturing/killing the player
+  issuedAtAction: number;
+  crimeIds: string[]; // Related crimes that caused this bounty
+  locationScope?: string[]; // Location IDs where bounty hunters may appear (empty = everywhere)
+  isActive: boolean;
+}
+
 export interface WorldEvent {
   id: string;
   actionNumber: number;
   description: string;
-  type: "combat" | "dialogue" | "discovery" | "death" | "quest" | "relationship" | "faction" | "build" | "craft" | "other";
+  type: "combat" | "dialogue" | "discovery" | "death" | "quest" | "relationship" | "faction" | "build" | "craft" | "crime" | "other";
   involvedNpcIds: string[];
   locationId: string;
   isSignificant: boolean; // Affects rumors/world state
@@ -258,7 +284,11 @@ export interface StateChange {
     | "companion_wait_at_home"
     | "companion_rejoin"
     | "reveal_flashback"
-    | "relationship_change";
+    | "relationship_change"
+    | "record_crime"
+    | "add_bounty"
+    | "remove_bounty"
+    | "update_bounty";
   data: Record<string, any>;
 }
 

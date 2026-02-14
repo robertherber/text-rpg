@@ -144,6 +144,8 @@ export function createSeedWorld(): WorldState {
     curses: [],
     blessings: [],
     childrenNpcIds: [],
+    crimes: [],
+    bounties: [],
   };
 
   // Assemble locations record

@@ -264,6 +264,30 @@ KNOWN NPCS: ${player.knowledge.npcs.length > 0 ? player.knowledge.npcs.slice(0, 
 (Generate story hooks, NPC reactions, and opportunities that align with these dominant playstyles)`
     : "";
 
+  // Build criminal status context
+  const activeBounties = player.bounties.filter((b) => b.isActive);
+  const recentCrimes = player.crimes.filter(
+    (c) => worldState.actionCounter - c.committedAtAction <= 50 && c.wasDetected
+  );
+
+  let criminalContext = "";
+  if (activeBounties.length > 0 || recentCrimes.length > 0) {
+    const bountyTotal = activeBounties.reduce((sum, b) => sum + b.amount, 0);
+    const bountyDetails = activeBounties.map((b) => {
+      const issuer = b.issuedByFactionId
+        ? worldState.factions[b.issuedByFactionId]?.name || "unknown faction"
+        : worldState.npcs[b.issuedByNpcId || ""]?.name || "someone";
+      return `${b.amount}g from ${issuer}`;
+    }).join(", ");
+
+    const crimeTypes = [...new Set(recentCrimes.map((c) => c.type))];
+
+    criminalContext = `CRIMINAL STATUS:
+Wanted: ${activeBounties.length > 0 ? "YES" : "No"}${activeBounties.length > 0 ? ` (Total bounty: ${bountyTotal}g - ${bountyDetails})` : ""}
+Recent detected crimes: ${recentCrimes.length > 0 ? `${recentCrimes.length} (${crimeTypes.join(", ")})` : "None"}
+(NPCs may recognize wanted players, refuse service, or attempt to collect bounty. Guards may try to arrest.)`;
+  }
+
   // Combine all context sections
   return `${locationContext}
 
@@ -275,7 +299,7 @@ ${playerStats}
 
 ${inventorySummary}
 
-${knowledgeSummary}${behaviorContext ? "\n\n" + behaviorContext : ""}`;
+${knowledgeSummary}${behaviorContext ? "\n\n" + behaviorContext : ""}${criminalContext ? "\n\n" + criminalContext : ""}`;
 }
 
 // JSON Schema for ActionResult response from GPT
@@ -320,6 +344,10 @@ const ACTION_RESULT_SCHEMA = {
               "skill_practice",
               "gold_change",
               "reveal_flashback",
+              "record_crime",
+              "add_bounty",
+              "remove_bounty",
+              "update_bounty",
             ],
           },
           data: {
@@ -499,6 +527,34 @@ SKILL PRACTICE SYSTEM:
 - Skills affect action resolution: higher skill levels mean better chances of success and more elegant outcomes
 - Examples of skills: swordsmanship, archery, lockpicking, herbalism, persuasion, stealth, tracking, blacksmithing, alchemy, healing, riding, swimming
 - Consider the player's existing skills when resolving actions - an expert swordsman should rarely fumble, while a novice might struggle with basic techniques
+
+CRIME AND CONSEQUENCES SYSTEM:
+- Detect when player actions are criminal: theft, assault, murder, trespassing, fraud, vandalism, smuggling
+- For criminal actions, roll for detection based on: NPC vigilance, witnesses present, player stealth skill, circumstances
+- Use record_crime: { type: "theft"|"assault"|"murder"|"trespassing"|"fraud"|"vandalism"|"smuggling"|"other", description: string, victimNpcId?: string, witnessNpcIds?: string[], wasDetected: boolean, severity: "minor"|"moderate"|"severe", attitudeChanges?: [{npcId, change}], factionReputationChanges?: [{factionId, change}] }
+- Detection chance guidelines:
+  * Village/public area: 60-90% base detection (many witnesses)
+  * Private area with NPC: 30-60% (NPC awareness matters)
+  * Abandoned/empty area: 10-30% (might be discovered later)
+  * Player has stealth skill: reduce chance by 10-30% based on level
+- Severity guidelines:
+  * Minor: petty theft (<10 gold), trespassing without damage, minor vandalism
+  * Moderate: significant theft (10-100 gold), assault without serious injury, fraud
+  * Severe: murder, major theft (>100 gold), assault causing serious harm
+- When crimes are DETECTED:
+  * Victim NPC attitude drops significantly (-20 to -50 based on severity)
+  * Witness NPC attitudes drop (-10 to -30)
+  * Faction reputations may drop if NPCs are faction members
+  * Severe crimes should trigger add_bounty
+- When crimes are UNDETECTED:
+  * Still record the crime (player's criminal history)
+  * Item can still be stolen/damage done
+  * NPCs may investigate later and discover the truth
+- Use add_bounty: { issuedByFactionId?: string, issuedByNpcId?: string, reason: string, amount: number, crimeIds?: string[] }
+- Bounty amounts: minor crime 10-25g, moderate crime 25-75g, severe crime 75-200g+
+- NPCs may refuse service to known criminals (hostile attitude or faction reputation < -50)
+- Jail/escape handled narratively: guards may attempt arrest, player can resist/flee/surrender
+- Consider the player's current bounties and criminal history when NPCs react to them
 
 SUGGESTED ACTION TYPES:
 - move: Walk to an adjacent location
@@ -2184,6 +2240,8 @@ Generate a complete character with name, appearance, origin, hidden backstory, a
     blessings: [],
     marriedToNpcId: undefined,
     childrenNpcIds: [],
+    crimes: [],
+    bounties: [],
   };
 
   // Prepare NPC updates - add knowledge about the new hero to NPCs who knew fallen heroes
@@ -3792,6 +3850,8 @@ Generate their complete character profile including physical description, origin
     blessings: [],
     marriedToNpcId: undefined,
     childrenNpcIds: [],
+    crimes: [],
+    bounties: [],
   };
 
   // Update the world state with the new player
