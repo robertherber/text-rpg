@@ -57,7 +57,8 @@ const server = Bun.serve({
       return new Response("Not found", { status: 404 });
     }
     if (url.pathname.startsWith("/audio/")) {
-      const filePath = `./public${url.pathname}`;
+      const decodedPath = decodeURIComponent(url.pathname);
+      const filePath = `./public${decodedPath}`;
       const file = Bun.file(filePath);
       if (await file.exists()) {
         return new Response(file, {

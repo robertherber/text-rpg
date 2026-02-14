@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 
 interface BackgroundMusicProps {
   src: string;
@@ -16,6 +16,7 @@ interface BackgroundMusicProps {
  */
 export default function BackgroundMusic({ src, defaultVolume = 0.3 }: BackgroundMusicProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
+  const hasInteractedRef = useRef(false);
   const [isMuted, setIsMuted] = useState(() => {
     const saved = localStorage.getItem("bgMusicMuted");
     return saved === "true";
@@ -24,18 +25,22 @@ export default function BackgroundMusic({ src, defaultVolume = 0.3 }: Background
     const saved = localStorage.getItem("bgMusicVolume");
     return saved ? parseFloat(saved) : defaultVolume;
   });
-  const [hasInteracted, setHasInteracted] = useState(false);
+
+  const tryPlay = useCallback(() => {
+    const audio = audioRef.current;
+    if (audio && hasInteractedRef.current && !audio.muted) {
+      audio.play().catch(() => {
+        // Ignore autoplay errors - browser may still block
+      });
+    }
+  }, []);
 
   // Start playing after user interaction (browser autoplay policy)
   useEffect(() => {
     const handleInteraction = () => {
-      setHasInteracted(true);
-      if (audioRef.current && !isMuted) {
-        audioRef.current.play().catch(() => {
-          // Ignore autoplay errors
-        });
-      }
-      // Remove listeners after first interaction
+      if (hasInteractedRef.current) return;
+      hasInteractedRef.current = true;
+      tryPlay();
       document.removeEventListener("click", handleInteraction);
       document.removeEventListener("keydown", handleInteraction);
     };
@@ -47,21 +52,37 @@ export default function BackgroundMusic({ src, defaultVolume = 0.3 }: Background
       document.removeEventListener("click", handleInteraction);
       document.removeEventListener("keydown", handleInteraction);
     };
-  }, [isMuted]);
+  }, [tryPlay]);
+
+  // Handle audio element ready state
+  useEffect(() => {
+    const audio = audioRef.current;
+    if (!audio) return;
+
+    const handleCanPlay = () => {
+      tryPlay();
+    };
+
+    audio.addEventListener("canplaythrough", handleCanPlay);
+    return () => {
+      audio.removeEventListener("canplaythrough", handleCanPlay);
+    };
+  }, [tryPlay]);
 
   // Update audio element when mute/volume changes
   useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.muted = isMuted;
-      audioRef.current.volume = volume;
+    const audio = audioRef.current;
+    if (audio) {
+      audio.muted = isMuted;
+      audio.volume = volume;
 
-      if (hasInteracted && !isMuted) {
-        audioRef.current.play().catch(() => {});
+      if (!isMuted && hasInteractedRef.current) {
+        tryPlay();
       }
     }
     localStorage.setItem("bgMusicMuted", String(isMuted));
     localStorage.setItem("bgMusicVolume", String(volume));
-  }, [isMuted, volume, hasInteracted]);
+  }, [isMuted, volume, tryPlay]);
 
   const toggleMute = () => {
     setIsMuted(!isMuted);

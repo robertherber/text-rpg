@@ -1,15 +1,16 @@
 {
   "version": 1,
-  "actionCounter": 11,
+  "actionCounter": 20,
   "player": {
     "name": "rob",
     "physicalDescription": "Rob stands tall and broad-shouldered, with a weathered complexion that speaks of years under sun and steel. His hair is a wild tangle of chestnut brown, peppered with strands of gray that betray his age. A neatly trimmed beard frames his strong jaw, giving him a rugged inkling of nobility. Clad in simple, yet sturdy, earth-toned garb with a faded tunic and rugged leather boots, he bears the scars of war both on his body and in his gaze. His piercing green eyes, like shards of emerald in the twilight, hold the weight of a thousand unspoken tales.",
     "hiddenBackstory": "Haunted by dreams of a battle that never unfolded, Rob wrestles with ghosts of the unknown; visions of comrades who never entered the fray, their faces forever etched in shadows. Once, at the cusp of a fateful engagement, he turned his back on war— to protect a secret that could unravel the very threads of loyalty. Long days spent with pen and parchment reveal another truth: a letter tucked away, bearing whispers of betrayal involving a trusted general and the very lands he fought to defend. Will the shards of his past drive him to seek redemption, or will they consume him?",
     "revealedBackstory": [
-      "You stand on a windswept battlefield, surrounded by the cries of both friend and foe. The scent of blood mingles with the earthy aroma of churned soil. Your heart pounds in your chest as you grip your longsword tightly, a sense of unease clawing at you. Though you aim to strike, memories of faces—lost, yet familiar—haunt you. Friends you never met, battles never fought. Their specters linger over the glinting blade, whispering bygone tales of loyalty and betrayal. The moment hangs thick with possibility, and then, like smoke, it dissipates into nothingness, leaving you shaken yet empowered. \nYou resolve to understand the depths of this sword’s legacy, its true worth still hidden beneath layers of time and choice, waiting for the right moment to surface."
+      "You stand on a windswept battlefield, surrounded by the cries of both friend and foe. The scent of blood mingles with the earthy aroma of churned soil. Your heart pounds in your chest as you grip your longsword tightly, a sense of unease clawing at you. Though you aim to strike, memories of faces—lost, yet familiar—haunt you. Friends you never met, battles never fought. Their specters linger over the glinting blade, whispering bygone tales of loyalty and betrayal. The moment hangs thick with possibility, and then, like smoke, it dissipates into nothingness, leaving you shaken yet empowered. \nYou resolve to understand the depths of this sword’s legacy, its true worth still hidden beneath layers of time and choice, waiting for the right moment to surface.",
+      "A distant memory flickers within your mind, of standing before an ancient stone altar. The air crackles with untamed magic as you trace your fingers along strange runes, feeling a surge of power that promises knowledge—if you dare seek it. Shadows of the past linger, urging you to remember the significance of sacrifice and wisdom intertwined in the quest for understanding."
     ],
     "origin": "Rob hails from the weary lands of Rivermarch, a village nestled near the tumultuous borders of warring factions. After a lifetime spent retreating from battlefields and the incessant clamor of swords clashing, he now finds himself in Millbrook, seeking solace—or perhaps merely avoiding the shades of the past that whisper amidst the rustling leaves.",
-    "currentLocationId": "loc_ironheart_forge",
+    "currentLocationId": "loc_north_1771078337110_yyr92h",
     "health": 100,
     "maxHealth": 100,
     "strength": 10,
@@ -41,6 +42,13 @@
         "description": "A beautifully wrought dagger etched with swirling patterns, gleaming with magical potential.",
         "type": "misc",
         "value": 40
+      },
+      {
+        "id": "arcane_shard",
+        "name": "Arcane Shard",
+        "description": "A small, glowing fragment said to have absorbed ancient magic from the battlefield.",
+        "type": "misc",
+        "value": 50
       }
     ],
     "companionIds": [],
@@ -64,16 +72,17 @@
       ],
       "recipes": [],
       "skills": {
-        "swordsmanship": "apprentice"
+        "swordsmanship": "apprentice",
+        "arcane understanding": "apprentice"
       }
     },
     "behaviorPatterns": {
-      "combat": 1,
+      "combat": 2,
       "diplomacy": 0,
-      "exploration": 1,
-      "social": 1,
+      "exploration": 5,
+      "social": 3,
       "stealth": 0,
-      "magic": 0
+      "magic": 2
     },
     "transformations": [],
     "curses": [],
@@ -175,6 +184,40 @@
       "structures": [],
       "notes": [],
       "isCanonical": true
+    },
+    "loc_north_1771078124540_g0coi0": {
+      "id": "loc_north_1771078124540_g0coi0",
+      "name": "Crestfall Vale",
+      "description": "Nestled between gentle hills and flowering meadows, Crestfall Vale is a serene expanse where whispers of the past dance with the breeze. Wildflowers sway in vibrant colors under the gaze of a cobalt sky, while a crystal-clear brook babbles over smooth stones, inviting weary travelers to stop and rest. A few tattered banners flutter on weathered posts, remnants of a forgotten conflict that once echoed through these lands.",
+      "imagePrompt": "A tranquil valley bathed in the golden light of late afternoon, with rolling hills covered in colorful wildflowers. A clear brook flows through the center, reflecting the sky, and tattered banners hang on rustic wooden posts. The scene evokes a sense of peace and history, with soft shadows playing on the ground.",
+      "coordinates": {
+        "x": 1,
+        "y": 1
+      },
+      "terrain": "plains",
+      "dangerLevel": 1,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
+    },
+    "loc_north_1771078337110_yyr92h": {
+      "id": "loc_north_1771078337110_yyr92h",
+      "name": "The Shattered Bluffs",
+      "description": "Rising abruptly from the gentle plains, the Shattered Bluffs are a jagged line of weathered stone, their crags dripping with history and mystery. Here, echoes of ancient battles linger in the air, and the sharp wind howls as if lamenting lost souls, while meandering trails invite curious adventurers to explore the heights and their hidden secrets.",
+      "imagePrompt": "A dramatic scene of the Shattered Bluffs under a brooding sky, with sharp, jagged rock formations jutting out against a backdrop of swirling clouds. The foreground features tufts of wild grass clinging to the cliff edges, while distant hills fade into the horizon, bathed in the muted light of a setting sun. A lone figure stands on the bluff, gazing into the distance, evoking a sense of adventure and contemplation.",
+      "coordinates": {
+        "x": 1,
+        "y": 2
+      },
+      "terrain": "mountain",
+      "dangerLevel": 3,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
     }
   },
   "npcs": {
@@ -256,6 +299,14 @@
             "ok then bye"
           ],
           "npcRevealed": []
+        },
+        {
+          "actionNumber": 11,
+          "summary": "The adventurer attempts a friendly greeting, but Grimjaw rebuffs the conversation, indicating he has work to attend to.",
+          "playerAsked": [
+            "hello"
+          ],
+          "npcRevealed": []
         }
       ],
       "heardRumors": [
@@ -266,7 +317,7 @@
           "accuracy": "accurate"
         }
       ],
-      "attitude": 5,
+      "attitude": 0,
       "isCompanion": false,
       "isAnimal": false,
       "inventory": [
@@ -427,6 +478,15 @@
       "involvedNpcIds": [],
       "locationId": "loc_ironheart_forge",
       "isSignificant": false
+    },
+    {
+      "id": "event_flashback_17_1771078412089",
+      "actionNumber": 17,
+      "description": "A memory from the past was revealed: A distant memory flickers within your mind, of standing before an ancient stone altar. The air crack...",
+      "type": "discovery",
+      "involvedNpcIds": [],
+      "locationId": "loc_north_1771078337110_yyr92h",
+      "isSignificant": true
     }
   ],
   "messageLog": [
