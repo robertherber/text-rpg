@@ -511,3 +511,16 @@
   - NPCs panel shows present characters with companion badge for companions
   - Free-form input placeholder added but TODO for implementation in US-038
 ---
+
+## 2026-02-14 - US-036
+- What was implemented: Created StoryPanel.tsx component for displaying narrative text
+- Files changed:
+  - src/frontend/StoryPanel.tsx (created - reusable story panel component)
+  - src/frontend/WorldApp.tsx (modified - replaced inline story panel with component)
+- **Learnings for future iterations:**
+  - Component extracts: message rendering, scrollTop/scrollHeight ref, auto-scroll useEffect
+  - Export `StoryMessage` interface from component for reuse, use `type` import in consuming files
+  - Import syntax with `verbatimModuleSyntax`: `import Component, { type Type }` for mixed default+type imports
+  - Pre-existing DOM lib errors (scrollTop, scrollHeight, document) appear in new components same as App.tsx
+  - Story panel CSS already existed in worldStyles.css from US-035, no new styles needed
+---
