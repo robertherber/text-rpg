@@ -165,3 +165,19 @@
 
 ---
 
+## 2026-02-14 - US-013
+- What was implemented: Added hand-drawn terrain icons to the map for all terrain types plus a distinctive player position marker
+- Files changed:
+  - src/frontend/MapPanel.tsx - Added 15 terrain-specific icon drawing functions (drawVillageIcon, drawForestIcon, drawMountainsIcon, drawPlainsIcon, drawRoadIcon, drawSwampIcon, drawWaterIcon, drawDungeonIcon, drawCaveIcon, drawRuinsIcon, drawDesertIcon, drawTavernIcon, drawShopIcon, drawCastleIcon, drawTempleIcon), drawGenericMarker fallback, drawTerrainIcon dispatcher, drawPlayerMarker compass rose, LegendIcon and LegendPlayerIcon components
+  - src/frontend/worldStyles.css - Added .legend-icon-canvas styling
+  - ralph/prd.json - Updated passes to true with implementation notes
+- **Learnings for future iterations:**
+  - Canvas drawing functions should use ctx.save()/ctx.restore() to isolate state changes
+  - Use a scale factor (s = size / 24) to make icons size-independent
+  - strokeStyle with lineCap="round" and lineJoin="round" creates hand-drawn appearance
+  - Player marker uses shadow effects (ctx.shadowColor, ctx.shadowBlur) for depth
+  - LegendIcon components use small dedicated canvases (24x24) to render icons for the legend
+  - The drawTerrainIcon function maps terrain types to specific drawing functions with a fallback to generic marker
+
+---
+
