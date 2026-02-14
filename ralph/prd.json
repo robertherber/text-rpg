@@ -152,8 +152,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Root cause: /api/game/image/:id used static gameData locations instead of worldState.locations. Fixed by adding /api/world/image/:id endpoint that uses generateWorldImage with dynamic world state"
     },
     {
       "id": "US-011",

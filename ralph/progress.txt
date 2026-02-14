@@ -8,6 +8,8 @@
 - GPT prompts are in src/world/gptService.ts
 - Frontend components in src/frontend/ with worldStyles.css for styling
 - Map rendering uses HTML Canvas in MapPanel.tsx
+- World system uses /api/world/* endpoints with worldState.locations, old game system uses /api/game/* with static gameData
+- Image generation: use generateWorldImage() for dynamic world locations (includes NPC-aware hash caching)
 
 ---
 
@@ -119,6 +121,19 @@
   - useState with initializer function (() => getRandomLoadingMessage()) ensures the random message is selected once on mount, not on every render
   - The isProcessing state in WorldApp is already used by ActionPanel to disable buttons, so reusing it for loading indicator is consistent
   - The loading indicator auto-scrolls by including isLoading in the useEffect dependency array for scrollTop
+
+---
+
+## 2026-02-14 - US-010
+- What was implemented: Fixed image loading by creating a new world image endpoint that uses dynamic worldState.locations
+- Files changed:
+  - index.ts - Added /api/world/image/:id endpoint that looks up locations in worldState.locations and uses generateWorldImage() for NPC-aware image generation with proper caching
+  - src/frontend/ImagePanel.tsx - Updated to fetch from /api/world/image/:id instead of /api/game/image/:id
+- **Learnings for future iterations:**
+  - The old /api/game/image/:id endpoint used getLocation() from gameEngine.ts which only looks up static locations in gameData.ts
+  - Dynamic world locations are stored in worldState.locations, not the static gameData
+  - The generateWorldImage() function from imageService.ts properly handles NPC-aware image generation with state hash caching
+  - Always check whether an endpoint uses worldState (dynamic) vs gameData (static) when debugging world system issues
 
 ---
 
