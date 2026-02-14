@@ -537,3 +537,19 @@
   - Action button CSS already existed in worldStyles.css from US-035, no new styles needed
   - The handleAction function in WorldApp.tsx already handles API call and story panel update
 ---
+
+## 2026-02-14 - US-038
+- What was implemented: Created free-form text input component for custom player actions
+- Files changed:
+  - src/frontend/ActionPanel.tsx (modified - added free-form text input with submit button)
+  - src/frontend/WorldApp.tsx (modified - added handleFreeformSubmit function, removed old placeholder)
+  - src/frontend/worldStyles.css (modified - added styles for freeform-input-wrapper and freeform-submit)
+- **Learnings for future iterations:**
+  - Free-form input uses controlled React component pattern with useState for freeformText
+  - Added onFreeformSubmit callback prop to ActionPanel alongside existing onActionSelect
+  - handleFreeformSubmit calls /api/world/freeform with { text: string } body
+  - Response can include knowledgeRejection flag for playful narrator rejection messages
+  - DOM lib errors (focus, e.target.value) are pre-existing issues - same pattern as App.tsx line 135
+  - Input clears after submission via setFreeformText("")
+  - Submit button uses → arrow character, disabled when input empty or processing
+---
