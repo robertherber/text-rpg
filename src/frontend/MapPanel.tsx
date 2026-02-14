@@ -13,6 +13,14 @@ export interface MapLocation {
 }
 
 /**
+ * Map data from API (includes fog of war info)
+ */
+interface MapData {
+  locations: MapLocation[];
+  exploredTiles: string[]; // Array of "x,y" coordinate strings
+}
+
+/**
  * Props for the MapPanel component
  */
 interface MapPanelProps {
@@ -853,6 +861,91 @@ function drawParchmentEdges(ctx: CanvasRenderingContext2D, width: number, height
 }
 
 /**
+ * Draw fog of war over unexplored tiles with soft edges
+ */
+function drawFogOfWar(
+  ctx: CanvasRenderingContext2D,
+  bounds: { minX: number; maxX: number; minY: number; maxY: number },
+  exploredTiles: Set<string>,
+  gridToCanvas: (gridX: number, gridY: number, bounds: { minX: number; maxX: number; minY: number; maxY: number }) => { x: number; y: number; canvasWidth: number; canvasHeight: number }
+) {
+  ctx.save();
+
+  // Iterate through all tiles in the visible bounds
+  for (let gridX = bounds.minX; gridX <= bounds.maxX; gridX++) {
+    for (let gridY = bounds.minY; gridY <= bounds.maxY; gridY++) {
+      const tileKey = `${gridX},${gridY}`;
+
+      if (!exploredTiles.has(tileKey)) {
+        // This tile is unexplored - draw fog
+        const { x, y } = gridToCanvas(gridX, gridY, bounds);
+
+        // Calculate fog opacity based on distance to nearest explored tile
+        let minDistanceToExplored = Infinity;
+        for (let dx = -2; dx <= 2; dx++) {
+          for (let dy = -2; dy <= 2; dy++) {
+            const neighborKey = `${gridX + dx},${gridY + dy}`;
+            if (exploredTiles.has(neighborKey)) {
+              const distance = Math.sqrt(dx * dx + dy * dy);
+              if (distance < minDistanceToExplored) {
+                minDistanceToExplored = distance;
+              }
+            }
+          }
+        }
+
+        // Fog opacity: full for tiles far from explored, softer near explored edges
+        let fogOpacity: number;
+        if (minDistanceToExplored === Infinity || minDistanceToExplored > 2) {
+          fogOpacity = 0.85; // Full fog for distant tiles
+        } else if (minDistanceToExplored > 1) {
+          fogOpacity = 0.6; // Medium fog for tiles 1-2 away
+        } else {
+          fogOpacity = 0.35; // Light fog for immediate neighbors (soft edge)
+        }
+
+        // Draw fog as a soft radial gradient for natural blending
+        const fogRadius = CELL_SIZE / 2 + 5;
+        const fogGradient = ctx.createRadialGradient(x, y, 0, x, y, fogRadius);
+        fogGradient.addColorStop(0, `rgba(92, 82, 68, ${fogOpacity})`);
+        fogGradient.addColorStop(0.6, `rgba(82, 72, 58, ${fogOpacity * 0.9})`);
+        fogGradient.addColorStop(1, `rgba(72, 62, 48, ${fogOpacity * 0.7})`);
+
+        ctx.fillStyle = fogGradient;
+        ctx.beginPath();
+        ctx.arc(x, y, fogRadius, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Add subtle cloud/mist texture to fog
+        const cloudCount = 3 + Math.floor(Math.random() * 3);
+        for (let c = 0; c < cloudCount; c++) {
+          const cloudX = x + (Math.random() - 0.5) * CELL_SIZE * 0.6;
+          const cloudY = y + (Math.random() - 0.5) * CELL_SIZE * 0.6;
+          const cloudSize = 5 + Math.random() * 10;
+          const cloudOpacity = fogOpacity * (0.2 + Math.random() * 0.3);
+
+          ctx.fillStyle = `rgba(120, 110, 95, ${cloudOpacity})`;
+          ctx.beginPath();
+          ctx.arc(cloudX, cloudY, cloudSize, 0, Math.PI * 2);
+          ctx.fill();
+        }
+
+        // Draw "?" symbol in center of heavily fogged tiles
+        if (fogOpacity > 0.6) {
+          ctx.fillStyle = `rgba(160, 145, 120, ${fogOpacity * 0.6})`;
+          ctx.font = "italic 14px Georgia, serif";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          ctx.fillText("?", x, y);
+        }
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+/**
  * LegendIcon - Renders a small terrain icon for the legend
  */
 function LegendIcon({ terrain }: { terrain: string }) {
@@ -924,7 +1017,8 @@ function LegendPlayerIcon() {
 export default function MapPanel({ onLocationClick }: MapPanelProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
-  const [mapData, setMapData] = useState<MapLocation[]>([]);
+  const [locations, setLocations] = useState<MapLocation[]>([]);
+  const [exploredTiles, setExploredTiles] = useState<Set<string>>(new Set());
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [hoveredLocation, setHoveredLocation] = useState<MapLocation | null>(null);
@@ -935,8 +1029,9 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
       try {
         setIsLoading(true);
         const response = await fetch("/api/world/map");
-        const data = (await response.json()) as MapLocation[];
-        setMapData(data);
+        const data = (await response.json()) as MapData;
+        setLocations(data.locations);
+        setExploredTiles(new Set(data.exploredTiles));
         setError(null);
       } catch (err) {
         setError("Failed to load map data");
@@ -951,14 +1046,14 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
 
   // Calculate canvas bounds from map data
   const getBounds = () => {
-    if (mapData.length === 0) {
+    if (locations.length === 0) {
       return { minX: -2, maxX: 2, minY: -2, maxY: 2 };
     }
 
     let minX = Infinity, maxX = -Infinity;
     let minY = Infinity, maxY = -Infinity;
 
-    for (const loc of mapData) {
+    for (const loc of locations) {
       if (loc.x < minX) minX = loc.x;
       if (loc.x > maxX) maxX = loc.x;
       if (loc.y < minY) minY = loc.y;
@@ -989,7 +1084,7 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
   // Draw the map on canvas
   useEffect(() => {
     const canvas = canvasRef.current;
-    if (!canvas || mapData.length === 0) return;
+    if (!canvas || locations.length === 0) return;
 
     const ctx = canvas.getContext("2d");
     if (!ctx) return;
@@ -1032,7 +1127,7 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
     ctx.setLineDash([]);
 
     // Draw locations
-    for (const location of mapData) {
+    for (const location of locations) {
       const { x, y } = gridToCanvas(location.x, location.y, bounds);
       const nodeSize = CELL_SIZE / 2 - 5;
 
@@ -1078,12 +1173,15 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
       ctx.fillText(displayName, x, y + nodeSize + 2);
     }
 
-  }, [mapData]);
+    // Draw fog of war over unexplored tiles
+    drawFogOfWar(ctx, bounds, exploredTiles, gridToCanvas);
+
+  }, [locations, exploredTiles]);
 
   // Handle mouse move for hover state
   const handleMouseMove = (e: React.MouseEvent<HTMLCanvasElement>) => {
     const canvas = canvasRef.current;
-    if (!canvas || mapData.length === 0) return;
+    if (!canvas || locations.length === 0) return;
 
     const rect = canvas.getBoundingClientRect();
     const mouseX = e.clientX - rect.left;
@@ -1092,7 +1190,7 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
     const bounds = getBounds();
 
     // Check if hovering over any location
-    for (const location of mapData) {
+    for (const location of locations) {
       const { x, y } = gridToCanvas(location.x, location.y, bounds);
       const nodeSize = CELL_SIZE / 2 - 5;
 
@@ -1133,7 +1231,7 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
     );
   }
 
-  if (mapData.length === 0) {
+  if (locations.length === 0) {
     return (
       <div className="map-panel">
         <p className="placeholder-text">No locations discovered yet...</p>
