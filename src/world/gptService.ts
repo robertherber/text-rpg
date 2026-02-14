@@ -453,3 +453,121 @@ Resolve this action and return the result as JSON.`;
 
   return response.content;
 }
+
+// JSON Schema for SuggestedActions response from GPT
+const SUGGESTED_ACTIONS_SCHEMA = {
+  type: "object",
+  properties: {
+    actions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: {
+            type: "string",
+            description: "Unique identifier for the action",
+          },
+          text: {
+            type: "string",
+            description: "Human-readable action text",
+          },
+          type: {
+            type: "string",
+            enum: [
+              "move",
+              "talk",
+              "examine",
+              "use",
+              "attack",
+              "craft",
+              "build",
+              "travel",
+              "other",
+            ],
+          },
+          targetLocationId: {
+            type: "string",
+            description: "Location ID if this is a movement action",
+          },
+          targetNpcId: {
+            type: "string",
+            description: "NPC ID if this targets an NPC",
+          },
+        },
+        required: ["id", "text", "type"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["actions"],
+  additionalProperties: false,
+};
+
+/**
+ * Generate 3-6 contextual suggested actions based on the current world state.
+ * Includes movement options (step carefully, travel to known locations),
+ * NPC interactions, and item/environment interactions.
+ */
+export async function generateSuggestedActions(
+  worldState: WorldState
+): Promise<SuggestedAction[]> {
+  const context = buildActionContext(worldState);
+  const { player, locations, npcs } = worldState;
+  const currentLocation = locations[player.currentLocationId];
+
+  // Build additional context about possible destinations
+  const adjacentDirections = ["north", "south", "east", "west"];
+  const knownLocations = player.knowledge.locations
+    .map((locName) => {
+      const loc = Object.values(locations).find(
+        (l) => l.name === locName || l.id === locName
+      );
+      return loc ? `${loc.name} (${loc.terrain})` : locName;
+    })
+    .slice(0, 5);
+
+  // Get present NPCs for interaction options
+  const presentNpcs =
+    currentLocation?.presentNpcIds
+      .map((id) => npcs[id])
+      .filter((npc) => npc && npc.isAlive) || [];
+
+  const systemPrompt = `You are generating contextual action suggestions for a fantasy medieval RPG.
+
+Given the current game context, generate 3-6 suggested actions the player might take.
+
+ACTION REQUIREMENTS:
+1. ALWAYS include at least one movement option:
+   - "Step carefully to the [direction]" for unexplored areas (type: "move")
+   - "Travel to [known location name]" for fast travel (type: "travel", include targetLocationId)
+
+2. If NPCs are present, include talk options:
+   - "Speak with [NPC name]" (type: "talk", include targetNpcId)
+
+3. Include contextual actions based on the situation:
+   - Examine interesting features of the location
+   - Use items from inventory if relevant
+   - Interact with structures if present
+   - Pick up items if visible
+
+4. Actions should feel natural and contextual to the scene
+
+AVAILABLE DIRECTIONS: ${adjacentDirections.join(", ")}
+KNOWN LOCATIONS FOR TRAVEL: ${knownLocations.length > 0 ? knownLocations.join(", ") : "Only current location known"}
+PRESENT NPCS: ${presentNpcs.map((npc) => `${npc.name} (ID: ${npc.id})`).join(", ") || "None"}
+
+Generate unique IDs like "action_1", "action_2", etc.`;
+
+  const userPrompt = `${context}
+
+Generate 3-6 contextual suggested actions for the player. Include movement, interaction, and any situationally appropriate options.`;
+
+  const response = await callGPT<{ actions: SuggestedAction[] }>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: SUGGESTED_ACTIONS_SCHEMA,
+    maxTokens: 1000,
+  });
+
+  return response.content.actions;
+}

@@ -131,3 +131,16 @@
   - `builtAtAction` defaults to current `state.actionCounter` when not provided
 ---
 
+## 2026-02-14 - US-011
+- What was implemented: Created suggested actions generator for GPT to produce contextual action options
+- Files changed:
+  - src/world/gptService.ts (modified - added generateSuggestedActions function and SUGGESTED_ACTIONS_SCHEMA)
+- **Learnings for future iterations:**
+  - `generateSuggestedActions(worldState)` returns Promise<SuggestedAction[]> using GPT with JSON schema
+  - System prompt instructs GPT to include: movement options ("step carefully" for unexplored, "travel to" for known), NPC talk options, contextual examine/use/interact actions
+  - Present NPCs are passed with their IDs so GPT can set targetNpcId correctly
+  - Known locations are filtered from player.knowledge.locations and mapped to actual location objects for travel suggestions
+  - Use `--skipLibCheck` when running tsc to avoid node_modules type errors
+  - JSON schema wraps actions in an object `{ actions: SuggestedAction[] }` for strict mode compatibility
+---
+
