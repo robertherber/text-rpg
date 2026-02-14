@@ -1,4 +1,5 @@
 import index from "./public/index.html";
+import worldIndex from "./public/world.html";
 import {
   createInitialState,
   getLocation,
@@ -61,6 +62,7 @@ const server = Bun.serve({
 
   routes: {
     "/": index,
+    "/world": worldIndex,
 
     // Start a new game
     "/api/game/start": {
