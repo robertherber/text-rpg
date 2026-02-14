@@ -199,8 +199,8 @@
         "Verify in browser using dev-browser skill"
       ],
       "priority": 13,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added 15 terrain-specific hand-drawn icon functions (village, forest, mountains, plains, road, swamp, water, dungeon, cave, ruins, desert, tavern, shop, castle, temple) plus generic fallback. Player marker uses distinctive compass rose/star shape with N indicator. All icons use parchment ink colors and stroke-based drawing."
     },
     {
       "id": "US-014",

@@ -41,7 +41,8 @@ const TERRAIN_COLORS: Record<string, string> = {
 // Grid settings
 const CELL_SIZE = 60;
 const PADDING = 40;
-const CURRENT_MARKER_SIZE = 8;
+const CURRENT_MARKER_SIZE = 10;
+const ICON_SIZE = 24; // Size of terrain icons
 
 // Parchment color palette
 const PARCHMENT_COLORS = {
@@ -54,6 +55,654 @@ const PARCHMENT_COLORS = {
   inkLight: "#6b5a4a",
   gridLine: "rgba(74, 58, 42, 0.3)",
 };
+
+/**
+ * Draw a hand-drawn style village icon (small houses with a tower)
+ */
+function drawVillageIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Main house
+  ctx.beginPath();
+  ctx.moveTo(x - 8 * s, y + 6 * s);
+  ctx.lineTo(x - 8 * s, y - 2 * s);
+  ctx.lineTo(x, y - 10 * s);
+  ctx.lineTo(x + 8 * s, y - 2 * s);
+  ctx.lineTo(x + 8 * s, y + 6 * s);
+  ctx.stroke();
+
+  // Door
+  ctx.beginPath();
+  ctx.moveTo(x - 2 * s, y + 6 * s);
+  ctx.lineTo(x - 2 * s, y);
+  ctx.lineTo(x + 2 * s, y);
+  ctx.lineTo(x + 2 * s, y + 6 * s);
+  ctx.stroke();
+
+  // Small house to the side
+  ctx.beginPath();
+  ctx.moveTo(x + 10 * s, y + 6 * s);
+  ctx.lineTo(x + 10 * s, y + 2 * s);
+  ctx.lineTo(x + 14 * s, y - 2 * s);
+  ctx.lineTo(x + 18 * s, y + 2 * s);
+  ctx.lineTo(x + 18 * s, y + 6 * s);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style forest icon (trees)
+ */
+function drawForestIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Left tree
+  ctx.beginPath();
+  ctx.moveTo(x - 8 * s, y + 8 * s);
+  ctx.lineTo(x - 8 * s, y + 2 * s);
+  ctx.moveTo(x - 14 * s, y + 2 * s);
+  ctx.lineTo(x - 8 * s, y - 8 * s);
+  ctx.lineTo(x - 2 * s, y + 2 * s);
+  ctx.stroke();
+
+  // Center tree (taller)
+  ctx.beginPath();
+  ctx.moveTo(x, y + 8 * s);
+  ctx.lineTo(x, y);
+  ctx.moveTo(x - 8 * s, y);
+  ctx.lineTo(x, y - 12 * s);
+  ctx.lineTo(x + 8 * s, y);
+  ctx.stroke();
+
+  // Right tree
+  ctx.beginPath();
+  ctx.moveTo(x + 8 * s, y + 8 * s);
+  ctx.lineTo(x + 8 * s, y + 2 * s);
+  ctx.moveTo(x + 2 * s, y + 2 * s);
+  ctx.lineTo(x + 8 * s, y - 6 * s);
+  ctx.lineTo(x + 14 * s, y + 2 * s);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style mountains icon
+ */
+function drawMountainsIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Back mountain
+  ctx.beginPath();
+  ctx.moveTo(x - 14 * s, y + 8 * s);
+  ctx.lineTo(x - 4 * s, y - 6 * s);
+  ctx.lineTo(x + 6 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Front mountain (larger)
+  ctx.beginPath();
+  ctx.moveTo(x - 8 * s, y + 8 * s);
+  ctx.lineTo(x + 4 * s, y - 10 * s);
+  ctx.lineTo(x + 16 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Snow cap on front mountain
+  ctx.beginPath();
+  ctx.moveTo(x, y - 4 * s);
+  ctx.lineTo(x + 4 * s, y - 10 * s);
+  ctx.lineTo(x + 8 * s, y - 4 * s);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style plains/grassland icon
+ */
+function drawPlainsIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  // Grass tufts
+  for (let i = -1; i <= 1; i++) {
+    const baseX = x + i * 8 * s;
+    ctx.beginPath();
+    ctx.moveTo(baseX - 3 * s, y + 6 * s);
+    ctx.quadraticCurveTo(baseX - 4 * s, y - 2 * s, baseX - 2 * s, y - 6 * s);
+    ctx.moveTo(baseX, y + 6 * s);
+    ctx.quadraticCurveTo(baseX, y - 4 * s, baseX, y - 8 * s);
+    ctx.moveTo(baseX + 3 * s, y + 6 * s);
+    ctx.quadraticCurveTo(baseX + 4 * s, y - 2 * s, baseX + 2 * s, y - 6 * s);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style road/path icon
+ */
+function drawRoadIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  // Winding path
+  ctx.beginPath();
+  ctx.moveTo(x - 4 * s, y + 10 * s);
+  ctx.quadraticCurveTo(x - 8 * s, y + 2 * s, x, y);
+  ctx.quadraticCurveTo(x + 8 * s, y - 2 * s, x + 4 * s, y - 10 * s);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x + 4 * s, y + 10 * s);
+  ctx.quadraticCurveTo(x, y + 2 * s, x + 8 * s, y);
+  ctx.quadraticCurveTo(x + 16 * s, y - 2 * s, x + 12 * s, y - 10 * s);
+  ctx.stroke();
+
+  // Path stones
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.beginPath();
+  ctx.arc(x, y + 4 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(x + 6 * s, y - 2 * s, 1.5 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style swamp icon
+ */
+function drawSwampIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  // Wavy water lines
+  for (let i = 0; i < 3; i++) {
+    const yOffset = y + (i - 1) * 6 * s;
+    ctx.beginPath();
+    ctx.moveTo(x - 12 * s, yOffset);
+    ctx.quadraticCurveTo(x - 6 * s, yOffset - 3 * s, x, yOffset);
+    ctx.quadraticCurveTo(x + 6 * s, yOffset + 3 * s, x + 12 * s, yOffset);
+    ctx.stroke();
+  }
+
+  // Reeds
+  ctx.beginPath();
+  ctx.moveTo(x - 8 * s, y + 4 * s);
+  ctx.lineTo(x - 8 * s, y - 8 * s);
+  ctx.moveTo(x - 10 * s, y - 6 * s);
+  ctx.lineTo(x - 8 * s, y - 8 * s);
+  ctx.lineTo(x - 6 * s, y - 6 * s);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style water/lake icon
+ */
+function drawWaterIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  // Waves
+  for (let i = 0; i < 3; i++) {
+    const yOffset = y + (i - 1) * 5 * s;
+    ctx.beginPath();
+    ctx.moveTo(x - 10 * s, yOffset);
+    ctx.quadraticCurveTo(x - 5 * s, yOffset - 3 * s, x, yOffset);
+    ctx.quadraticCurveTo(x + 5 * s, yOffset + 3 * s, x + 10 * s, yOffset);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style dungeon/cave entrance icon
+ */
+function drawDungeonIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Cave entrance arch
+  ctx.beginPath();
+  ctx.moveTo(x - 10 * s, y + 8 * s);
+  ctx.lineTo(x - 10 * s, y - 2 * s);
+  ctx.quadraticCurveTo(x - 10 * s, y - 10 * s, x, y - 10 * s);
+  ctx.quadraticCurveTo(x + 10 * s, y - 10 * s, x + 10 * s, y - 2 * s);
+  ctx.lineTo(x + 10 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Dark interior (filled arch)
+  ctx.beginPath();
+  ctx.moveTo(x - 6 * s, y + 8 * s);
+  ctx.lineTo(x - 6 * s, y);
+  ctx.quadraticCurveTo(x - 6 * s, y - 6 * s, x, y - 6 * s);
+  ctx.quadraticCurveTo(x + 6 * s, y - 6 * s, x + 6 * s, y);
+  ctx.lineTo(x + 6 * s, y + 8 * s);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style cave icon (similar to dungeon but more natural)
+ */
+function drawCaveIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  // Rough rock outline
+  ctx.beginPath();
+  ctx.moveTo(x - 12 * s, y + 8 * s);
+  ctx.lineTo(x - 14 * s, y - 4 * s);
+  ctx.lineTo(x - 8 * s, y - 10 * s);
+  ctx.lineTo(x, y - 8 * s);
+  ctx.lineTo(x + 8 * s, y - 10 * s);
+  ctx.lineTo(x + 14 * s, y - 4 * s);
+  ctx.lineTo(x + 12 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Dark cave opening
+  ctx.beginPath();
+  ctx.ellipse(x, y + 2 * s, 6 * s, 5 * s, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style ruins icon
+ */
+function drawRuinsIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  // Broken pillars
+  ctx.beginPath();
+  ctx.moveTo(x - 10 * s, y + 8 * s);
+  ctx.lineTo(x - 10 * s, y - 4 * s);
+  ctx.lineTo(x - 8 * s, y - 6 * s);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x - 4 * s, y + 8 * s);
+  ctx.lineTo(x - 4 * s, y - 8 * s);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x + 4 * s, y + 8 * s);
+  ctx.lineTo(x + 4 * s, y);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x + 10 * s, y + 8 * s);
+  ctx.lineTo(x + 10 * s, y - 2 * s);
+  ctx.lineTo(x + 12 * s, y - 4 * s);
+  ctx.stroke();
+
+  // Fallen stones
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.beginPath();
+  ctx.ellipse(x + 2 * s, y + 6 * s, 3 * s, 2 * s, 0.2, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style desert icon
+ */
+function drawDesertIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+
+  // Sand dunes
+  ctx.beginPath();
+  ctx.moveTo(x - 14 * s, y + 6 * s);
+  ctx.quadraticCurveTo(x - 8 * s, y - 2 * s, x, y + 2 * s);
+  ctx.quadraticCurveTo(x + 8 * s, y + 6 * s, x + 14 * s, y + 4 * s);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.moveTo(x - 10 * s, y + 8 * s);
+  ctx.quadraticCurveTo(x - 4 * s, y + 2 * s, x + 4 * s, y + 6 * s);
+  ctx.stroke();
+
+  // Cactus or sun lines
+  ctx.beginPath();
+  ctx.moveTo(x + 8 * s, y - 8 * s);
+  ctx.lineTo(x + 8 * s, y - 2 * s);
+  ctx.moveTo(x + 4 * s, y - 4 * s);
+  ctx.lineTo(x + 8 * s, y - 4 * s);
+  ctx.lineTo(x + 8 * s, y - 6 * s);
+  ctx.moveTo(x + 12 * s, y - 6 * s);
+  ctx.lineTo(x + 8 * s, y - 6 * s);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style tavern icon
+ */
+function drawTavernIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Building
+  ctx.beginPath();
+  ctx.moveTo(x - 10 * s, y + 8 * s);
+  ctx.lineTo(x - 10 * s, y - 2 * s);
+  ctx.lineTo(x, y - 10 * s);
+  ctx.lineTo(x + 10 * s, y - 2 * s);
+  ctx.lineTo(x + 10 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Door
+  ctx.beginPath();
+  ctx.moveTo(x - 3 * s, y + 8 * s);
+  ctx.lineTo(x - 3 * s, y + 2 * s);
+  ctx.lineTo(x + 3 * s, y + 2 * s);
+  ctx.lineTo(x + 3 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Sign hanging
+  ctx.beginPath();
+  ctx.moveTo(x + 10 * s, y - 2 * s);
+  ctx.lineTo(x + 14 * s, y - 2 * s);
+  ctx.moveTo(x + 12 * s, y - 2 * s);
+  ctx.lineTo(x + 12 * s, y + 2 * s);
+  ctx.stroke();
+
+  // Mug on sign
+  ctx.beginPath();
+  ctx.arc(x + 12 * s, y + 4 * s, 2 * s, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style shop icon
+ */
+function drawShopIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Building with awning
+  ctx.beginPath();
+  ctx.moveTo(x - 10 * s, y + 8 * s);
+  ctx.lineTo(x - 10 * s, y - 6 * s);
+  ctx.lineTo(x + 10 * s, y - 6 * s);
+  ctx.lineTo(x + 10 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Awning
+  ctx.beginPath();
+  ctx.moveTo(x - 12 * s, y - 6 * s);
+  ctx.lineTo(x - 12 * s, y);
+  ctx.lineTo(x + 12 * s, y);
+  ctx.lineTo(x + 12 * s, y - 6 * s);
+  ctx.stroke();
+
+  // Awning stripes
+  for (let i = -8; i <= 8; i += 4) {
+    ctx.beginPath();
+    ctx.moveTo(x + i * s, y - 6 * s);
+    ctx.lineTo(x + i * s, y);
+    ctx.stroke();
+  }
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style castle icon
+ */
+function drawCastleIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Main wall
+  ctx.beginPath();
+  ctx.moveTo(x - 12 * s, y + 8 * s);
+  ctx.lineTo(x - 12 * s, y - 4 * s);
+  // Battlements
+  ctx.lineTo(x - 10 * s, y - 4 * s);
+  ctx.lineTo(x - 10 * s, y - 6 * s);
+  ctx.lineTo(x - 6 * s, y - 6 * s);
+  ctx.lineTo(x - 6 * s, y - 4 * s);
+  ctx.lineTo(x - 2 * s, y - 4 * s);
+  ctx.lineTo(x - 2 * s, y - 6 * s);
+  ctx.lineTo(x + 2 * s, y - 6 * s);
+  ctx.lineTo(x + 2 * s, y - 4 * s);
+  ctx.lineTo(x + 6 * s, y - 4 * s);
+  ctx.lineTo(x + 6 * s, y - 6 * s);
+  ctx.lineTo(x + 10 * s, y - 6 * s);
+  ctx.lineTo(x + 10 * s, y - 4 * s);
+  ctx.lineTo(x + 12 * s, y - 4 * s);
+  ctx.lineTo(x + 12 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Tower
+  ctx.beginPath();
+  ctx.moveTo(x - 4 * s, y - 4 * s);
+  ctx.lineTo(x - 4 * s, y - 10 * s);
+  ctx.lineTo(x, y - 12 * s);
+  ctx.lineTo(x + 4 * s, y - 10 * s);
+  ctx.lineTo(x + 4 * s, y - 4 * s);
+  ctx.stroke();
+
+  // Gate
+  ctx.beginPath();
+  ctx.moveTo(x - 3 * s, y + 8 * s);
+  ctx.lineTo(x - 3 * s, y + 2 * s);
+  ctx.quadraticCurveTo(x - 3 * s, y - 2 * s, x, y - 2 * s);
+  ctx.quadraticCurveTo(x + 3 * s, y - 2 * s, x + 3 * s, y + 2 * s);
+  ctx.lineTo(x + 3 * s, y + 8 * s);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a hand-drawn style temple icon
+ */
+function drawTempleIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+  ctx.lineCap = "round";
+  ctx.lineJoin = "round";
+
+  // Triangular roof
+  ctx.beginPath();
+  ctx.moveTo(x - 14 * s, y - 2 * s);
+  ctx.lineTo(x, y - 12 * s);
+  ctx.lineTo(x + 14 * s, y - 2 * s);
+  ctx.stroke();
+
+  // Columns
+  ctx.beginPath();
+  ctx.moveTo(x - 10 * s, y - 2 * s);
+  ctx.lineTo(x - 10 * s, y + 8 * s);
+  ctx.moveTo(x - 4 * s, y - 2 * s);
+  ctx.lineTo(x - 4 * s, y + 8 * s);
+  ctx.moveTo(x + 4 * s, y - 2 * s);
+  ctx.lineTo(x + 4 * s, y + 8 * s);
+  ctx.moveTo(x + 10 * s, y - 2 * s);
+  ctx.lineTo(x + 10 * s, y + 8 * s);
+  ctx.stroke();
+
+  // Base
+  ctx.beginPath();
+  ctx.moveTo(x - 12 * s, y + 8 * s);
+  ctx.lineTo(x + 12 * s, y + 8 * s);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/**
+ * Draw a generic location marker (fallback)
+ */
+function drawGenericMarker(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 24;
+  ctx.save();
+  ctx.strokeStyle = PARCHMENT_COLORS.ink;
+  ctx.fillStyle = PARCHMENT_COLORS.ink;
+  ctx.lineWidth = 1.5;
+
+  // Circle with dot
+  ctx.beginPath();
+  ctx.arc(x, y, 8 * s, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.beginPath();
+  ctx.arc(x, y, 3 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+/**
+ * Draw terrain icon based on terrain type
+ */
+function drawTerrainIcon(ctx: CanvasRenderingContext2D, x: number, y: number, size: number, terrain: string) {
+  const iconDrawers: Record<string, (ctx: CanvasRenderingContext2D, x: number, y: number, size: number) => void> = {
+    village: drawVillageIcon,
+    forest: drawForestIcon,
+    mountains: drawMountainsIcon,
+    plains: drawPlainsIcon,
+    road: drawRoadIcon,
+    swamp: drawSwampIcon,
+    water: drawWaterIcon,
+    dungeon: drawDungeonIcon,
+    cave: drawCaveIcon,
+    ruins: drawRuinsIcon,
+    desert: drawDesertIcon,
+    tavern: drawTavernIcon,
+    shop: drawShopIcon,
+    castle: drawCastleIcon,
+    temple: drawTempleIcon,
+  };
+
+  const drawer = iconDrawers[terrain] || drawGenericMarker;
+  drawer(ctx, x, y, size);
+}
+
+/**
+ * Draw a hand-drawn style player position marker (compass/adventurer)
+ */
+function drawPlayerMarker(ctx: CanvasRenderingContext2D, x: number, y: number, size: number) {
+  const s = size / 12;
+  ctx.save();
+
+  // Outer glow/shadow
+  ctx.shadowColor = "rgba(139, 69, 19, 0.5)";
+  ctx.shadowBlur = 4;
+  ctx.shadowOffsetX = 1;
+  ctx.shadowOffsetY = 1;
+
+  // Compass rose / star shape
+  ctx.fillStyle = "#8b4513"; // Saddle brown
+  ctx.strokeStyle = "#4a3a2a";
+  ctx.lineWidth = 1;
+
+  ctx.beginPath();
+  // Four-pointed star
+  ctx.moveTo(x, y - 10 * s); // Top point
+  ctx.lineTo(x + 3 * s, y - 3 * s);
+  ctx.lineTo(x + 10 * s, y); // Right point
+  ctx.lineTo(x + 3 * s, y + 3 * s);
+  ctx.lineTo(x, y + 10 * s); // Bottom point
+  ctx.lineTo(x - 3 * s, y + 3 * s);
+  ctx.lineTo(x - 10 * s, y); // Left point
+  ctx.lineTo(x - 3 * s, y - 3 * s);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  // Inner circle highlight
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = "#d4a843";
+  ctx.beginPath();
+  ctx.arc(x, y, 3 * s, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Tiny "N" indicator for north (top)
+  ctx.fillStyle = "#4a3a2a";
+  ctx.font = `bold ${6 * s}px Georgia, serif`;
+  ctx.textAlign = "center";
+  ctx.textBaseline = "bottom";
+  ctx.fillText("N", x, y - 10 * s - 2);
+
+  ctx.restore();
+}
 
 /**
  * Draw parchment texture background on canvas
@@ -204,6 +853,66 @@ function drawParchmentEdges(ctx: CanvasRenderingContext2D, width: number, height
 }
 
 /**
+ * LegendIcon - Renders a small terrain icon for the legend
+ */
+function LegendIcon({ terrain }: { terrain: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, 24, 24);
+
+    // Draw terrain icon centered in the small canvas
+    drawTerrainIcon(ctx, 12, 12, 18, terrain);
+  }, [terrain]);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={24}
+      height={24}
+      className="legend-icon-canvas"
+    />
+  );
+}
+
+/**
+ * LegendPlayerIcon - Renders the player marker icon for the legend
+ */
+function LegendPlayerIcon() {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    // Clear canvas
+    ctx.clearRect(0, 0, 24, 24);
+
+    // Draw player marker centered in the small canvas
+    drawPlayerMarker(ctx, 12, 12, 8);
+  }, []);
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={24}
+      height={24}
+      className="legend-icon-canvas"
+    />
+  );
+}
+
+/**
  * MapPanel - Renders explored areas on an HTML canvas.
  *
  * Features:
@@ -325,61 +1034,48 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
     // Draw locations
     for (const location of mapData) {
       const { x, y } = gridToCanvas(location.x, location.y, bounds);
-      const color = TERRAIN_COLORS[location.terrain] || "#666666";
       const nodeSize = CELL_SIZE / 2 - 5;
 
-      // Draw location node with subtle shadow for depth
+      // Draw subtle background circle for location area
       ctx.save();
-      ctx.shadowColor = "rgba(0, 0, 0, 0.3)";
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetX = 2;
-      ctx.shadowOffsetY = 2;
-
-      ctx.fillStyle = color;
+      ctx.fillStyle = "rgba(232, 220, 200, 0.6)";
       ctx.beginPath();
-      ctx.roundRect(x - nodeSize, y - nodeSize, nodeSize * 2, nodeSize * 2, 8);
+      ctx.arc(x, y, nodeSize, 0, Math.PI * 2);
       ctx.fill();
+
+      // Add hand-drawn style border
+      ctx.strokeStyle = "rgba(74, 58, 42, 0.3)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.arc(x, y, nodeSize, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.setLineDash([]);
       ctx.restore();
 
-      // Draw border in ink style
-      ctx.strokeStyle = location.isCurrent ? "#8b4513" : PARCHMENT_COLORS.ink;
-      ctx.lineWidth = location.isCurrent ? 3 : 1.5;
-      ctx.beginPath();
-      ctx.roundRect(x - nodeSize, y - nodeSize, nodeSize * 2, nodeSize * 2, 8);
-      ctx.stroke();
+      // Draw terrain icon
+      drawTerrainIcon(ctx, x, y, ICON_SIZE, location.terrain);
 
-      // Draw current location marker (compass rose style)
+      // Draw player marker if current location
       if (location.isCurrent) {
-        ctx.fillStyle = "#8b4513";
-        ctx.beginPath();
-        // Draw a small X marker above location
-        const markerY = y - nodeSize - CURRENT_MARKER_SIZE - 4;
-        ctx.moveTo(x, markerY - CURRENT_MARKER_SIZE);
-        ctx.lineTo(x + CURRENT_MARKER_SIZE * 0.6, markerY);
-        ctx.lineTo(x, markerY + CURRENT_MARKER_SIZE * 0.6);
-        ctx.lineTo(x - CURRENT_MARKER_SIZE * 0.6, markerY);
-        ctx.closePath();
-        ctx.fill();
-
-        // Add inner highlight
-        ctx.fillStyle = "#d4a843";
-        ctx.beginPath();
-        ctx.arc(x, markerY, CURRENT_MARKER_SIZE * 0.3, 0, Math.PI * 2);
-        ctx.fill();
+        // Position the player marker above and to the right of the location
+        const markerX = x + nodeSize - 4;
+        const markerY = y - nodeSize + 4;
+        drawPlayerMarker(ctx, markerX, markerY, CURRENT_MARKER_SIZE);
       }
 
-      // Draw location name in ink
+      // Draw location name in ink with hand-drawn style
       ctx.fillStyle = PARCHMENT_COLORS.ink;
-      ctx.font = "bold 10px Georgia, serif";
+      ctx.font = "italic 9px Georgia, serif";
       ctx.textAlign = "center";
       ctx.textBaseline = "top";
 
       // Truncate long names
       let displayName = location.name;
-      if (displayName.length > 12) {
-        displayName = displayName.substring(0, 10) + "...";
+      if (displayName.length > 14) {
+        displayName = displayName.substring(0, 12) + "...";
       }
-      ctx.fillText(displayName, x, y + nodeSize + 4);
+      ctx.fillText(displayName, x, y + nodeSize + 2);
     }
 
   }, [mapData]);
@@ -471,16 +1167,20 @@ export default function MapPanel({ onLocationClick }: MapPanelProps) {
         </div>
       )}
 
-      {/* Legend */}
+      {/* Legend with hand-drawn icons */}
       <div className="map-legend">
         <div className="legend-title">Legend</div>
         <div className="legend-items">
-          {Object.entries(TERRAIN_COLORS).slice(0, 6).map(([terrain, color]) => (
+          {["village", "forest", "mountains", "plains", "tavern", "castle"].map((terrain) => (
             <div key={terrain} className="legend-item">
-              <div className="legend-color" style={{ backgroundColor: color }} />
+              <LegendIcon terrain={terrain} />
               <span>{terrain}</span>
             </div>
           ))}
+        </div>
+        <div className="legend-player">
+          <LegendPlayerIcon />
+          <span>You are here</span>
         </div>
       </div>
     </div>
