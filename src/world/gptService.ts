@@ -1,6 +1,6 @@
 // GPT Service for AI-generated content
 import OpenAI from "openai";
-import type { WorldState, ActionResult, SuggestedAction } from "./types";
+import type { WorldState, ActionResult, SuggestedAction, Location } from "./types";
 
 // Initialize OpenAI client
 const openai = new OpenAI({
@@ -690,4 +690,210 @@ Generate 3-6 contextual suggested actions for the player. Include movement, inte
   });
 
   return response.content.actions;
+}
+
+// JSON Schema for generated Location response from GPT
+const GENERATED_LOCATION_SCHEMA = {
+  type: "object",
+  properties: {
+    name: {
+      type: "string",
+      description: "The name of the location (e.g., 'The Whispering Woods', 'Abandoned Mine Entrance')",
+    },
+    description: {
+      type: "string",
+      description: "A vivid, atmospheric description of the location (2-4 sentences)",
+    },
+    imagePrompt: {
+      type: "string",
+      description: "A detailed prompt for image generation, describing the visual scene",
+    },
+    terrain: {
+      type: "string",
+      enum: ["village", "forest", "mountain", "plains", "water", "cave", "dungeon", "road", "swamp", "desert"],
+      description: "The type of terrain",
+    },
+    dangerLevel: {
+      type: "number",
+      description: "Danger level from 0 (safe) to 10 (extremely dangerous)",
+    },
+    features: {
+      type: "array",
+      items: { type: "string" },
+      description: "Notable features or points of interest at this location",
+    },
+    possibleEncounters: {
+      type: "array",
+      items: { type: "string" },
+      description: "Types of creatures or events that might occur here",
+    },
+  },
+  required: ["name", "description", "imagePrompt", "terrain", "dangerLevel", "features", "possibleEncounters"],
+  additionalProperties: false,
+};
+
+export interface GeneratedLocationData {
+  name: string;
+  description: string;
+  imagePrompt: string;
+  terrain: "village" | "forest" | "mountain" | "plains" | "water" | "cave" | "dungeon" | "road" | "swamp" | "desert";
+  dangerLevel: number;
+  features: string[];
+  possibleEncounters: string[];
+}
+
+/**
+ * Calculate new coordinates based on direction from a starting point.
+ * Direction can be: "north", "south", "east", "west", "northeast", "northwest", "southeast", "southwest"
+ */
+function calculateCoordinatesFromDirection(
+  from: { x: number; y: number },
+  direction: string
+): { x: number; y: number } {
+  const directionMap: Record<string, { dx: number; dy: number }> = {
+    north: { dx: 0, dy: 1 },
+    south: { dx: 0, dy: -1 },
+    east: { dx: 1, dy: 0 },
+    west: { dx: -1, dy: 0 },
+    northeast: { dx: 1, dy: 1 },
+    northwest: { dx: -1, dy: 1 },
+    southeast: { dx: 1, dy: -1 },
+    southwest: { dx: -1, dy: -1 },
+  };
+
+  const delta = directionMap[direction.toLowerCase()] || { dx: 0, dy: 0 };
+
+  return {
+    x: from.x + delta.dx,
+    y: from.y + delta.dy,
+  };
+}
+
+/**
+ * Generate a new location dynamically based on direction from a departure point.
+ *
+ * @param worldState - The current world state
+ * @param direction - The direction traveled ("north", "south", "east", "west", etc.)
+ * @param fromLocationId - The ID of the location the player is departing from
+ * @returns A complete Location object ready to be added to worldState
+ */
+export async function generateLocation(
+  worldState: WorldState,
+  direction: string,
+  fromLocationId: string
+): Promise<Location> {
+  const fromLocation = worldState.locations[fromLocationId];
+
+  if (!fromLocation) {
+    throw new Error(`generateLocation: departure location not found: ${fromLocationId}`);
+  }
+
+  // Calculate coordinates for the new location
+  const newCoordinates = calculateCoordinatesFromDirection(
+    fromLocation.coordinates,
+    direction
+  );
+
+  // Check if a location already exists at these coordinates
+  const existingLocation = Object.values(worldState.locations).find(
+    (loc) => loc.coordinates.x === newCoordinates.x && loc.coordinates.y === newCoordinates.y
+  );
+
+  if (existingLocation) {
+    // Return existing location instead of generating a new one
+    return existingLocation;
+  }
+
+  // Build context from the departure point and surrounding area
+  const adjacentLocations = Object.values(worldState.locations).filter((loc) => {
+    const dx = Math.abs(loc.coordinates.x - newCoordinates.x);
+    const dy = Math.abs(loc.coordinates.y - newCoordinates.y);
+    return dx <= 1 && dy <= 1 && (dx > 0 || dy > 0);
+  });
+
+  const nearbyTerrains = adjacentLocations.map((loc) => loc.terrain);
+  const nearbyNames = adjacentLocations.map((loc) => loc.name);
+
+  // Calculate average danger level of nearby areas (with slight increase for unexplored)
+  const avgNearbyDanger = adjacentLocations.length > 0
+    ? adjacentLocations.reduce((sum, loc) => sum + loc.dangerLevel, 0) / adjacentLocations.length
+    : 2;
+
+  // Build context about recent exploration
+  const recentEvents = worldState.eventHistory.slice(-3)
+    .map((e) => e.description)
+    .join(" ");
+
+  const systemPrompt = `You are generating a new location for a fantasy medieval RPG world.
+
+The player is exploring ${direction} from "${fromLocation.name}" (${fromLocation.terrain}).
+Generate a location that makes sense geographically and thematically.
+
+CONTEXT FROM DEPARTURE POINT:
+- Departing from: ${fromLocation.name}
+- Departure terrain: ${fromLocation.terrain}
+- Departure description: ${fromLocation.description}
+- Departure danger level: ${fromLocation.dangerLevel}/10
+
+NEARBY LOCATIONS (for geographic coherence):
+${adjacentLocations.length > 0
+    ? adjacentLocations.map((loc) => `- ${loc.name} (${loc.terrain}, danger ${loc.dangerLevel}/10)`).join("\n")
+    : "- No explored locations nearby"}
+
+GUIDELINES:
+1. Terrain should make geographic sense (forests near forests, mountains near mountains, transitions should be gradual)
+2. Danger level should be similar to nearby areas (±2 levels), average nearby danger is ${avgNearbyDanger.toFixed(1)}
+3. Name should be evocative and fit high fantasy (e.g., "The Whispering Glade", "Broken Bridge Crossing", "Thornwick Dell")
+4. Description should be atmospheric and hint at what the player might find
+5. Image prompt should be detailed for DALL-E generation, include lighting, mood, and key visual elements
+6. Features should include 2-4 interesting things to interact with or examine
+7. Possible encounters should hint at what creatures or events might occur
+
+IMPORTANT:
+- Keep it high fantasy medieval - no modern or sci-fi elements
+- The world is coherent - locations should feel connected to their surroundings
+- Vary the danger level - not everything needs to be dangerous, but wilderness should feel wild`;
+
+  const userPrompt = `Generate a new location ${direction} of "${fromLocation.name}".
+
+Recent events: ${recentEvents || "No recent events"}
+
+Generate a location that feels like a natural extension of the world, considering:
+- It's ${direction} of a ${fromLocation.terrain}
+- Nearby terrains include: ${nearbyTerrains.length > 0 ? nearbyTerrains.join(", ") : "unknown"}
+- Nearby places: ${nearbyNames.length > 0 ? nearbyNames.join(", ") : "none explored yet"}
+
+Return the location details as JSON.`;
+
+  const response = await callGPT<GeneratedLocationData>({
+    systemPrompt,
+    userPrompt,
+    jsonSchema: GENERATED_LOCATION_SCHEMA,
+    maxTokens: 1000,
+  });
+
+  const generatedData = response.content;
+
+  // Generate a unique ID for the new location
+  const locationId = `loc_${direction}_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`;
+
+  // Construct the complete Location object
+  const newLocation: Location = {
+    id: locationId,
+    name: generatedData.name,
+    description: generatedData.description,
+    imagePrompt: generatedData.imagePrompt,
+    coordinates: newCoordinates,
+    terrain: generatedData.terrain,
+    dangerLevel: Math.max(0, Math.min(10, generatedData.dangerLevel)), // Clamp to 0-10
+    presentNpcIds: [],
+    items: [],
+    structures: [],
+    notes: [],
+    isCanonical: false, // Dynamically generated
+    lastVisitedAtAction: undefined,
+    imageStateHash: undefined,
+  };
+
+  return newLocation;
 }
