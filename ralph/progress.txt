@@ -45,3 +45,14 @@
 
 ---
 
+## 2026-02-14 - US-004
+- What was implemented: Added brevity rules to enforce concise dialog and narration lengths
+- Files changed:
+  - src/world/gptService.ts - Added "BREVITY RULES" section to NARRATOR_PERSONALITY, added brevity rule to action resolution RULES, updated conversation RULES with specific length limits, updated RESPONSE STRUCTURE comments with max sentence counts, updated schema descriptions for narratives (ACTION_RESULT_SCHEMA, TRAVEL_ENCOUNTER_SCHEMA, crafting/building schemas)
+- **Learnings for future iterations:**
+  - Length guidance should be specified in multiple places: global NARRATOR_PERSONALITY for universal effect, specific RULES sections for context-specific prompts, and JSON schema descriptions for structured outputs
+  - Schema descriptions also influence GPT output - updating "description" fields in JSON schemas with length guidance helps reinforce brevity constraints
+  - The key areas for narrative length are: action narratives (2-3 sentences), NPC dialog (1-2 sentences), narrator frames (1 sentence)
+
+---
+

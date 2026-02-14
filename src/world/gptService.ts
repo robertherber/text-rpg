@@ -31,7 +31,13 @@ Always respond in this narrator voice. Keep high fantasy tone - reject modern or
 
 IMPORTANT DIALOG RULES:
 - Never use the word "player" when referring to the protagonist. Use immersive terms like "adventurer", "traveler", "stranger", "hero", "wanderer", or "you/your" instead.
-- When NPCs speak, their words appear ONLY ONCE in quotes. The narrator describes actions, expressions, tone, and mannerisms - but NEVER repeats, echoes, or paraphrases what the NPC said. No "he mentioned", "she explained", "they spoke of" - the dialog itself is sufficient.`;
+- When NPCs speak, their words appear ONLY ONCE in quotes. The narrator describes actions, expressions, tone, and mannerisms - but NEVER repeats, echoes, or paraphrases what the NPC said. No "he mentioned", "she explained", "they spoke of" - the dialog itself is sufficient.
+
+BREVITY RULES - BE CONCISE:
+- Narrator descriptions: 1 sentence maximum. Evocative but brief.
+- NPC dialog: 1-2 sentences typically. NPCs are busy people.
+- Action narratives: 2-3 sentences for the outcome. Get to the point.
+- Every word must earn its place. Cut fluff, avoid purple prose.`;
 
 export interface GPTCallOptions {
   systemPrompt?: string;
@@ -323,7 +329,7 @@ const ACTION_RESULT_SCHEMA = {
   properties: {
     narrative: {
       type: "string",
-      description: "The narrator's description of what happened",
+      description: "The narrator's description of what happened (2-3 sentences max, be concise and punchy)",
     },
     stateChanges: {
       type: "array",
@@ -572,6 +578,7 @@ RULES:
 - Generate unique IDs for new suggested actions using simple lowercase strings like "action_1", "action_2"
 - CRITICAL DIALOG RULE: When NPCs speak, their dialogue appears EXACTLY ONCE in quotes. The narrator describes body language, expressions, tone, reactions - but NEVER summarizes, repeats, echoes, or paraphrases what the NPC said. WRONG: 'The guard warned you about the forest. "Stay away from the woods," he said.' CORRECT: 'The guard's jaw tightened. "Stay away from the woods," he said.'
 - IMPORTANT: In all narrative text, never use the word "player" - use immersive terms like "adventurer", "traveler", "hero", "wanderer", or "you/your" instead
+- BREVITY: Keep action narratives to 2-3 sentences. Be punchy and evocative, not verbose. Get to the point quickly.
 
 FLASHBACK SYSTEM:
 - Flashbacks reveal pieces of the adventurer's hidden backstory
@@ -1423,13 +1430,13 @@ CONVERSATION RULES:
 7. Animals cannot speak (isAnimal: ${npc.isAnimal}) - they communicate through actions/sounds
 8. CRITICAL: The narrator (narratorFrame) describes actions, expressions, tone, body language - but NEVER repeats, echoes, summarizes, or paraphrases the NPC's words. The dialogue in npcResponse is the ONLY place their speech appears.
 9. Don't repeat the adventurer's words back to them
-10. Be concise - tavern conversations are typically brief exchanges
+10. BREVITY: NPC dialog (npcResponse) should be 1-2 sentences typically. Narrator frame should be 1 sentence. NPCs are busy people with things to do - they don't monologue.
 11. IMPORTANT: When addressing or referring to the protagonist, use immersive terms like "adventurer", "traveler", "stranger", "friend", or their name if known - NEVER use the word "player"
 
 RESPONSE STRUCTURE:
-- npcResponse: What ${npc.name} actually says OUT LOUD (dialogue only)
-- npcInternalThought: What they're thinking but not saying
-- narratorFrame: Brief narrator commentary describing body language, tone, or setting - NEVER quote or paraphrase the NPC's words (those go in npcResponse only)
+- npcResponse: What ${npc.name} actually says OUT LOUD (1-2 sentences max, dialogue only)
+- npcInternalThought: What they're thinking but not saying (1 sentence)
+- narratorFrame: Brief narrator commentary (1 sentence max) describing body language, tone, or setting - NEVER quote or paraphrase the NPC's words
 - conversationSummary: Brief summary for memory (1-2 sentences)`;
 
   const userPrompt = `The adventurer says to ${npc.name}: "${playerMessage}"
@@ -2553,7 +2560,7 @@ const TRAVEL_ENCOUNTER_SCHEMA = {
     },
     narrative: {
       type: "string",
-      description: "A dramatic narrative describing the journey and encounter (3-5 sentences in chaotic trickster narrator voice)",
+      description: "A dramatic narrative describing the journey and encounter (2-3 sentences in chaotic trickster narrator voice, be concise)",
     },
     encounterLocationDescription: {
       type: "string",
@@ -3268,7 +3275,7 @@ const CRAFTING_RESULT_SCHEMA = {
     },
     narrativeSuccess: {
       type: "string",
-      description: "If feasible, a dramatic narrative describing the crafting process (3-5 sentences in chaotic trickster narrator voice). Empty string if not feasible.",
+      description: "If feasible, a dramatic narrative describing the crafting process (2-3 sentences in chaotic trickster narrator voice, be concise). Empty string if not feasible.",
     },
     skillImprovement: {
       type: "string",
@@ -3536,7 +3543,7 @@ const BUILDING_RESULT_SCHEMA = {
     },
     narrativeSuccess: {
       type: "string",
-      description: "A dramatic narrative describing the building process and the completed structure. Empty if not feasible.",
+      description: "A dramatic narrative describing the building process and the completed structure (2-3 sentences, be concise). Empty if not feasible.",
     },
     skillImprovement: {
       type: "string",
