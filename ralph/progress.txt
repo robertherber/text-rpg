@@ -151,3 +151,17 @@
 
 ---
 
+## 2026-02-14 - US-012
+- What was implemented: Created parchment/aged paper background texture for the map canvas
+- Files changed:
+  - src/frontend/MapPanel.tsx - Added PARCHMENT_COLORS palette, drawParchmentBackground() for aged paper with fiber texture/stains/foxing, drawParchmentEdges() for worn/torn edges, updated grid lines to ink-colored dashed style, enhanced location markers with shadows
+  - src/frontend/worldStyles.css - Updated .map-canvas-wrapper with parchment gradient and shadow, styled .map-tooltip and .map-legend with parchment colors and borders
+- **Learnings for future iterations:**
+  - Canvas 2D API supports gradients (createLinearGradient, createRadialGradient), shadows, and dashed lines (setLineDash)
+  - Use ctx.save()/ctx.restore() to isolate context state changes like shadows
+  - Parchment texture uses multiple overlapping elements: base gradient, paper fiber ellipses, coffee stain gradients, age spot circles
+  - Torn edge effect uses irregular triangle shapes along borders
+  - Map visual elements (tooltip, legend) should use matching parchment colors to maintain theme consistency
+
+---
+
