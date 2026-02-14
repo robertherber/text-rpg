@@ -10,6 +10,8 @@
 - Map rendering uses HTML Canvas in MapPanel.tsx
 - World system uses /api/world/* endpoints with worldState.locations, old game system uses /api/game/* with static gameData
 - Image generation: use generateWorldImage() for dynamic world locations (includes NPC-aware hash caching)
+- Streaming GPT: use 2-phase approach (stream narrative text, then get structured JSON) - see resolveActionStreaming/handleConversationStreaming
+- SSE endpoints: return ReadableStream with "text/event-stream" content type, use `data: JSON\n\n` format with type field ("narrative"/"complete"/"error")
 
 ---
 
@@ -192,5 +194,20 @@
   - Distance-based opacity creates soft edges: immediate neighbors get light fog (0.35), 1-2 tiles get medium (0.6), distant tiles get full (0.85)
   - Canvas radial gradients and random cloud circles create natural-looking fog texture
   - The exploredTiles are calculated from player.knowledge.locations - each visited location reveals 9 tiles (3x3 area)
+
+---
+
+## 2026-02-14 - US-015
+- What was implemented: Added streaming GPT responses to backend with SSE endpoints for progressive narrative delivery
+- Files changed:
+  - src/world/gptService.ts - Added callGPTStreaming async generator using OpenAI stream:true, resolveActionStreaming for streaming action narratives (2-phase: stream narrative then get structured JSON), handleConversationStreaming for streaming dialog, ACTION_RESULT_STREAMING_SCHEMA and CONVERSATION_STREAMING_SCHEMA for second-phase structured data
+  - index.ts - Added /api/world/freeform/stream and /api/world/talk/stream SSE endpoints that stream narrative text chunks then return complete structured data
+- **Learnings for future iterations:**
+  - OpenAI streaming with JSON schema is not directly supported - use 2-phase approach: stream plain text narrative first, then call GPT again for structured data
+  - Async generators in TypeScript: when iterating with for-await-of, the return value is lost. Use manual iteration with `.next()` and check `iteratorResult.done` to capture the return value
+  - SSE format: `data: ${JSON.stringify(payload)}\n\n` - requires double newline after each message
+  - Use `type` field in SSE messages to distinguish: "narrative" for streamed chunks, "complete" for final structured data, "error" for failures
+  - ReadableStream with async start() function allows streaming from async generators
+  - Frontend will need to use EventSource or fetch with readable stream to consume SSE
 
 ---

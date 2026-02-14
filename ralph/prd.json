@@ -230,8 +230,8 @@
         "Typecheck passes"
       ],
       "priority": 15,
-      "passes": false,
-      "notes": ""
+      "passes": true,
+      "notes": "Added callGPTStreaming async generator, resolveActionStreaming and handleConversationStreaming functions. Created /api/world/freeform/stream and /api/world/talk/stream SSE endpoints that stream narrative text progressively then return structured data."
     },
     {
       "id": "US-016",
