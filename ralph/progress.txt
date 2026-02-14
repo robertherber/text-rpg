@@ -364,3 +364,19 @@
   - Fresh player retains structure but with undefined name and empty backstory (ready for new character creation)
 ---
 
+## 2026-02-14 - US-027
+- What was implemented: Created new character generator for creating a character after death
+- Files changed:
+  - src/world/gptService.ts (modified - added generateNewCharacter function, NEW_CHARACTER_SCHEMA, GeneratedCharacterData and NewCharacterResult interfaces)
+- **Learnings for future iterations:**
+  - `generateNewCharacter(worldState, backstoryInput)` returns `NewCharacterResult` with: player (Player object), narrative (starting narrative), npcUpdates (array of NPC knowledge updates)
+  - GPT generates: name, physicalDescription, origin, hiddenBackstory, startingNarrative, knownLore, connectionToFallenHeroes
+  - New character starts with fresh stats (100 HP, level 1, 25 gold starting gold), empty inventory, and minimal knowledge (village locations only)
+  - Function looks up deceasedHeroes from worldState to create potential connections (new character might be related to fallen heroes)
+  - NPCs who knew fallen heroes (`hero.knownByNpcIds`) can receive knowledge updates about the new character's connection
+  - Starting location defaults to loc_millbrook_square or loc_village_square, whichever exists
+  - `hiddenBackstory` is meant to be revealed through flashbacks, not immediately visible
+  - Returns `npcUpdates` array that the caller should apply to update NPC knowledge about new hero's connections to fallen heroes
+  - Import `Player` type from types.ts since we're returning a Player object
+---
+
