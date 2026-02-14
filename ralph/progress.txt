@@ -715,3 +715,21 @@
   - Location structures like forges, anvils, alchemy tables affect what can be crafted
   - Function is generous but logical - leather scraps can make pouches, bones can make tools
 ---
+
+## 2026-02-14 - US-048
+- What was implemented: Added building resolution to GPT service for constructing structures
+- Files changed:
+  - src/world/gptService.ts (modified - added handleBuilding function, BuildingResult interface, BUILDING_RESULT_SCHEMA)
+- **Learnings for future iterations:**
+  - `handleBuilding(worldState, description)` returns `BuildingResult` with success, narrative, structure, materialsConsumed, stateChanges, skillImprovement
+  - Similar pattern to `handleCrafting` - uses GPT schema with `isFeasible` boolean to branch success/rejection
+  - Natural materials vary by terrain type: forest (wood), mountain (stone), swamp (reeds/mud), etc.
+  - Valid terrain types in types.ts: "village", "forest", "mountain", "plains", "water", "cave", "dungeon", "road", "swamp", "desert" - NOT "mountains", "hills", "beach", "coast", "ruins"
+  - Player type has no `id` field - use `"player"` string literal for ownerId when player builds structures
+  - Structure types: camp (temporary), shelter (weather protection), house (dwelling), fort (defensive), trap (hunting/defense), marker (navigation), grave (memorial)
+  - Building skills to check: "building", "construction", "carpentry", "masonry", "engineering", "architecture", "fortification"
+  - Simple structures (camps, markers) need minimal materials - environment provides natural resources
+  - Complex structures (houses, forts) require significant materials and appropriate location
+  - Structure ID format: `structure_{name_snake_case}_{timestamp_base36}`
+  - Returns `create_structure` state change for the caller to apply to worldState
+---
