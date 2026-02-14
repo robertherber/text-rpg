@@ -64,6 +64,19 @@ function sleep(ms: number): Promise<void> {
 }
 
 /**
+ * Streaming callback type for progressive text delivery
+ */
+export type StreamCallback = (chunk: string) => void;
+
+/**
+ * Streaming result type
+ */
+export interface StreamingResult<T> {
+  streamedText: string;
+  structuredData: T;
+}
+
+/**
  * Make a single GPT API call (helper for retry logic)
  */
 async function makeGPTCall(
@@ -217,6 +230,81 @@ export async function callGPTNarrative(
     maxTokens: 1500,
   });
   return response.content;
+}
+
+/**
+ * Call GPT with streaming enabled for progressive text delivery.
+ * Returns an async generator that yields text chunks.
+ *
+ * @param systemPrompt - System prompt including narrator personality
+ * @param userPrompt - User prompt
+ * @param maxTokens - Maximum tokens to generate
+ * @returns Async generator yielding text chunks
+ */
+export async function* callGPTStreaming(
+  systemPrompt: string,
+  userPrompt: string,
+  maxTokens: number = 1500
+): AsyncGenerator<string, string, unknown> {
+  const fullSystemPrompt = systemPrompt
+    ? `${NARRATOR_PERSONALITY}\n\n${systemPrompt}`
+    : NARRATOR_PERSONALITY;
+
+  let modelToUse = PRIMARY_MODEL;
+  let fullText = "";
+
+  try {
+    const stream = await openai.chat.completions.create({
+      model: modelToUse,
+      messages: [
+        { role: "system", content: fullSystemPrompt },
+        { role: "user", content: userPrompt },
+      ],
+      max_tokens: maxTokens,
+      stream: true,
+    });
+
+    for await (const chunk of stream) {
+      const content = chunk.choices[0]?.delta?.content;
+      if (content) {
+        fullText += content;
+        yield content;
+      }
+    }
+  } catch (error: unknown) {
+    // If primary model fails, try fallback (non-streaming for simplicity on fallback)
+    if (
+      error instanceof Error &&
+      (error.message.includes("model") || error.message.includes("not found"))
+    ) {
+      console.log(
+        `Streaming with ${PRIMARY_MODEL} not available, falling back to ${FALLBACK_MODEL}`
+      );
+      modelToUse = FALLBACK_MODEL;
+
+      const stream = await openai.chat.completions.create({
+        model: modelToUse,
+        messages: [
+          { role: "system", content: fullSystemPrompt },
+          { role: "user", content: userPrompt },
+        ],
+        max_tokens: maxTokens,
+        stream: true,
+      });
+
+      for await (const chunk of stream) {
+        const content = chunk.choices[0]?.delta?.content;
+        if (content) {
+          fullText += content;
+          yield content;
+        }
+      }
+    } else {
+      throw error;
+    }
+  }
+
+  return fullText;
 }
 
 /**
@@ -726,6 +814,287 @@ Resolve this action and return the result as JSON.`;
 
   return response.content;
 }
+
+/**
+ * Streaming version of resolveAction.
+ * Streams the narrative text progressively, then returns structured data at the end.
+ *
+ * @param worldState - Current world state
+ * @param action - The action text to resolve
+ * @returns Async generator that yields narrative chunks, then returns full ActionResult
+ */
+export async function* resolveActionStreaming(
+  worldState: WorldState,
+  action: string
+): AsyncGenerator<string, ActionResult, unknown> {
+  const context = buildActionContext(worldState);
+
+  // Build flashback context if player has hidden backstory
+  const flashbackContext = worldState.player.hiddenBackstory
+    ? `
+HIDDEN BACKSTORY (player doesn't know this yet - reveal through flashbacks):
+${worldState.player.hiddenBackstory}
+
+ALREADY REVEALED BACKSTORY:
+${worldState.player.revealedBackstory.length > 0 ? worldState.player.revealedBackstory.join("\n") : "Nothing yet revealed"}`
+    : "";
+
+  // System prompt for narrative-only streaming (simplified, no JSON structure requirements)
+  const narrativeSystemPrompt = `You are resolving actions in a fantasy medieval RPG.
+
+Given the current game context and the adventurer's attempted action, narrate what happens dramatically in first person as the chaotic trickster narrator.
+
+RULES:
+- Almost anything is possible if it makes narrative sense within high fantasy
+- Be the arbiter of what's reasonable - reject absurd actions playfully
+- If an action would harm NPCs or steal, roll for success narratively (consider NPC vigilance, adventurer stats)
+- CRITICAL DIALOG RULE: When NPCs speak, their dialogue appears EXACTLY ONCE in quotes. The narrator describes body language, expressions, tone, reactions - but NEVER summarizes, repeats, echoes, or paraphrases what the NPC said. WRONG: 'The guard warned you about the forest. "Stay away from the woods," he said.' CORRECT: 'The guard's jaw tightened. "Stay away from the woods," he said.'
+- IMPORTANT: Never use the word "player" - use immersive terms like "adventurer", "traveler", "hero", "wanderer", or "you/your" instead
+- BREVITY: Keep action narratives to 2-3 sentences. Be punchy and evocative, not verbose. Get to the point quickly.
+
+${flashbackContext}
+
+RESPOND WITH ONLY THE NARRATIVE TEXT - no JSON, no structured data, just the narrative description of what happens.`;
+
+  const narrativeUserPrompt = `${context}
+
+ADVENTURER ACTION: ${action}
+
+Narrate what happens (2-3 sentences max):`;
+
+  // Stream the narrative
+  let streamedNarrative = "";
+  const streamGenerator = callGPTStreaming(narrativeSystemPrompt, narrativeUserPrompt, 500);
+
+  for await (const chunk of streamGenerator) {
+    streamedNarrative += chunk;
+    yield chunk;
+  }
+
+  // Now get the structured data with the narrative already generated
+  const structuredSystemPrompt = `You are resolving actions in a fantasy medieval RPG.
+
+Given the current game context, the adventurer's action, and the ALREADY WRITTEN narrative of what happened, determine:
+1. What state changes should occur in the world based on the narrative
+2. What actions the adventurer might take next (3 suggestions)
+
+Use the narrative that was already written - do NOT write new narrative text. Just provide the structured data.
+
+STATE CHANGE TYPES (set unused fields to null):
+- move_player: { locationId: string } - Move player to a location
+- add_item: { item: WorldItem } - Add item to player inventory
+- remove_item: { itemId: string } - Remove item from player inventory
+- gold_change: { amount: number } - Change player gold (positive or negative)
+- player_damage: { amount: number } - Damage player
+- player_heal: { amount: number } - Heal player
+- add_knowledge: { type: "location"|"npc"|"lore", value: string } - Add to player knowledge
+- update_npc_attitude: { npcId: string, change: number } - Change NPC attitude
+- move_npc: { npcId: string, locationId: string } - Move an NPC
+- npc_death: { npcId: string, description: string } - Kill an NPC
+- add_companion: { npcId: string } - Add NPC as companion
+- remove_companion: { npcId: string } - Remove NPC as companion
+- reveal_flashback: { flashbackContent: string, revealedSkill?: { name: string, level: string } } - Reveal a flashback memory
+- player_transform: { transformation: string, physicalDescriptionChange?: string, remove?: boolean } - Transform player
+- add_curse: { curse: string, source?: string, effects?: string } - Add a curse
+- add_blessing: { blessing: string, source?: string, effects?: string } - Add a blessing
+- skill_practice: { skill: string, improvement?: string, newLevel?: string } - Practice a skill
+- record_crime: { crimeType: string, description: string, wasDetected: boolean, severity: string } - Record a crime
+
+SUGGESTED ACTION TYPES: move, talk, examine, use, attack, craft, build, travel, other
+
+Generate unique IDs for new suggested actions using simple lowercase strings like "action_1", "action_2", "action_3".`;
+
+  const structuredUserPrompt = `${context}
+
+ADVENTURER ACTION: ${action}
+
+THE NARRATIVE THAT ALREADY HAPPENED:
+${streamedNarrative}
+
+Based on this narrative, provide the state changes and suggested actions as JSON.`;
+
+  const structuredResponse = await callGPT<Omit<ActionResult, "narrative">>({
+    systemPrompt: structuredSystemPrompt,
+    userPrompt: structuredUserPrompt,
+    jsonSchema: ACTION_RESULT_STREAMING_SCHEMA,
+    maxTokens: 2000,
+  });
+
+  // Combine streamed narrative with structured data
+  return {
+    narrative: streamedNarrative.trim(),
+    ...structuredResponse.content,
+  };
+}
+
+// JSON Schema for streaming action result (without narrative field)
+const ACTION_RESULT_STREAMING_SCHEMA = {
+  type: "object",
+  properties: {
+    stateChanges: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          type: {
+            type: "string",
+            enum: [
+              "move_player",
+              "move_npc",
+              "add_item",
+              "remove_item",
+              "update_npc_attitude",
+              "npc_death",
+              "player_damage",
+              "player_heal",
+              "add_knowledge",
+              "add_companion",
+              "remove_companion",
+              "create_structure",
+              "destroy_structure",
+              "update_location",
+              "create_npc",
+              "create_location",
+              "add_quest",
+              "update_faction",
+              "player_transform",
+              "add_curse",
+              "add_blessing",
+              "remove_curse",
+              "remove_blessing",
+              "skill_practice",
+              "gold_change",
+              "reveal_flashback",
+              "record_crime",
+              "add_bounty",
+              "remove_bounty",
+              "update_bounty",
+            ],
+          },
+          data: {
+            type: "object",
+            properties: {
+              locationId: { type: ["string", "null"] },
+              npcId: { type: ["string", "null"] },
+              item: {
+                type: ["object", "null"],
+                properties: {
+                  id: { type: "string" },
+                  name: { type: "string" },
+                  description: { type: "string" },
+                  itemType: { type: "string" },
+                  isEquippable: { type: "boolean" },
+                  equipSlot: { type: ["string", "null"] },
+                  statsModifiers: { type: ["object", "null"], properties: {}, additionalProperties: false },
+                  isConsumable: { type: "boolean" },
+                  effectDescription: { type: ["string", "null"] },
+                  value: { type: "number" },
+                  quantity: { type: "number" },
+                },
+                required: ["id", "name", "description", "itemType", "isEquippable", "equipSlot", "statsModifiers", "isConsumable", "effectDescription", "value", "quantity"],
+                additionalProperties: false,
+              },
+              itemId: { type: ["string", "null"] },
+              amount: { type: ["number", "null"] },
+              change: { type: ["number", "null"] },
+              type: { type: ["string", "null"] },
+              value: { type: ["string", "null"] },
+              description: { type: ["string", "null"] },
+              flashbackContent: { type: ["string", "null"] },
+              revealedSkill: {
+                type: ["object", "null"],
+                properties: {
+                  name: { type: "string" },
+                  level: { type: "string" },
+                },
+                required: ["name", "level"],
+                additionalProperties: false,
+              },
+              transformation: { type: ["string", "null"] },
+              physicalDescriptionChange: { type: ["string", "null"] },
+              remove: { type: ["boolean", "null"] },
+              curse: { type: ["string", "null"] },
+              source: { type: ["string", "null"] },
+              effects: { type: ["string", "null"] },
+              method: { type: ["string", "null"] },
+              blessing: { type: ["string", "null"] },
+              reason: { type: ["string", "null"] },
+              skill: { type: ["string", "null"] },
+              improvement: { type: ["string", "null"] },
+              newLevel: { type: ["string", "null"] },
+              requiresTeacher: { type: ["boolean", "null"] },
+              teacherNpcId: { type: ["string", "null"] },
+              crimeType: { type: ["string", "null"] },
+              victimNpcId: { type: ["string", "null"] },
+              witnessNpcIds: { type: ["array", "null"], items: { type: "string" } },
+              wasDetected: { type: ["boolean", "null"] },
+              severity: { type: ["string", "null"] },
+              issuedByFactionId: { type: ["string", "null"] },
+              issuedByNpcId: { type: ["string", "null"] },
+              crimeIds: { type: ["array", "null"], items: { type: "string" } },
+            },
+            required: [
+              "locationId", "npcId", "item", "itemId", "amount", "change", "type", "value",
+              "description", "flashbackContent", "revealedSkill", "transformation",
+              "physicalDescriptionChange", "remove", "curse", "source", "effects", "method",
+              "blessing", "reason", "skill", "improvement", "newLevel", "requiresTeacher",
+              "teacherNpcId", "crimeType", "victimNpcId", "witnessNpcIds", "wasDetected",
+              "severity", "issuedByFactionId", "issuedByNpcId", "crimeIds"
+            ],
+            additionalProperties: false,
+          },
+        },
+        required: ["type", "data"],
+        additionalProperties: false,
+      },
+    },
+    suggestedActions: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          id: { type: "string" },
+          text: { type: "string" },
+          type: {
+            type: "string",
+            enum: ["move", "talk", "examine", "use", "attack", "craft", "build", "travel", "other"],
+          },
+          targetLocationId: { type: ["string", "null"] },
+          targetNpcId: { type: ["string", "null"] },
+        },
+        required: ["id", "text", "type", "targetLocationId", "targetNpcId"],
+        additionalProperties: false,
+      },
+    },
+    initiatesCombat: {
+      type: ["string", "null"],
+      description: "NPC ID to fight if combat starts, null if no combat",
+    },
+    revealsFlashback: {
+      type: ["string", "null"],
+      description: "Flashback content to reveal, null if none",
+    },
+    newKnowledge: {
+      type: "array",
+      items: { type: "string" },
+    },
+    questUpdates: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          questId: { type: "string" },
+          status: { type: "string", enum: ["active", "completed", "failed", "impossible"] },
+          completedObjectives: { type: ["array", "null"], items: { type: "string" } },
+        },
+        required: ["questId", "status", "completedObjectives"],
+        additionalProperties: false,
+      },
+    },
+  },
+  required: ["stateChanges", "suggestedActions", "initiatesCombat", "revealsFlashback", "newKnowledge", "questUpdates"],
+  additionalProperties: false,
+};
 
 // JSON Schema for SuggestedActions response from GPT
 const SUGGESTED_ACTIONS_SCHEMA = {
@@ -1564,6 +1933,242 @@ Generate ${npc.name}'s response, staying true to their soul instruction and curr
     suggestedResponses,
   };
 }
+
+/**
+ * Streaming version of handleConversation.
+ * Streams the narrative text (narrator frame + NPC dialog) progressively,
+ * then returns structured data at the end.
+ *
+ * @param worldState - Current world state
+ * @param npcId - ID of the NPC being spoken to
+ * @param playerMessage - What the player says to the NPC
+ * @returns Async generator that yields narrative chunks, then returns full ConversationResult
+ */
+export async function* handleConversationStreaming(
+  worldState: WorldState,
+  npcId: string,
+  playerMessage: string
+): AsyncGenerator<string, ConversationResult, unknown> {
+  const npc = worldState.npcs[npcId];
+
+  if (!npc) {
+    throw new Error(`handleConversationStreaming: NPC not found: ${npcId}`);
+  }
+
+  if (!npc.isAlive) {
+    throw new Error(`handleConversationStreaming: Cannot talk to dead NPC: ${npc.name}`);
+  }
+
+  const playerLocation = worldState.locations[worldState.player.currentLocationId];
+  if (!playerLocation?.presentNpcIds.includes(npcId)) {
+    throw new Error(`handleConversationStreaming: NPC ${npc.name} is not present at current location`);
+  }
+
+  // Build conversation context from past conversations with this NPC
+  const pastConversations = npc.conversationHistory.slice(-5);
+  const conversationHistoryContext = pastConversations.length > 0
+    ? `PAST CONVERSATIONS WITH ${npc.name.toUpperCase()}:
+${pastConversations
+  .map((conv) => {
+    const actionsAgo = worldState.actionCounter - conv.actionNumber;
+    return `[${actionsAgo} actions ago] ${conv.summary}${conv.playerAsked?.length ? ` Player asked about: ${conv.playerAsked.join(", ")}` : ""}${conv.npcRevealed?.length ? ` ${npc.name} revealed: ${conv.npcRevealed.join(", ")}` : ""}`;
+  })
+  .join("\n")}`
+    : `PAST CONVERSATIONS: None - this is the first conversation with ${npc.name}`;
+
+  const playerKnownAs = npc.playerNameKnown
+    ? `The NPC knows the player as "${npc.playerNameKnown}".`
+    : "The NPC does not know the player's name yet.";
+
+  const attitudeDesc =
+    npc.attitude >= 70 ? "very friendly and warm"
+    : npc.attitude >= 40 ? "friendly and receptive"
+    : npc.attitude >= 10 ? "neutral and businesslike"
+    : npc.attitude >= -30 ? "wary and guarded"
+    : "hostile and distrustful";
+
+  const locationContext = `LOCATION: ${playerLocation.name} - ${playerLocation.description}`;
+
+  const recentEvents = worldState.eventHistory
+    .slice(-3)
+    .filter((e) => e.involvedNpcIds.includes(npcId) || e.locationId === playerLocation.id)
+    .map((e) => e.description)
+    .join(" ");
+
+  // System prompt for narrative-only streaming
+  const narrativeSystemPrompt = `You are roleplaying as ${npc.name} in a fantasy medieval RPG.
+
+CHARACTER SOUL (this is who you ARE - follow this exactly):
+${npc.soulInstruction}
+
+CURRENT STATE:
+- ${npc.name} is ${attitudeDesc} toward the adventurer (attitude: ${npc.attitude}/100)
+- ${playerKnownAs}
+- Physical description: ${npc.physicalDescription}
+
+WHAT ${npc.name.toUpperCase()} KNOWS:
+${npc.knowledge.length > 0 ? npc.knowledge.join("\n") : "Nothing notable beyond common knowledge"}
+
+${conversationHistoryContext}
+
+${locationContext}
+
+${recentEvents ? `RECENT EVENTS: ${recentEvents}` : ""}
+
+RESPONSE FORMAT:
+Write a SHORT response (2-3 sentences max) in this format:
+1. First, a brief narrator description (1 sentence) of ${npc.name}'s expression, body language, or tone - as the chaotic trickster narrator
+2. Then ${npc.name}'s actual spoken words in quotes, attributed like: ${npc.name} says, "..."
+
+RULES:
+- Stay COMPLETELY in character based on the soul instruction
+- The narrator NEVER repeats or paraphrases what the NPC says
+- NPC dialog should be 1-2 sentences
+- Animals cannot speak (isAnimal: ${npc.isAnimal}) - they communicate through actions/sounds
+- NEVER use the word "player" - use "adventurer", "traveler", "stranger", or their name if known
+
+RESPOND WITH ONLY THE NARRATIVE TEXT - no JSON.`;
+
+  const narrativeUserPrompt = `The adventurer says to ${npc.name}: "${playerMessage}"
+
+Write ${npc.name}'s response:`;
+
+  // Stream the narrative
+  let streamedNarrative = "";
+  const streamGenerator = callGPTStreaming(narrativeSystemPrompt, narrativeUserPrompt, 400);
+
+  for await (const chunk of streamGenerator) {
+    streamedNarrative += chunk;
+    yield chunk;
+  }
+
+  // Now get the structured data
+  const structuredSystemPrompt = `You are analyzing a conversation response in a fantasy medieval RPG.
+
+Given the adventurer's message, the NPC ${npc.name}'s response, and their relationship context, provide structured data about this exchange.
+
+CHARACTER INFO:
+- ${npc.name} is ${attitudeDesc} toward the adventurer
+- Current attitude: ${npc.attitude}/100
+
+RULES:
+- Attitude change should be small (-5 to +5 typically, up to ±20 for major events)
+- Extract what information was actually revealed in the response
+- Generate exactly 3 suggested responses: 2 contextual + 1 generic
+- Each suggestion MUST start with a tone in brackets like: "[Curious] What do you mean by that?"
+- Tone options: Friendly, Curious, Suspicious, Aggressive, Grateful, Nervous, Confident, Playful, Serious, Dismissive`;
+
+  const structuredUserPrompt = `The adventurer said: "${playerMessage}"
+
+${npc.name}'s response (already written):
+${streamedNarrative}
+
+Provide the structured data about this conversation exchange.`;
+
+  const structuredResponse = await callGPT<{
+    npcInternalThought: string;
+    attitudeChange: number;
+    topicsDiscussed: string[];
+    informationRevealed: string[];
+    conversationSummary: string;
+    suggestsEndConversation: boolean;
+    suggestedResponses: Array<{ text: string; type: SuggestedResponseType }>;
+  }>({
+    systemPrompt: structuredSystemPrompt,
+    userPrompt: structuredUserPrompt,
+    jsonSchema: CONVERSATION_STREAMING_SCHEMA,
+    maxTokens: 800,
+  });
+
+  const data = structuredResponse.content;
+
+  // Extract NPC's actual spoken words from the narrative for the npcResponse field
+  const quoteMatch = streamedNarrative.match(/"([^"]+)"/);
+  const npcResponse: string = (quoteMatch && quoteMatch[1]) ? quoteMatch[1] : streamedNarrative;
+
+  const clampedAttitudeChange = Math.max(-20, Math.min(20, data.attitudeChange));
+  const newKnowledge = data.informationRevealed.filter((info) => info.length > 0);
+
+  const suggestedResponses: SuggestedResponse[] = data.suggestedResponses.map((suggestion, index) => ({
+    id: `suggestion-${Date.now()}-${index}`,
+    text: suggestion.text,
+    type: suggestion.type,
+  }));
+
+  return {
+    narrative: streamedNarrative.trim(),
+    npcResponse,
+    attitudeChange: clampedAttitudeChange,
+    newKnowledge,
+    conversationSummary: data.conversationSummary,
+    suggestsEndConversation: data.suggestsEndConversation,
+    suggestedResponses,
+  };
+}
+
+// JSON Schema for streaming conversation structured data
+const CONVERSATION_STREAMING_SCHEMA = {
+  type: "object",
+  properties: {
+    npcInternalThought: {
+      type: "string",
+      description: "What the NPC is thinking but not saying",
+    },
+    attitudeChange: {
+      type: "number",
+      description: "How much the NPC's attitude changed (-20 to +20, usually -5 to +5)",
+    },
+    topicsDiscussed: {
+      type: "array",
+      items: { type: "string" },
+      description: "Key topics or questions the player asked about",
+    },
+    informationRevealed: {
+      type: "array",
+      items: { type: "string" },
+      description: "New information the NPC revealed (locations, people, lore)",
+    },
+    conversationSummary: {
+      type: "string",
+      description: "Brief summary of this exchange for memory (1-2 sentences)",
+    },
+    suggestsEndConversation: {
+      type: "boolean",
+      description: "Whether the NPC wants to end the conversation",
+    },
+    suggestedResponses: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          text: {
+            type: "string",
+            description: "The suggested dialog response with tone in brackets",
+          },
+          type: {
+            type: "string",
+            enum: ["contextual", "generic"],
+          },
+        },
+        required: ["text", "type"],
+        additionalProperties: false,
+      },
+      minItems: 3,
+      maxItems: 3,
+      description: "3 suggested responses: 2 contextual + 1 generic",
+    },
+  },
+  required: [
+    "npcInternalThought",
+    "attitudeChange",
+    "topicsDiscussed",
+    "informationRevealed",
+    "conversationSummary",
+    "suggestsEndConversation",
+    "suggestedResponses",
+  ],
+  additionalProperties: false,
+};
 
 // JSON Schema for location simulation response from GPT
 const LOCATION_SIMULATION_SCHEMA = {

@@ -12,7 +12,7 @@ import type { GameState } from "./src/types";
 import type { WorldState } from "./src/world/types";
 import { loadWorldState, saveWorldState } from "./src/world/persistence";
 import { createSeedWorld } from "./src/world/seedWorld";
-import { generateSuggestedActions, resolveAction, extractReferences, generateNarratorRejection, handleConversation, generateNewCharacter, handleTravel, generateInitialCharacter, calculateRumorSpread, applyRumorSpreads, generateLocation } from "./src/world/gptService";
+import { generateSuggestedActions, resolveAction, resolveActionStreaming, extractReferences, generateNarratorRejection, handleConversation, handleConversationStreaming, generateNewCharacter, handleTravel, generateInitialCharacter, calculateRumorSpread, applyRumorSpreads, generateLocation } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath, updateBehaviorPatterns } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
 import type { SuggestedAction } from "./src/world/types";
@@ -584,6 +584,185 @@ const server = Bun.serve({
       },
     },
 
+    // Streaming version of freeform action - streams narrative text via SSE
+    "/api/world/freeform/stream": {
+      POST: async (req) => {
+        const body = await req.json() as { text?: string };
+        const { text } = body;
+
+        if (!text || typeof text !== "string" || text.trim().length === 0) {
+          return Response.json(
+            { error: "text is required and must be a non-empty string" },
+            { status: 400 }
+          );
+        }
+
+        const trimmedText = text.trim();
+
+        // Extract potential references from player input
+        const references = extractReferences(trimmedText);
+
+        // Validate each reference against player knowledge
+        const unknownReferences: string[] = [];
+        for (const ref of references) {
+          if (!validateKnowledge(worldState, ref)) {
+            unknownReferences.push(ref);
+          }
+        }
+
+        // If player referenced something they don't know about, reject playfully (non-streaming)
+        if (unknownReferences.length > 0) {
+          const rejection = await generateNarratorRejection(unknownReferences, trimmedText);
+          const suggestedActions = await generateSuggestedActions(worldState);
+          lastSuggestedActions = suggestedActions;
+          preGenerateImagesForDestinations(worldState, suggestedActions);
+
+          // Return as SSE with immediate completion
+          const encoder = new TextEncoder();
+          return new Response(
+            new ReadableStream({
+              start(controller) {
+                // Send the rejection as narrative chunk
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "narrative", content: rejection })}\n\n`));
+                // Send final data
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                  type: "complete",
+                  suggestedActions,
+                  knowledgeRejection: true,
+                  unknownReferences,
+                })}\n\n`));
+                controller.close();
+              },
+            }),
+            {
+              headers: {
+                "Content-Type": "text/event-stream",
+                "Cache-Control": "no-cache",
+                "Connection": "keep-alive",
+              },
+            }
+          );
+        }
+
+        // Create streaming response
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              // Remember previous location before resolving action
+              const previousLocationId = worldState.player.currentLocationId;
+
+              // Stream the action resolution
+              const actionGenerator = resolveActionStreaming(worldState, trimmedText);
+              let actionResult: Awaited<ReturnType<typeof resolveActionStreaming>> extends AsyncGenerator<string, infer R, unknown> ? R : never;
+
+              // Stream narrative chunks and capture final result
+              let iteratorResult = await actionGenerator.next();
+              while (!iteratorResult.done) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "narrative", content: iteratorResult.value })}\n\n`));
+                iteratorResult = await actionGenerator.next();
+              }
+              // When done is true, value contains the return value (ActionResult)
+              actionResult = iteratorResult.value;
+
+              // Apply state changes
+              worldState = applyStateChanges(worldState, actionResult.stateChanges);
+
+              // Check if player moved to a location that doesn't exist yet
+              const currentLocation = worldState.locations[worldState.player.currentLocationId];
+              if (!currentLocation) {
+                const directionMatch = trimmedText.toLowerCase().match(/\b(north|south|east|west|northeast|northwest|southeast|southwest)\b/);
+                const direction = directionMatch?.[1] ?? "unknown";
+
+                console.log(`🗺️ Generating new location ${direction} from ${previousLocationId}...`);
+                const newLocation = await generateLocation(worldState, direction, previousLocationId!);
+
+                worldState = {
+                  ...worldState,
+                  locations: {
+                    ...worldState.locations,
+                    [newLocation.id]: newLocation,
+                  },
+                  player: {
+                    ...worldState.player,
+                    currentLocationId: newLocation.id,
+                  },
+                };
+
+                console.log(`✅ Created new location: ${newLocation.name}`);
+              }
+
+              // Update behavior patterns
+              worldState = updateBehaviorPatterns(
+                worldState,
+                trimmedText,
+                actionResult.stateChanges,
+                actionResult.initiatesCombat
+              );
+
+              // Check if combat should be initiated
+              let combatStarted = false;
+              let enemyInfo = null;
+              if (actionResult.initiatesCombat) {
+                const npc = worldState.npcs[actionResult.initiatesCombat];
+                if (npc && npc.isAlive) {
+                  worldState = initiateWorldCombat(worldState, actionResult.initiatesCombat);
+                  combatStarted = true;
+                  enemyInfo = {
+                    id: npc.id,
+                    name: npc.name,
+                    description: npc.description,
+                    health: npc.stats.health,
+                    maxHealth: npc.stats.maxHealth,
+                  };
+                }
+              }
+
+              // Increment action counter
+              worldState = {
+                ...worldState,
+                actionCounter: worldState.actionCounter + 1,
+              };
+
+              // Save the updated world state
+              await saveWorldState(worldState);
+
+              // Store the new suggested actions
+              lastSuggestedActions = actionResult.suggestedActions;
+
+              // Pre-generate images for movement destinations
+              preGenerateImagesForDestinations(worldState, actionResult.suggestedActions);
+
+              // Send final structured data
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: "complete",
+                suggestedActions: actionResult.suggestedActions,
+                initiatesCombat: actionResult.initiatesCombat,
+                combatStarted,
+                enemy: enemyInfo,
+                inCombat: worldState.combatState !== null,
+                revealsFlashback: actionResult.revealsFlashback,
+              })}\n\n`));
+
+              controller.close();
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : "Action failed";
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMessage })}\n\n`));
+              controller.close();
+            }
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          },
+        });
+      },
+    },
+
     // Talk to an NPC with conversation memory
     "/api/world/talk": {
       POST: async (req) => {
@@ -719,6 +898,169 @@ const server = Bun.serve({
             { status: 500 }
           );
         }
+      },
+    },
+
+    // Streaming version of talk - streams narrative text via SSE
+    "/api/world/talk/stream": {
+      POST: async (req) => {
+        const body = await req.json() as { npcId?: string; message?: string };
+        const { npcId, message } = body;
+
+        // Validate input
+        if (!npcId || typeof npcId !== "string") {
+          return Response.json(
+            { error: "npcId is required" },
+            { status: 400 }
+          );
+        }
+
+        if (!message || typeof message !== "string" || message.trim().length === 0) {
+          return Response.json(
+            { error: "message is required and must be a non-empty string" },
+            { status: 400 }
+          );
+        }
+
+        // Check NPC exists
+        const npc = worldState.npcs[npcId];
+        if (!npc) {
+          return Response.json(
+            { error: "NPC not found" },
+            { status: 404 }
+          );
+        }
+
+        // Check NPC is alive
+        if (!npc.isAlive) {
+          return Response.json(
+            { error: `Cannot talk to ${npc.name} - they are no longer alive` },
+            { status: 400 }
+          );
+        }
+
+        // Check NPC is at current location
+        const currentLocation = worldState.locations[worldState.player.currentLocationId];
+        if (!currentLocation?.presentNpcIds.includes(npcId)) {
+          return Response.json(
+            { error: `${npc.name} is not here` },
+            { status: 400 }
+          );
+        }
+
+        // Create streaming response
+        const encoder = new TextEncoder();
+        const stream = new ReadableStream({
+          async start(controller) {
+            try {
+              // Stream the conversation
+              const conversationGenerator = handleConversationStreaming(
+                worldState,
+                npcId,
+                message.trim()
+              );
+
+              let conversationResult: Awaited<ReturnType<typeof handleConversationStreaming>> extends AsyncGenerator<string, infer R, unknown> ? R : never;
+
+              // Stream narrative chunks and capture final result
+              let iteratorResult = await conversationGenerator.next();
+              while (!iteratorResult.done) {
+                controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "narrative", content: iteratorResult.value })}\n\n`));
+                iteratorResult = await conversationGenerator.next();
+              }
+              // When done is true, value contains the return value (ConversationResult)
+              conversationResult = iteratorResult.value;
+
+              // Update NPC's conversation history
+              const newConversationEntry = {
+                actionNumber: worldState.actionCounter,
+                summary: conversationResult.conversationSummary,
+                playerAsked: [message.trim()],
+                npcRevealed: conversationResult.newKnowledge,
+              };
+
+              const updatedConversationHistory = [
+                ...npc.conversationHistory,
+                newConversationEntry,
+              ];
+
+              // Calculate new attitude (clamped to -100 to 100)
+              const newAttitude = Math.max(
+                -100,
+                Math.min(100, npc.attitude + conversationResult.attitudeChange)
+              );
+
+              // Update NPC in world state
+              worldState = {
+                ...worldState,
+                npcs: {
+                  ...worldState.npcs,
+                  [npcId]: {
+                    ...npc,
+                    conversationHistory: updatedConversationHistory,
+                    attitude: newAttitude,
+                  },
+                },
+              };
+
+              // Add new knowledge to player if any was revealed
+              if (conversationResult.newKnowledge.length > 0) {
+                const updatedLore = [
+                  ...worldState.player.knowledge.lore,
+                  ...conversationResult.newKnowledge.filter(
+                    (k) => !worldState.player.knowledge.lore.includes(k)
+                  ),
+                ];
+
+                worldState = {
+                  ...worldState,
+                  player: {
+                    ...worldState.player,
+                    knowledge: {
+                      ...worldState.player.knowledge,
+                      lore: updatedLore,
+                    },
+                  },
+                };
+              }
+
+              // Increment action counter
+              worldState = {
+                ...worldState,
+                actionCounter: worldState.actionCounter + 1,
+              };
+
+              // Save the updated world state
+              await saveWorldState(worldState);
+
+              // Send final structured data
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({
+                type: "complete",
+                npcResponse: conversationResult.npcResponse,
+                npcName: npc.name,
+                attitudeChange: conversationResult.attitudeChange,
+                newAttitude,
+                suggestsEndConversation: conversationResult.suggestsEndConversation,
+                newKnowledge: conversationResult.newKnowledge,
+                suggestedResponses: conversationResult.suggestedResponses,
+              })}\n\n`));
+
+              controller.close();
+            } catch (error) {
+              const errorMessage = error instanceof Error ? error.message : "Conversation failed";
+              controller.enqueue(encoder.encode(`data: ${JSON.stringify({ type: "error", error: errorMessage })}\n\n`));
+              controller.close();
+            }
+          },
+        });
+
+        return new Response(stream, {
+          headers: {
+            "Content-Type": "text/event-stream",
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+          },
+        });
       },
     },
 
