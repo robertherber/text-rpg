@@ -7,6 +7,7 @@ import MapPanel from "./MapPanel";
 import JournalPanel from "./JournalPanel";
 import StatsPanel from "./StatsPanel";
 import InventoryPanel, { type InventoryItem } from "./InventoryPanel";
+import CharacterCreation, { type CharacterCreationResponse } from "./CharacterCreation";
 
 // Types for world state data
 interface WorldLocation {
@@ -70,6 +71,7 @@ export default function WorldApp() {
   const [error, setError] = useState<string | null>(null);
   const [activePanel, setActivePanel] = useState<"story" | "map" | "journal">("story");
   const [conversationState, setConversationState] = useState<ConversationState | null>(null);
+  const [needsCharacterCreation, setNeedsCharacterCreation] = useState(false);
   const messageIdRef = useRef(0);
 
   // Fetch initial world state
@@ -81,7 +83,15 @@ export default function WorldApp() {
     try {
       setIsLoading(true);
       const response = await fetch("/api/world/state");
-      const data = (await response.json()) as WorldStateResponse;
+      const data = (await response.json()) as WorldStateResponse & { needsCharacterCreation?: boolean };
+
+      // Check if character creation is needed (no player name or API indicates it)
+      if (data.needsCharacterCreation || !data.playerStats?.name) {
+        setNeedsCharacterCreation(true);
+        setIsLoading(false);
+        return;
+      }
+
       setWorldState(data);
 
       // Add initial location description as first story message
@@ -94,6 +104,64 @@ export default function WorldApp() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCharacterCreated = (response: CharacterCreationResponse) => {
+    // Build world state from character creation response
+    const newWorldState: WorldStateResponse = {
+      currentLocation: response.startingLocation ? {
+        id: response.startingLocation.id,
+        name: response.startingLocation.name,
+        description: response.startingLocation.description,
+        terrain: response.startingLocation.terrain,
+        dangerLevel: 0,
+        coordinates: response.startingLocation.coordinates,
+        items: [],
+        structures: [],
+      } : {
+        id: "unknown",
+        name: "Unknown Location",
+        description: "You find yourself somewhere...",
+        terrain: "village",
+        dangerLevel: 0,
+        coordinates: { x: 0, y: 0 },
+        items: [],
+        structures: [],
+      },
+      presentNpcs: [],
+      playerStats: {
+        name: response.player.name,
+        health: response.player.health,
+        maxHealth: response.player.maxHealth,
+        gold: response.player.gold,
+        level: response.player.level,
+        strength: response.player.strength,
+        defense: response.player.defense,
+        magic: response.player.magic,
+        experience: 0,
+        companionCount: 0,
+        inventoryCount: response.player.inventory.length,
+        inventory: response.player.inventory.map(item => ({
+          id: item.id,
+          name: item.name,
+          description: item.description,
+          type: item.type as InventoryItem["type"],
+          value: item.value,
+          effect: undefined,
+        })),
+      },
+      suggestedActions: response.suggestedActions.map(action => ({
+        ...action,
+        targetNpcId: undefined,
+        targetLocationId: undefined,
+      })),
+    };
+
+    setWorldState(newWorldState);
+    setNeedsCharacterCreation(false);
+
+    // Add the starting narrative as the first story message
+    addStoryMessage(response.narrative, "narrative");
   };
 
   const addStoryMessage = (text: string, type: StoryMessage["type"]) => {
@@ -322,6 +390,11 @@ export default function WorldApp() {
         <button onClick={fetchWorldState}>Retry</button>
       </div>
     );
+  }
+
+  // Show character creation screen if needed
+  if (needsCharacterCreation) {
+    return <CharacterCreation onCharacterCreated={handleCharacterCreated} />;
   }
 
   if (!worldState) {
