@@ -930,3 +930,24 @@
   - The `handleConversation` function now includes RUMORS context section so NPCs can reference what they've heard
   - Rumor accuracy affects how NPCs phrase things: accurate = fact, embellished = "they say...", distorted = "I heard a tale..."
 ---
+
+## 2026-02-14 - US-060
+- What was implemented: Added crime and consequences system
+- Files changed:
+  - src/world/types.ts (modified - added Crime and Bounty interfaces, added state change types)
+  - src/world/seedWorld.ts (modified - added crimes and bounties arrays to player)
+  - src/world/stateManager.ts (modified - added 4 new handlers and 2 utility functions)
+  - src/world/gptService.ts (modified - added crime context to buildActionContext, crime rules to GPT prompt)
+- **Learnings for future iterations:**
+  - `Crime` interface has: id, type (theft/assault/murder/trespassing/fraud/vandalism/smuggling/other), description, committedAtAction, locationId, victimNpcId, witnessNpcIds, wasDetected, severity (minor/moderate/severe)
+  - `Bounty` interface has: id, issuedByFactionId?, issuedByNpcId?, reason, amount, issuedAtAction, crimeIds, locationScope?, isActive
+  - Four state change types added: record_crime, add_bounty, remove_bounty, update_bounty
+  - `record_crime` handler applies NPC attitude changes and faction reputation changes when crime is detected
+  - `add_bounty` creates bounty with auto-generated ID and records world event for rumor spreading
+  - `getPlayerWantedStatus(worldState)` returns isWanted, totalBountyAmount, activeBounties, recentCrimes, mostSevereCrimeType
+  - `shouldNpcRefuseService(worldState, npcId)` checks if NPC should refuse to deal with player based on criminal status
+  - GPT prompt includes comprehensive crime detection guidelines with detection chances by location type
+  - Player's criminal status (bounties, recent crimes) added to buildActionContext for GPT awareness
+  - Crime events added with type "crime" to eventHistory for rumor spreading (isSignificant: true when detected or severe)
+  - Bounty amounts: minor 10-25g, moderate 25-75g, severe 75-200g+ (documented in GPT prompt)
+---
