@@ -380,3 +380,17 @@
   - Import `Player` type from types.ts since we're returning a Player object
 ---
 
+## 2026-02-14 - US-028
+- What was implemented: Added POST /api/world/new-character endpoint for creating a new character after death
+- Files changed:
+  - index.ts (modified - added /api/world/new-character endpoint and generateNewCharacter import)
+- **Learnings for future iterations:**
+  - `/api/world/new-character` accepts `{ backstory: string }` in body
+  - Endpoint calls `generateNewCharacter(worldState, backstory)` and applies the result
+  - NPC `knowledge` is a `string[]` (not an object with `.lore`) - add knowledge items directly to the array
+  - New player object is applied directly: `worldState = { ...worldState, player: result.player }`
+  - NPC knowledge updates are applied via for-loop filtering duplicates with `.includes()`
+  - Returns: player summary (name, physicalDescription, origin, health, gold, level), narrative, startingLocation
+  - Starting location object contains: id, name, description, terrain (or null if not found)
+---
+
