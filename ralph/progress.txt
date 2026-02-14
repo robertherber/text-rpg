@@ -307,3 +307,19 @@
   - Pre-existing type error in imageService.ts on `response.data[0]?.url` - this is documented and ignored
 ---
 
+## 2026-02-14 - US-023
+- What was implemented: Added background image pre-generation for movement destinations
+- Files changed:
+  - src/imageService.ts (modified - added preGenerateImagesForDestinations function)
+  - index.ts (modified - integrated pre-generation into 4 locations that return suggested actions)
+- **Learnings for future iterations:**
+  - `preGenerateImagesForDestinations(worldState, suggestedActions)` is a non-blocking void function
+  - Extracts movement destinations from actions with `type: "move"` or `type: "travel"` and `targetLocationId`
+  - Uses Set to deduplicate destination IDs, then converts to Array with `Array.from()` for iteration (avoids TS2802 error)
+  - Checks cache first with `getCachedImage()` before generating - avoids unnecessary API calls
+  - Uses fire-and-forget pattern: `generateImage(...).then(...).catch(...)` without await
+  - Console logs provide visibility: "🖼️ Pre-generating...", "✅ Pre-generated...", "❌ Pre-generation failed..."
+  - Integrated at 4 points in index.ts: GET /api/world/state, POST /api/world/action, POST /api/world/freeform (both rejection and success paths)
+  - Pre-generation happens AFTER response is prepared but BEFORE it's returned - truly non-blocking
+---
+
