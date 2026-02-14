@@ -167,3 +167,15 @@
   - Returns: narrative, suggestedActions, initiatesCombat, revealsFlashback
 ---
 
+## 2026-02-14 - US-014
+- What was implemented: Created POST /api/world/freeform API endpoint for free-form text input
+- Files changed:
+  - index.ts (modified - added /api/world/freeform endpoint)
+- **Learnings for future iterations:**
+  - `/api/world/freeform` is nearly identical to `/api/world/action` but takes `{ text: string }` instead of `{ actionId: string }`
+  - Text is trimmed before passing to resolveAction to handle whitespace
+  - Same flow: resolveAction → applyStateChanges → increment actionCounter → saveWorldState → return
+  - Validates text is non-empty string before processing
+  - Also stores resulting suggestedActions in lastSuggestedActions for subsequent action ID lookups
+---
+
