@@ -147,6 +147,15 @@ body {
   height: calc(100vh - 70px);
 }
 
+/* Hide right column when no NPCs present */
+.world-main.no-right-column {
+  grid-template-columns: 400px 1fr;
+}
+
+.world-main.no-right-column .content-panel {
+  border-right: none;
+}
+
 /* Image panel */
 .image-panel {
   background: var(--bg-primary);
@@ -2106,12 +2115,22 @@ body {
   .world-main {
     grid-template-columns: 300px 1fr 280px;
   }
+
+  .world-main.no-right-column {
+    grid-template-columns: 300px 1fr;
+  }
 }
 
 @media (max-width: 900px) {
   .world-main {
     grid-template-columns: 1fr;
     grid-template-rows: 250px 1fr auto;
+  }
+
+  /* On mobile, no-right-column just removes the actions-panel row */
+  .world-main.no-right-column {
+    grid-template-columns: 1fr;
+    grid-template-rows: 250px 1fr;
   }
 
   .image-panel {

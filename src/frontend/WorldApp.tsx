@@ -633,6 +633,8 @@ export default function WorldApp() {
     return null;
   }
 
+  const hasNpcs = worldState.presentNpcs.length > 0;
+
   return (
     <div className="world-container">
       {/* Background music */}
@@ -653,7 +655,7 @@ export default function WorldApp() {
       />
 
       {/* Main content area */}
-      <main className="world-main">
+      <main className={`world-main ${hasNpcs ? '' : 'no-right-column'}`}>
         {/* Left column - Image panel */}
         <ImagePanel location={worldState.currentLocation} />
 
@@ -729,10 +731,9 @@ export default function WorldApp() {
           )}
         </section>
 
-        {/* Right column - NPCs and Inventory */}
-        <section className="actions-panel">
-          {/* Present NPCs */}
-          {worldState.presentNpcs.length > 0 && (
+        {/* Right column - Present NPCs (hidden when no NPCs) */}
+        {hasNpcs && (
+          <section className="actions-panel">
             <div className="npcs-section">
               <h3>Present</h3>
               <ul className="npc-list">
@@ -744,9 +745,8 @@ export default function WorldApp() {
                 ))}
               </ul>
             </div>
-          )}
-
-        </section>
+          </section>
+        )}
       </main>
     </div>
   );
