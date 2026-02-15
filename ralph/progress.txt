@@ -30,3 +30,19 @@
   - API limit is 4096 characters per request
 ---
 
+## 2026-02-15 - US-002: Create TTS API Endpoint
+- Created POST /api/tts endpoint in index.ts
+- Accepts JSON body with text, voice, and optional instructions
+- Validates required fields (text, voice) with 400 error for missing
+- Validates voice is one of the 11 allowed TTS voices
+- Enforces 4096 character limit with 400 error if exceeded
+- Returns audio/mpeg response with Content-Type and Content-Length headers
+- Returns 500 for API failures (generateSpeech returns null)
+- Wraps entire handler in try/catch for graceful error handling
+- Files changed: index.ts (added import, added /api/tts route)
+- **Learnings for future iterations:**
+  - Bun.serve routes support POST handlers that return Response objects directly
+  - ArrayBuffer can be passed directly to Response constructor for binary data
+  - TTSVoice type is exported from ttsService.ts for validation
+---
+

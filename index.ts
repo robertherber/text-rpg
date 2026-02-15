@@ -15,6 +15,7 @@ import { createSeedWorld } from "./src/world/seedWorld";
 import { generateSuggestedActions, resolveAction, resolveActionStreaming, extractReferences, generateNarratorRejection, handleConversation, handleConversationStreaming, generateNewCharacter, handleTravel, generateInitialCharacter, calculateRumorSpread, applyRumorSpreads, generateLocation } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath, updateBehaviorPatterns } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
+import { generateSpeech, type TTSVoice } from "./src/world/ttsService";
 import type { SuggestedAction } from "./src/world/types";
 
 // Module-level world state for API access
@@ -74,6 +75,81 @@ const server = Bun.serve({
   routes: {
     "/": index,
     "/world": worldIndex,
+
+    // ===== Text-to-Speech API =====
+
+    // Generate speech audio from text
+    "/api/tts": {
+      POST: async (req) => {
+        try {
+          const body = await req.json() as { text?: string; voice?: string; instructions?: string };
+          const { text, voice, instructions } = body;
+
+          // Validate required fields
+          if (!text || typeof text !== "string") {
+            return Response.json(
+              { error: "text is required and must be a string" },
+              { status: 400 }
+            );
+          }
+
+          if (!voice || typeof voice !== "string") {
+            return Response.json(
+              { error: "voice is required and must be a string" },
+              { status: 400 }
+            );
+          }
+
+          // Validate text length (API limit is 4096 characters)
+          if (text.length > 4096) {
+            return Response.json(
+              { error: `Text exceeds maximum length of 4096 characters (got ${text.length})` },
+              { status: 400 }
+            );
+          }
+
+          // Validate voice is one of the allowed values
+          const validVoices: TTSVoice[] = [
+            "alloy", "ash", "ballad", "coral", "echo",
+            "fable", "onyx", "nova", "sage", "shimmer", "verse"
+          ];
+          if (!validVoices.includes(voice as TTSVoice)) {
+            return Response.json(
+              { error: `Invalid voice. Must be one of: ${validVoices.join(", ")}` },
+              { status: 400 }
+            );
+          }
+
+          // Generate speech
+          const audioBuffer = await generateSpeech(
+            text,
+            voice as TTSVoice,
+            instructions
+          );
+
+          if (!audioBuffer) {
+            return Response.json(
+              { error: "Failed to generate speech" },
+              { status: 500 }
+            );
+          }
+
+          // Return audio as Response with audio/mpeg content type
+          return new Response(audioBuffer, {
+            headers: {
+              "Content-Type": "audio/mpeg",
+              "Content-Length": audioBuffer.byteLength.toString(),
+            },
+          });
+        } catch (error) {
+          console.error("TTS endpoint error:", error);
+          return Response.json(
+            { error: "Internal server error" },
+            { status: 500 }
+          );
+        }
+      },
+    },
 
     // Start a new game
     "/api/game/start": {
