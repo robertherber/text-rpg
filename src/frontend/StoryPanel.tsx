@@ -37,16 +37,17 @@ const LOADING_MESSAGES = [
 /**
  * Segment of parsed narrative text
  */
-interface TextSegment {
+export interface TextSegment {
   type: "narrator" | "dialog" | "speaker";
   text: string;
+  speakerName?: string; // For dialog segments, the NPC name
 }
 
 /**
  * Parse narrative text into segments of narrator description and NPC dialog.
  * NPC dialog is identified by quoted text ("...") and speaker prefixes (Name: "...")
  */
-function parseNarrativeText(text: string): TextSegment[] {
+export function parseNarrativeText(text: string): TextSegment[] {
   const segments: TextSegment[] = [];
 
   // Pattern matches: optional speaker name followed by colon, then quoted text
@@ -68,10 +69,11 @@ function parseNarrativeText(text: string): TextSegment[] {
     // Check if we have a speaker (Name: "dialog") or just quoted text ("dialog")
     if (match[1] && match[2]) {
       // Speaker with dialog: Name: "dialog"
-      segments.push({ type: "speaker", text: match[1] + ":" });
-      segments.push({ type: "dialog", text: ` "${match[2]}"` });
+      const speakerName = match[1].trim();
+      segments.push({ type: "speaker", text: speakerName + ":" });
+      segments.push({ type: "dialog", text: ` "${match[2]}"`, speakerName });
     } else if (match[3]) {
-      // Just quoted dialog
+      // Just quoted dialog (unknown speaker)
       segments.push({ type: "dialog", text: `"${match[3]}"` });
     }
 

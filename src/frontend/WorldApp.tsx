@@ -11,6 +11,7 @@ import CharacterCreation, { type CharacterCreationResponse } from "./CharacterCr
 import DeathScreen, { type DeceasedHeroDisplay } from "./DeathScreen";
 import BackgroundMusic from "./BackgroundMusic";
 import NarrationPlayer from "./NarrationPlayer";
+import { useAutoNarration } from "./useAutoNarration";
 
 // Types for world state data
 interface WorldLocation {
@@ -102,6 +103,9 @@ export default function WorldApp() {
   const [lastAction, setLastAction] = useState<LastAction>(null);
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const messageIdRef = useRef(0);
+
+  // Auto-narration hook - plays TTS for new narrative messages
+  useAutoNarration(storyMessages, streamingMessageId);
 
   // Fetch initial world state
   useEffect(() => {
