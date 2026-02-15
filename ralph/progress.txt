@@ -181,3 +181,21 @@
   - No dev-browser skill available - manual browser verification needed for UI changes
 ---
 
+## 2026-02-15 - US-012: Duck Background Music During Speech
+- Added onVolumeControl callback prop to BackgroundMusic component
+- Implemented smooth 300ms volume fade using requestAnimationFrame
+- Uses ease-out easing for natural-feeling transitions
+- Tracks volumeMultiplierRef for ducking (0.2 = ducked, 1.0 = full)
+- Properly cancels ongoing fade animations when new fade requested (handles rapid start/stop)
+- Connected BackgroundMusic to NarrationContext via WorldApp
+- WorldApp uses useNarration().setMusicVolume to register the volume control callback
+- NarrationContext already calls callback with 0.2 (duck) and 1.0 (restore)
+- Files changed: src/frontend/BackgroundMusic.tsx, src/frontend/WorldApp.tsx
+- **Learnings for future iterations:**
+  - Use requestAnimationFrame for smooth volume transitions instead of setInterval
+  - cancelAnimationFrame prevents glitches from overlapping fade animations
+  - Volume multiplier is applied on top of user volume: audio.volume = volume * multiplier
+  - Ease-out formula: 1 - Math.pow(1 - progress, 2) gives natural deceleration
+  - No dev-browser skill available - manual browser verification needed for audio changes
+---
+

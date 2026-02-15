@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./worldStyles.css";
 import StoryPanel, { type StoryMessage } from "./StoryPanel";
 import ActionPanel, { type SuggestedAction } from "./ActionPanel";
@@ -12,6 +12,7 @@ import DeathScreen, { type DeceasedHeroDisplay } from "./DeathScreen";
 import BackgroundMusic from "./BackgroundMusic";
 import NarrationPlayer from "./NarrationPlayer";
 import { useAutoNarration } from "./useAutoNarration";
+import { useNarration } from "./NarrationContext";
 
 // Types for world state data
 interface WorldLocation {
@@ -107,6 +108,17 @@ export default function WorldApp() {
 
   // Auto-narration hook - plays TTS for new narrative messages (narrator and NPC dialogue)
   useAutoNarration(storyMessages, streamingMessageId, worldState?.presentNpcs);
+
+  // Get setMusicVolume from narration context for background music ducking
+  const { setMusicVolume } = useNarration();
+
+  // Handle volume control registration from BackgroundMusic
+  const handleVolumeControl = useCallback(
+    (registerCallback: (multiplier: number) => void) => {
+      setMusicVolume(registerCallback);
+    },
+    [setMusicVolume]
+  );
 
   // Fetch initial world state
   useEffect(() => {
@@ -643,8 +655,12 @@ export default function WorldApp() {
 
   return (
     <div className="world-container">
-      {/* Background music */}
-      <BackgroundMusic src="/audio/Emerald Sky Citadel.mp3" defaultVolume={0.3} />
+      {/* Background music with volume ducking during narration */}
+      <BackgroundMusic
+        src="/audio/Emerald Sky Citadel.mp3"
+        defaultVolume={0.3}
+        onVolumeControl={handleVolumeControl}
+      />
 
       {/* Narration player - shows skip button when audio is playing */}
       <NarrationPlayer />
