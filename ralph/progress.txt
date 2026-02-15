@@ -87,3 +87,32 @@
   - No dev-browser skill available - manual browser verification needed for UI changes
 ---
 
+## 2026-02-15 - US-006: Simplify Right Column Layout
+- Added `hasNpcs` variable to conditionally render the right column
+- Right column only renders when `worldState.presentNpcs.length > 0`
+- Added `no-right-column` class to `world-main` when no NPCs present
+- CSS grid changes from `400px 1fr 350px` to `400px 1fr` when no right column
+- Removed border-right on content-panel when right column is hidden
+- Updated responsive breakpoints for 1200px and 900px to handle no-right-column state
+- Files changed: src/frontend/WorldApp.tsx, src/frontend/worldStyles.css
+- **Learnings for future iterations:**
+  - Use CSS class toggling with conditional rendering for layout changes
+  - Grid template columns can be overridden with modifier classes
+  - Keep responsive styles in sync with layout modifier classes
+---
+
+## 2026-02-15 - US-007: Create Narration Audio Context
+- Created NarrationContext.tsx with NarrationProvider and useNarration hook
+- Context provides: isPlaying, currentText, playNarration(text, voice, instructions?), skipCurrent(), setMusicVolume callback
+- Implements audio queue for narration requests (plays in order they arrive)
+- Fetches audio from /api/tts endpoint and plays via HTMLAudioElement
+- Handles playback errors gracefully, cleans up object URLs
+- Music volume ducking coordination via setMusicVolume callback (0.2 during playback, 1.0 after)
+- Wrapped WorldApp with NarrationProvider in public/worldMain.tsx
+- Files changed: src/frontend/NarrationContext.tsx (created), public/worldMain.tsx
+- **Learnings for future iterations:**
+  - Use ref for queue to avoid stale closures in async callbacks
+  - Check for undefined after array index access when using strict TypeScript
+  - URL.revokeObjectURL should be called when audio is done playing or skipped
+---
+
