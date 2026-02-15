@@ -15,7 +15,7 @@ import { createSeedWorld } from "./src/world/seedWorld";
 import { generateSuggestedActions, resolveAction, resolveActionStreaming, extractReferences, generateNarratorRejection, handleConversation, handleConversationStreaming, generateNewCharacter, handleTravel, generateInitialCharacter, calculateRumorSpread, applyRumorSpreads, generateLocation } from "./src/world/gptService";
 import { applyStateChanges, validateKnowledge, initiateWorldCombat, processWorldCombatAction, handlePlayerDeath, updateBehaviorPatterns } from "./src/world/stateManager";
 import { getMapData } from "./src/world/mapService";
-import { generateSpeech, type TTSVoice } from "./src/world/ttsService";
+import { generateSpeech, type TTSVoice, assignNpcVoice } from "./src/world/ttsService";
 import type { SuggestedAction } from "./src/world/types";
 
 // Module-level world state for API access
@@ -914,6 +914,9 @@ const server = Bun.serve({
             Math.min(100, npc.attitude + conversationResult.attitudeChange)
           );
 
+          // Assign voice to NPC if not already assigned
+          const npcVoice = npc.voice ?? assignNpcVoice();
+
           // Update NPC in world state
           worldState = {
             ...worldState,
@@ -923,6 +926,7 @@ const server = Bun.serve({
                 ...npc,
                 conversationHistory: updatedConversationHistory,
                 attitude: newAttitude,
+                voice: npcVoice,
               },
             },
           };
@@ -1067,6 +1071,9 @@ const server = Bun.serve({
                 Math.min(100, npc.attitude + conversationResult.attitudeChange)
               );
 
+              // Assign voice to NPC if not already assigned
+              const npcVoice = npc.voice ?? assignNpcVoice();
+
               // Update NPC in world state
               worldState = {
                 ...worldState,
@@ -1076,6 +1083,7 @@ const server = Bun.serve({
                     ...npc,
                     conversationHistory: updatedConversationHistory,
                     attitude: newAttitude,
+                    voice: npcVoice,
                   },
                 },
               };

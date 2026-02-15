@@ -80,6 +80,7 @@ export interface NPC {
   burialLocationId?: string;
   isCanonical?: boolean;
   factionIds: string[];
+  voice?: string; // TTS voice assigned to this NPC (from NPC_VOICE_POOL)
 }
 
 export interface NPCStats {
