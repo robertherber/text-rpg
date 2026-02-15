@@ -681,15 +681,26 @@ export default function WorldApp() {
             </button>
           </div>
 
-          {/* Story panel */}
+          {/* Story panel with actions below */}
           {activePanel === "story" && (
-            <StoryPanel
-              messages={storyMessages}
-              actionError={actionError}
-              onRetry={handleRetry}
-              isLoading={isProcessing}
-              streamingMessageId={streamingMessageId}
-            />
+            <>
+              <StoryPanel
+                messages={storyMessages}
+                actionError={actionError}
+                onRetry={handleRetry}
+                isLoading={isProcessing}
+                streamingMessageId={streamingMessageId}
+              />
+              <ActionPanel
+                actions={worldState.suggestedActions}
+                onActionSelect={handleAction}
+                onFreeformSubmit={handleFreeformSubmit}
+                isProcessing={isProcessing}
+                conversationMode={conversationState}
+                onConversationMessage={handleConversationMessage}
+                onEndConversation={handleEndConversation}
+              />
+            </>
           )}
 
           {/* Map panel */}
@@ -703,7 +714,7 @@ export default function WorldApp() {
           )}
         </section>
 
-        {/* Right column - Actions and NPCs */}
+        {/* Right column - NPCs and Inventory */}
         <section className="actions-panel">
           {/* Present NPCs */}
           {worldState.presentNpcs.length > 0 && (
@@ -719,17 +730,6 @@ export default function WorldApp() {
               </ul>
             </div>
           )}
-
-          {/* Suggested actions with free-form input */}
-          <ActionPanel
-            actions={worldState.suggestedActions}
-            onActionSelect={handleAction}
-            onFreeformSubmit={handleFreeformSubmit}
-            isProcessing={isProcessing}
-            conversationMode={conversationState}
-            onConversationMessage={handleConversationMessage}
-            onEndConversation={handleEndConversation}
-          />
 
           {/* Inventory panel */}
           <InventoryPanel
