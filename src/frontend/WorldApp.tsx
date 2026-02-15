@@ -10,6 +10,7 @@ import InventoryPanel, { type InventoryItem } from "./InventoryPanel";
 import CharacterCreation, { type CharacterCreationResponse } from "./CharacterCreation";
 import DeathScreen, { type DeceasedHeroDisplay } from "./DeathScreen";
 import BackgroundMusic from "./BackgroundMusic";
+import NarrationPlayer from "./NarrationPlayer";
 
 // Types for world state data
 interface WorldLocation {
@@ -639,6 +640,9 @@ export default function WorldApp() {
     <div className="world-container">
       {/* Background music */}
       <BackgroundMusic src="/audio/Emerald Sky Citadel.mp3" defaultVolume={0.3} />
+
+      {/* Narration player - shows skip button when audio is playing */}
+      <NarrationPlayer />
 
       {/* Header with player stats */}
       <StatsPanel
