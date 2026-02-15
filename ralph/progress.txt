@@ -144,3 +144,40 @@
   - ttsService.ts exports NARRATOR_VOICE, NARRATOR_INSTRUCTIONS, and NPC_VOICE_POOL for frontend use
 ---
 
+## 2026-02-15 - US-010: Auto-play Narrator Text
+- Created useAutoNarration hook in src/frontend/useAutoNarration.ts
+- Hook watches storyMessages for new narrative messages
+- Only plays for type: "narrative" messages (ignores action/system)
+- Parses narrative text using exported parseNarrativeText from StoryPanel
+- Plays narrator segments using NARRATOR_VOICE with NARRATOR_INSTRUCTIONS
+- Dialog segments are skipped (handled by US-011)
+- Handles streaming messages by waiting for completion before playing
+- Exported parseNarrativeText and TextSegment from StoryPanel for reuse
+- Added speakerName field to TextSegment for future NPC voice support
+- Integrated hook in WorldApp with useAutoNarration(storyMessages, streamingMessageId)
+- Files changed: src/frontend/StoryPanel.tsx, src/frontend/WorldApp.tsx, src/frontend/useAutoNarration.ts (created)
+- **Learnings for future iterations:**
+  - Use refs for tracking processed IDs to avoid stale closure issues
+  - parseNarrativeText is exported from StoryPanel.tsx for TTS parsing
+  - TextSegment has speakerName field for NPC dialog (used in US-011)
+  - streamingMessageId indicates a message still receiving content - wait before TTS
+---
+
+## 2026-02-15 - US-011: Auto-play NPC Dialogue
+- Extended useAutoNarration hook to play NPC dialogue with distinct voices
+- Added third parameter `presentNpcs` to useAutoNarration for voice lookup
+- Renamed playNarratorProse to playNarrativeSegments - now plays ALL segments in order
+- Created getNpcVoice function to look up NPC voice by name (case-insensitive partial match)
+- Uses FALLBACK_NPC_VOICE ('alloy') when NPC not found or has no voice assigned
+- NPC dialogue plays without personality instructions (natural voice)
+- Added voice field to presentNpcs in /api/world/state API response
+- Updated NPC interface in WorldApp.tsx to include optional voice field
+- Updated WorldApp to pass worldState?.presentNpcs to useAutoNarration
+- Files changed: index.ts, src/frontend/WorldApp.tsx, src/frontend/useAutoNarration.ts
+- **Learnings for future iterations:**
+  - Use refs for presentNpcs to get latest value in async callbacks
+  - NPC name matching is case-insensitive and supports partial matches
+  - isValidTTSVoice helper validates voice strings before casting to TTSVoice
+  - No dev-browser skill available - manual browser verification needed for UI changes
+---
+

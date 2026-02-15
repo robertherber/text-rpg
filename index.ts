@@ -331,6 +331,7 @@ const server = Bun.serve({
             attitude: npc.attitude,
             isCompanion: npc.isCompanion,
             isAnimal: npc.isAnimal,
+            voice: npc.voice, // TTS voice for NPC dialogue
           }));
 
         // Spread rumors when entering location - NPCs may have heard about player deeds

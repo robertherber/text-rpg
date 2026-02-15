@@ -33,6 +33,7 @@ interface NPC {
   attitude: number;
   isCompanion: boolean;
   isAnimal: boolean;
+  voice?: string; // TTS voice for NPC dialogue
 }
 
 interface PlayerStats {
@@ -104,8 +105,8 @@ export default function WorldApp() {
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const messageIdRef = useRef(0);
 
-  // Auto-narration hook - plays TTS for new narrative messages
-  useAutoNarration(storyMessages, streamingMessageId);
+  // Auto-narration hook - plays TTS for new narrative messages (narrator and NPC dialogue)
+  useAutoNarration(storyMessages, streamingMessageId, worldState?.presentNpcs);
 
   // Fetch initial world state
   useEffect(() => {
