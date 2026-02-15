@@ -93,7 +93,7 @@ export default function WorldApp() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activePanel, setActivePanel] = useState<"story" | "map" | "journal">("story");
+  const [activePanel, setActivePanel] = useState<"story" | "map" | "journal" | "inventory">("story");
   const [conversationState, setConversationState] = useState<ConversationState | null>(null);
   const [needsCharacterCreation, setNeedsCharacterCreation] = useState(false);
   const [deathState, setDeathState] = useState<DeathState | null>(null);
@@ -679,6 +679,12 @@ export default function WorldApp() {
             >
               Journal
             </button>
+            <button
+              className={`tab ${activePanel === "inventory" ? "active" : ""}`}
+              onClick={() => setActivePanel("inventory")}
+            >
+              Inventory
+            </button>
           </div>
 
           {/* Story panel with actions below */}
@@ -712,6 +718,15 @@ export default function WorldApp() {
           {activePanel === "journal" && (
             <JournalPanel />
           )}
+
+          {/* Inventory panel */}
+          {activePanel === "inventory" && (
+            <InventoryPanel
+              items={worldState.playerStats.inventory}
+              onUseItem={handleUseItem}
+              isProcessing={isProcessing}
+            />
+          )}
         </section>
 
         {/* Right column - NPCs and Inventory */}
@@ -731,12 +746,6 @@ export default function WorldApp() {
             </div>
           )}
 
-          {/* Inventory panel */}
-          <InventoryPanel
-            items={worldState.playerStats.inventory}
-            onUseItem={handleUseItem}
-            isProcessing={isProcessing}
-          />
         </section>
       </main>
     </div>

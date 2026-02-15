@@ -46,3 +46,44 @@
   - TTSVoice type is exported from ttsService.ts for validation
 ---
 
+## 2026-02-15 - US-003: Add Voice Field to NPC Data
+- Added optional `voice` field to NPC interface in src/world/types.ts
+- Created `assignNpcVoice()` function in ttsService.ts that randomly selects from NPC_VOICE_POOL
+- Voice pool excludes fable (reserved for narrator): alloy, ash, ballad, coral, echo, onyx, nova, sage, shimmer, verse
+- Updated /api/world/talk handler in index.ts to assign voice when conversation starts if NPC lacks one
+- Updated streaming conversation handler to also assign voice if needed
+- Voice is persisted automatically via worldState save
+- Files changed: src/world/types.ts, src/world/ttsService.ts, index.ts
+- **Learnings for future iterations:**
+  - NPC state is updated in index.ts API handlers, not in gptService.ts functions
+  - Voice assignment uses nullish coalescing (??), so existing voices are preserved
+  - TypeScript strict mode requires type assertion for array indexing (used `as TTSVoice`)
+---
+
+## 2026-02-15 - US-004: Move Actions Panel Below Story
+- Moved ActionPanel from right column (actions-panel section) to story tab content area
+- ActionPanel now renders below StoryPanel inside a React fragment when story tab is active
+- ActionPanel only visible when Story tab is active
+- Present NPCs section and InventoryPanel remain in right column
+- Added CSS for .content-panel .actions-section to style the action panel when in content area
+- Files changed: src/frontend/WorldApp.tsx, src/frontend/worldStyles.css
+- **Learnings for future iterations:**
+  - Use React fragment (<>...</>) to group multiple components in conditional rendering
+  - Content-panel child styling can be targeted with .content-panel .child-class selector
+  - No dev-browser skill available - manual browser verification needed for UI changes
+---
+
+## 2026-02-15 - US-005: Add Inventory Tab
+- Added Inventory tab button to panel-tabs in WorldApp.tsx
+- Tab order is now: Story | Map | Journal | Inventory
+- Updated activePanel state type to include 'inventory'
+- InventoryPanel now renders in content area when Inventory tab is active
+- Removed InventoryPanel from right column (actions-panel section)
+- Right column now only shows Present NPCs section
+- Files changed: src/frontend/WorldApp.tsx
+- **Learnings for future iterations:**
+  - Tabs use same activePanel state pattern, just extend the union type
+  - Components can be moved between layout sections by changing their parent JSX element
+  - No dev-browser skill available - manual browser verification needed for UI changes
+---
+
