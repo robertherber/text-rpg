@@ -1,253 +1,208 @@
 {
   "project": "Dragon's Bane - Open World Text RPG",
-  "branchName": "ralph/dialog-map-improvements",
-  "description": "Dialog & Map UI Improvements - Better dialog presentation, immersive hand-drawn map, and streaming responses",
+  "branchName": "ralph/text-to-speech",
+  "description": "Text-to-Speech Narration & UI Reorganization - Immersive audio narration with persistent NPC voices, plus UI layout improvements",
   "userStories": [
     {
       "id": "US-001",
-      "title": "De-emphasize narrator text styling",
-      "description": "As a player, I want narrator text to be visually distinct from NPC dialog so I can easily tell who is speaking.",
+      "title": "Create TTS Service",
+      "description": "As a developer, I need a service to call OpenAI's speech API so that text can be converted to audio.",
       "acceptanceCriteria": [
-        "Narrator text renders in italic style",
-        "Narrator text uses muted gray color (#6b7280 or similar)",
-        "NPC dialog remains in normal weight with standard text color",
-        "Clear visual distinction between narrator descriptions and NPC speech",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Create src/world/ttsService.ts with function generateSpeech(text: string, voice: string, instructions?: string): Promise<ArrayBuffer | null>",
+        "Use model gpt-4o-mini-tts",
+        "Support voice parameter from available voices: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse",
+        "Support optional instructions parameter for narrator personality",
+        "Return audio as ArrayBuffer (mp3 format)",
+        "Handle errors gracefully (return null on failure, log error, don't crash)",
+        "Typecheck passes"
       ],
       "priority": 1,
       "passes": true,
-      "notes": "Implemented text parsing to segment narrator vs dialog, styled with CSS"
+      "notes": ""
     },
     {
       "id": "US-002",
-      "title": "Update player reference terminology in prompts",
-      "description": "As a player, I want NPCs to address me as 'adventurer' or similar terms so the game feels more immersive.",
+      "title": "Create TTS API Endpoint",
+      "description": "As a developer, I need a backend endpoint to generate speech audio so the frontend can request narration.",
       "acceptanceCriteria": [
-        "GPT prompts instruct NPCs to use 'adventurer', 'traveler', 'stranger', 'hero' etc.",
-        "Never use the word 'player' in NPC dialog or narrator text",
-        "Update conversation system prompt in gptService.ts",
-        "Update action resolution system prompt in gptService.ts",
+        "Create POST /api/tts endpoint in index.ts",
+        "Accept JSON body: { text: string, voice: string, instructions?: string }",
+        "Return audio/mpeg response with generated speech",
+        "Limit text to 4096 characters (API limit) - return 400 if exceeded",
+        "Return 400 for missing required fields (text, voice)",
+        "Return 500 for API failures",
         "Typecheck passes"
       ],
       "priority": 2,
-      "passes": true,
-      "notes": "Updated all GPT prompts to use 'adventurer' instead of 'player', added explicit instructions to never use 'player'"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-003",
-      "title": "Prevent narrator from repeating NPC dialog",
-      "description": "As a player, I want the narrator to describe NPC behavior without echoing their words so dialog isn't redundant.",
+      "title": "Add Voice Field to NPC Data",
+      "description": "As a developer, I need to store NPC voice assignments so they remain consistent across sessions.",
       "acceptanceCriteria": [
-        "Narrator describes actions, expressions, tone - not speech content",
-        "NPC dialog appears exactly once in quotes",
-        "System prompts explicitly forbid narrator from paraphrasing NPC speech",
+        "Add optional voice field to NPC interface in worldState.ts",
+        "Create assignNpcVoice function that randomly selects from voice pool (excluding fable which is narrator)",
+        "Voice pool: alloy, ash, ballad, coral, echo, onyx, nova, sage, shimmer, verse",
+        "When conversation starts with NPC lacking voice, assign and persist to world-state.json",
+        "Update handleConversation/handleConversationStreaming to call assignNpcVoice if needed",
         "Typecheck passes"
       ],
       "priority": 3,
-      "passes": true,
-      "notes": "Added explicit DIALOG RULES to NARRATOR_PERSONALITY, strengthened action resolution and conversation prompts with CRITICAL rule and WRONG/CORRECT examples"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-004",
-      "title": "Shorten dialog and narration lengths",
-      "description": "As a player, I want NPC responses and narrator descriptions to be concise so the game feels snappy.",
+      "title": "Move Actions Panel Below Story",
+      "description": "As a user, I want the actions panel below the story so I can see more story content and have a natural reading flow.",
       "acceptanceCriteria": [
-        "NPC responses limited to 1-2 sentences typically",
-        "Narrator descriptions limited to 1 sentence",
-        "Action narratives limited to 2-3 sentences",
-        "GPT prompts specify 'be concise' and include max length guidance",
-        "Typecheck passes"
+        "Remove ActionPanel from right column (actions-panel section) in WorldApp.tsx",
+        "Place ActionPanel inside story tab content area, below StoryPanel",
+        "ActionPanel only visible when Story tab is active",
+        "Present NPCs section remains in right column",
+        "Update CSS layout in worldStyles.css accordingly",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 4,
-      "passes": true,
-      "notes": "Added BREVITY RULES to NARRATOR_PERSONALITY, updated action resolution RULES, conversation RULES, and schema descriptions to enforce 2-3 sentence action narratives, 1-2 sentence NPC responses, and 1 sentence narrator frames"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-005",
-      "title": "Generate dialog response suggestions",
-      "description": "As a player, I want 3 suggested dialog responses when talking to NPCs so I have conversation options.",
+      "title": "Add Inventory Tab",
+      "description": "As a user, I want Inventory as its own tab so I can access it without scrolling the actions panel.",
       "acceptanceCriteria": [
-        "handleConversation returns suggestedResponses array with 3 items",
-        "Suggestions include 2 contextual + 1 generic option",
-        "Each suggestion has id, text, and type field",
-        "Suggestions show tone in brackets like '[Friendly] How's business?'",
-        "Typecheck passes"
+        "Add Inventory tab button to panel-tabs in WorldApp.tsx",
+        "Tab order: Story | Map | Journal | Inventory",
+        "Update activePanel state type to include 'inventory'",
+        "When Inventory tab active, show InventoryPanel in content area",
+        "Remove InventoryPanel from right column (actions-panel section)",
+        "Typecheck passes",
+        "Verify in browser using dev-browser skill"
       ],
       "priority": 5,
-      "passes": true,
-      "notes": "Added SuggestedResponse interface and type, updated CONVERSATION_RESPONSE_SCHEMA with suggestedResponses array, updated handleConversation prompt with SUGGESTED RESPONSES rules and return value"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-006",
-      "title": "Display dialog suggestions in conversation UI",
-      "description": "As a player, I want to see and click dialog suggestions during conversations.",
+      "title": "Simplify Right Column Layout",
+      "description": "As a developer, I need to simplify the right column now that Actions and Inventory have moved.",
       "acceptanceCriteria": [
-        "ActionPanel shows suggested responses as clickable buttons in conversation mode",
-        "Clicking a suggestion sends that message to the NPC",
-        "Suggestions appear below the conversation input",
+        "Right column contains only Present NPCs section",
+        "Hide right column entirely if no NPCs present (use conditional rendering)",
+        "Adjust CSS grid to give more space to content panel when right column hidden",
+        "Maintain responsive behavior on smaller screens",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 6,
-      "passes": true,
-      "notes": "Added SuggestedResponse interface, updated conversationState to include suggestions, passed from API to WorldApp to ActionPanel, styled with contextual/generic variants"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-007",
-      "title": "Add GPT retry logic with exponential backoff",
-      "description": "As a player, I want the game to recover gracefully from GPT failures.",
+      "title": "Create Narration Audio Context",
+      "description": "As a developer, I need a React context to coordinate audio playback and music ducking.",
       "acceptanceCriteria": [
-        "GPT calls retry up to 2 times on JSON parse failure",
-        "Exponential backoff between retries (500ms, 1500ms)",
-        "After retries exhausted, throw error with message for UI handling",
-        "Log failures for debugging (console)",
+        "Create src/frontend/NarrationContext.tsx with NarrationProvider and useNarration hook",
+        "Context provides: isPlaying, currentText, playNarration(text, voice, instructions?), skipCurrent(), setMusicVolume callback",
+        "Wrap WorldApp with NarrationProvider",
         "Typecheck passes"
       ],
       "priority": 7,
-      "passes": true,
-      "notes": "Implemented retry logic with MAX_RETRIES=2, RETRY_DELAYS=[500,1500], refactored callGPT to use makeGPTCall helper"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-008",
-      "title": "Add error handling UI for failed requests",
-      "description": "As a player, I want to see a friendly error message with retry option when things fail.",
+      "title": "Create Audio Playback Component",
+      "description": "As a user, I want narrative text to be read aloud automatically so I can enjoy an immersive audio experience.",
       "acceptanceCriteria": [
-        "Error state shows 'Something went wrong. Retry?' message",
-        "Error message has 'Try again' button",
-        "Clicking retry re-attempts the last action",
+        "Create src/frontend/NarrationPlayer.tsx component",
+        "Component listens to NarrationContext for playNarration calls",
+        "Fetches audio from /api/tts endpoint",
+        "Uses HTMLAudioElement for playback",
+        "Queues messages if they arrive faster than playback",
+        "Shows skip button while audio is playing",
+        "Skip button stops current audio and moves to next in queue",
+        "Handles playback errors gracefully (log error, continue to next message)",
+        "Properly cleans up URLs with URL.revokeObjectURL on unmount",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 8,
-      "passes": true,
-      "notes": "Added actionError and lastAction state to WorldApp, LastAction union type tracks last action type for retry, StoryPanel displays error with retry button, styled error message in worldStyles.css"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-009",
-      "title": "Add thematic loading indicators",
-      "description": "As a player, I want loading feedback that fits the game's tone.",
+      "title": "Integrate Narrator Voice with Personality",
+      "description": "As a user, I want the narrator to sound like a chaotic trickster so the audio matches the written personality.",
       "acceptanceCriteria": [
-        "Loading shows pulsing/fading text inline under the last message",
-        "Multiple thematic variations rotate randomly: 'The narrator ponders...', 'Fate weaves its thread...', 'The story unfolds...', 'A moment of contemplation...'",
-        "Loading indicator appears for area navigation, dialog, and actions",
-        "Action/dialog buttons disabled during loading",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
+        "Define NARRATOR_VOICE constant as 'fable' in ttsService.ts",
+        "Define NARRATOR_INSTRUCTIONS constant with chaotic trickster personality guidance",
+        "Instructions text: 'Speak with playful, mischievous energy. You are a chaotic trickster narrator - witty, theatrical, occasionally breaking the fourth wall. Vary your pacing for dramatic effect.'",
+        "Export both constants for use by frontend",
+        "Typecheck passes"
       ],
       "priority": 9,
-      "passes": true,
-      "notes": "Added LoadingIndicator component with 8 thematic variations, pulsing CSS animation, isLoading prop passed to StoryPanel"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-010",
-      "title": "Fix image loading issues",
-      "description": "As a player, I want location images to load correctly instead of showing placeholder text.",
+      "title": "Auto-play Narrator Text",
+      "description": "As a user, I want narrator descriptions to play automatically when they appear.",
       "acceptanceCriteria": [
-        "Debug why images show 'village' placeholder instead of generated images",
-        "Verify DALL-E API calls are succeeding",
-        "Verify image URLs are being stored and retrieved correctly",
-        "Images display when available",
+        "When new narrative message added to StoryPanel, trigger narration via NarrationContext",
+        "Parse narrative text to separate narrator prose from NPC dialogue",
+        "Narrator prose uses NARRATOR_VOICE with NARRATOR_INSTRUCTIONS",
+        "Only play for narrative type messages (not action or system)",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 10,
-      "passes": true,
-      "notes": "Root cause: /api/game/image/:id used static gameData locations instead of worldState.locations. Fixed by adding /api/world/image/:id endpoint that uses generateWorldImage with dynamic world state"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-011",
-      "title": "Add image loading states with parchment placeholder",
-      "description": "As a player, I want to see loading indicators for images.",
+      "title": "Auto-play NPC Dialogue",
+      "description": "As a user, I want each NPC to have their own distinct voice so I can identify who is speaking.",
       "acceptanceCriteria": [
-        "Parchment texture placeholder with 'Revealing...' text while image generates",
-        "Error state with retry button if image fails to load",
-        "Graceful fallback if image unavailable (styled placeholder, not broken image)",
-        "Loading state doesn't block other UI interactions",
+        "Parse narrative text to identify NPC dialogue (format: Name: 'dialogue' or standalone 'dialogue')",
+        "For named NPC dialogue, fetch NPC voice from /api/world/state presentNpcs list",
+        "If NPC not in presentNpcs or no voice, use a fallback voice (alloy)",
+        "Play NPC dialogue with their assigned voice (no personality instructions)",
+        "Queue narrator and NPC audio in order they appear in text",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 11,
-      "passes": true,
-      "notes": "Added parchment-textured loading state with thematic messages (Revealing, The scene unfolds, etc.), error state with retry button, and graceful fallback placeholder with terrain icons"
+      "passes": false,
+      "notes": ""
     },
     {
       "id": "US-012",
-      "title": "Create parchment map background texture",
-      "description": "As a player, I want the map to have a parchment/aged paper background.",
+      "title": "Duck Background Music During Speech",
+      "description": "As a user, I want the background music to lower during narration so I can hear the speech clearly.",
       "acceptanceCriteria": [
-        "Map canvas renders parchment texture as background",
-        "Map edges have subtle worn/torn parchment effect",
-        "Background fits the medieval fantasy theme",
+        "Update BackgroundMusic component to accept onVolumeControl callback prop",
+        "NarrationContext calls onVolumeControl when audio starts/stops",
+        "When TTS audio starts playing, reduce background music volume to 20% of current level",
+        "When TTS audio ends (or is skipped), restore background music to previous volume",
+        "Transition smoothly using gain node or volume fade over 300ms",
+        "Handle rapid start/stop without glitches",
         "Typecheck passes",
         "Verify in browser using dev-browser skill"
       ],
       "priority": 12,
-      "passes": true,
-      "notes": "Added parchment texture rendering with gradient background, paper fiber texture, coffee stains, age spots, worn edges with torn marks, ink-colored grid lines, and updated tooltip/legend styling to match"
-    },
-    {
-      "id": "US-013",
-      "title": "Add hand-drawn terrain icons to map",
-      "description": "As a player, I want terrain rendered with hand-drawn style icons.",
-      "acceptanceCriteria": [
-        "Map uses terrain-appropriate hand-drawn icons based on location terrain type",
-        "Location markers look hand-drawn (not generic pins)",
-        "Player position clearly marked with distinctive icon",
-        "Icons fit the fantasy parchment aesthetic",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 13,
-      "passes": true,
-      "notes": "Added 15 terrain-specific hand-drawn icon functions (village, forest, mountains, plains, road, swamp, water, dungeon, cave, ruins, desert, tavern, shop, castle, temple) plus generic fallback. Player marker uses distinctive compass rose/star shape with N indicator. All icons use parchment ink colors and stroke-based drawing."
-    },
-    {
-      "id": "US-014",
-      "title": "Add fog of war to map",
-      "description": "As a player, I want unexplored areas hidden by fog so discovery feels rewarding.",
-      "acceptanceCriteria": [
-        "Unexplored map tiles/areas covered with fog or cloud effect",
-        "Fog clears for visited tile + immediate neighbors (1 tile radius)",
-        "Explored areas remain visible permanently",
-        "Fog has soft edges that blend naturally",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 14,
-      "passes": true,
-      "notes": "Added exploredTiles tracking (1-tile radius per visited location), implemented drawFogOfWar function with soft edge blending based on distance to explored tiles, cloud/mist texture, and '?' symbols in heavy fog"
-    },
-    {
-      "id": "US-015",
-      "title": "Add streaming GPT responses to backend",
-      "description": "As a developer, I need the backend to support streaming narrative responses.",
-      "acceptanceCriteria": [
-        "Add streaming endpoint that uses OpenAI stream: true option",
-        "Endpoint streams narrative text via SSE or chunked transfer",
-        "Structured data (suggested actions, state changes) returned separately after stream",
-        "Streaming works for both action narratives and conversation responses",
-        "Typecheck passes"
-      ],
-      "priority": 15,
-      "passes": true,
-      "notes": "Added callGPTStreaming async generator, resolveActionStreaming and handleConversationStreaming functions. Created /api/world/freeform/stream and /api/world/talk/stream SSE endpoints that stream narrative text progressively then return structured data."
-    },
-    {
-      "id": "US-016",
-      "title": "Add streaming response support to frontend",
-      "description": "As a player, I want narrative text to stream in progressively.",
-      "acceptanceCriteria": [
-        "StoryPanel renders streamed text progressively as tokens arrive",
-        "Use EventSource or fetch streaming on frontend",
-        "UI remains responsive during streaming",
-        "Final state (suggested actions) applied after stream completes",
-        "Typecheck passes",
-        "Verify in browser using dev-browser skill"
-      ],
-      "priority": 16,
-      "passes": true,
-      "notes": "Updated handleFreeformSubmit and handleConversationMessage to use SSE streaming endpoints. Added streamingMessageId state, appendToMessage helper, and streaming cursor UI with gold border styling."
+      "passes": false,
+      "notes": ""
     }
   ]
 }

@@ -1,229 +1,32 @@
 # Ralph Progress Log
-# Feature: Dialog & Map UI Improvements
-# Branch: ralph/dialog-map-improvements
-# Started: 2026-02-14
+# Feature: Text-to-Speech Narration & UI Reorganization
+# Branch: ralph/text-to-speech
+# Started: 2026-02-15
 
 ## Codebase Patterns
 - Pre-existing type errors exist in index.ts, App.tsx, gameEngine.ts, imageService.ts - don't need to fix these for new features
 - GPT prompts are in src/world/gptService.ts
 - Frontend components in src/frontend/ with worldStyles.css for styling
-- Map rendering uses HTML Canvas in MapPanel.tsx
-- World system uses /api/world/* endpoints with worldState.locations, old game system uses /api/game/* with static gameData
-- Image generation: use generateWorldImage() for dynamic world locations (includes NPC-aware hash caching)
-- Streaming GPT: use 2-phase approach (stream narrative text, then get structured JSON) - see resolveActionStreaming/handleConversationStreaming
-- SSE endpoints: return ReadableStream with "text/event-stream" content type, use `data: JSON\n\n` format with type field ("narrative"/"complete"/"error")
+- World system uses /api/world/* endpoints with worldState.locations
+- NPC data stored in worldState.npcs with persistence to world-state.json
+- BackgroundMusic component already exists in src/frontend/BackgroundMusic.tsx
+- StoryPanel parses narrative text to extract NPC dialogue using regex pattern
+- TTS service in src/world/ttsService.ts - use generateSpeech(text, voice, instructions?) for audio generation
 
 ---
 
-## 2026-02-14 - US-001
-- What was implemented: De-emphasized narrator text styling with italic gray (#6b7280) and kept NPC dialog in normal weight with standard text color
-- Files changed:
-  - src/frontend/StoryPanel.tsx - Added parseNarrativeText function to segment narrator vs dialog, added NarrativeText component
-  - src/frontend/worldStyles.css - Added .narrator-text, .dialog-speaker, .dialog-text styles
+## 2026-02-15 - US-001: Create TTS Service
+- Implemented generateSpeech function in src/world/ttsService.ts
+- Uses OpenAI's gpt-4o-mini-tts model for high-quality TTS with personality instructions
+- Supports all 11 voices: alloy, ash, ballad, coral, echo, fable, onyx, nova, sage, shimmer, verse
+- Includes NARRATOR_VOICE (fable) and NARRATOR_INSTRUCTIONS constants for US-009
+- NPC_VOICE_POOL excludes fable to reserve it for narrator
+- Returns ArrayBuffer (mp3 format) on success, null on failure
+- Graceful error handling with logging
+- Files changed: src/world/ttsService.ts (created)
 - **Learnings for future iterations:**
-  - Narrative messages contain both narrator descriptions and NPC dialog (quoted text with optional speaker prefix)
-  - Dialog pattern uses Name: "text" format or standalone "text" quotes
-  - StoryPanel uses a "type" field to distinguish narrative/action/system messages
-
+  - OpenAI audio.speech.create returns a Response object, use .arrayBuffer() to get raw audio
+  - Instructions parameter only works with gpt-4o-mini-tts model (not tts-1 or tts-1-hd)
+  - API limit is 4096 characters per request
 ---
 
-## 2026-02-14 - US-002
-- What was implemented: Updated all GPT prompts to use immersive terminology ("adventurer", "traveler", "hero") instead of "player"
-- Files changed:
-  - src/world/gptService.ts - Updated NARRATOR_PERSONALITY, conversation system prompt, action resolution system prompt, rejection prompt, suggested actions prompt, location generation, world simulation, travel narratives, crafting/building prompts, and character creation prompts
-- **Learnings for future iterations:**
-  - The NARRATOR_PERSONALITY constant is prepended to all system prompts via `callGPT()`, so adding global instructions there affects all GPT outputs
-  - State change type names like `move_player`, `player_damage` are code identifiers and should NOT be changed - only narrative text should use "adventurer"
-  - Many prompts had "player" references that needed updating: action resolution, conversation, rejection, suggestions, travel, crafting, building, character creation, world simulation
-
----
-
-## 2026-02-14 - US-003
-- What was implemented: Added explicit instructions to prevent narrator from repeating NPC dialog
-- Files changed:
-  - src/world/gptService.ts - Added "IMPORTANT DIALOG RULES" section to NARRATOR_PERSONALITY, strengthened action resolution RULES with CRITICAL DIALOG RULE including WRONG/CORRECT examples, updated conversation RULES to emphasize dialog appears only in npcResponse
-- **Learnings for future iterations:**
-  - The NARRATOR_PERSONALITY constant affects ALL prompts globally, so it's the best place for universal rules
-  - Using explicit WRONG/CORRECT examples in prompts helps GPT understand the desired behavior better than just negative instructions
-  - The conversation system uses separate fields: npcResponse for dialog, narratorFrame for description - reinforcing this separation in rules prevents redundancy
-
----
-
-## 2026-02-14 - US-004
-- What was implemented: Added brevity rules to enforce concise dialog and narration lengths
-- Files changed:
-  - src/world/gptService.ts - Added "BREVITY RULES" section to NARRATOR_PERSONALITY, added brevity rule to action resolution RULES, updated conversation RULES with specific length limits, updated RESPONSE STRUCTURE comments with max sentence counts, updated schema descriptions for narratives (ACTION_RESULT_SCHEMA, TRAVEL_ENCOUNTER_SCHEMA, crafting/building schemas)
-- **Learnings for future iterations:**
-  - Length guidance should be specified in multiple places: global NARRATOR_PERSONALITY for universal effect, specific RULES sections for context-specific prompts, and JSON schema descriptions for structured outputs
-  - Schema descriptions also influence GPT output - updating "description" fields in JSON schemas with length guidance helps reinforce brevity constraints
-  - The key areas for narrative length are: action narratives (2-3 sentences), NPC dialog (1-2 sentences), narrator frames (1 sentence)
-
----
-
-## 2026-02-14 - US-005
-- What was implemented: Added dialog response suggestions to handleConversation - GPT now generates 3 suggested responses (2 contextual + 1 generic) for the adventurer
-- Files changed:
-  - src/world/gptService.ts - Added SuggestedResponseType and SuggestedResponse exports, updated CONVERSATION_RESPONSE_SCHEMA with suggestedResponses array schema, updated ConversationResponse and ConversationResult interfaces, added SUGGESTED RESPONSES section to conversation system prompt, updated return to include suggestedResponses with unique IDs
-- **Learnings for future iterations:**
-  - Each suggestion has {id, text, type} where id is generated with Date.now() + index for uniqueness
-  - The type is either "contextual" (specific to conversation) or "generic" (fallback like farewell/rumors)
-  - Tone brackets format: "[Tone] Dialog text" - tones include Friendly, Curious, Suspicious, Aggressive, Grateful, Nervous, Confident, Playful, Serious, Dismissive
-  - US-006 will need to import SuggestedResponse and SuggestedResponseType from gptService.ts for the UI
-
----
-
-## 2026-02-14 - US-006
-- What was implemented: Display dialog suggestions as clickable buttons in conversation UI
-- Files changed:
-  - index.ts - Added suggestedResponses to /api/world/talk response
-  - src/frontend/WorldApp.tsx - Added SuggestedResponse interface, extended ConversationState to include suggestedResponses, updated handleConversationMessage to store suggestions
-  - src/frontend/ActionPanel.tsx - Added SuggestedResponse interface and updated ConversationMode, added handleSuggestedResponseClick handler, rendered suggestion buttons below input
-  - src/frontend/worldStyles.css - Added .suggested-responses container, .suggested-response button styles with contextual/generic variants
-- **Learnings for future iterations:**
-  - ConversationState passes suggestions through the conversationMode prop to ActionPanel
-  - Clicking a suggestion extracts the dialog text (removing the [Tone] prefix) and sends it via onConversationMessage
-  - Suggestions update after each NPC response (stored in conversationState)
-  - The suggested-response buttons use visual distinction: contextual has green left border, generic has gray
-
----
-
-## 2026-02-14 - US-007
-- What was implemented: Added GPT retry logic with exponential backoff for JSON parse failures
-- Files changed:
-  - src/world/gptService.ts - Added MAX_RETRIES (2) and RETRY_DELAYS ([500, 1500]) constants, added sleep() helper, refactored GPT call into makeGPTCall() helper, implemented retry loop in callGPT() for JSON responses with logging and user-friendly error messages
-- **Learnings for future iterations:**
-  - The callGPT function handles both JSON and non-JSON responses - retry logic only applies to JSON parsing failures
-  - API-level errors (network, auth, model not found) are not retried - only JSON parse errors
-  - The makeGPTCall helper reduces duplication for the primary/fallback model logic
-  - Error messages should be user-friendly since they may be displayed in the UI (US-008 will handle this)
-
----
-
-## 2026-02-14 - US-008
-- What was implemented: Added error handling UI with retry capability for failed API requests
-- Files changed:
-  - src/frontend/WorldApp.tsx - Added LastAction union type to track last action for retry, added actionError and lastAction state, added handleRetry function that re-executes based on action type, updated all action handlers (handleAction, handleFreeformSubmit, handleConversationMessage, handleUseItem) to track lastAction and set actionError on catch
-  - src/frontend/StoryPanel.tsx - Added actionError and onRetry props, displays error message with "Try again" button at bottom of story panel
-  - src/frontend/worldStyles.css - Added .story-message.error, .error-text, and .error-retry-button styles with red theme
-- **Learnings for future iterations:**
-  - Error handling uses a union type (LastAction) to track what kind of action failed so it can be retried correctly
-  - StoryPanel is the ideal place to show inline errors since it maintains scroll context with messages
-  - Error state is cleared on success OR when starting a new action, so errors don't persist unnecessarily
-  - The retry button re-calls the same handler function, so all retry logic is centralized in handleRetry
-
----
-
-## 2026-02-14 - US-009
-- What was implemented: Added thematic loading indicators with pulsing animation and random text variations
-- Files changed:
-  - src/frontend/StoryPanel.tsx - Added LOADING_MESSAGES array with 8 thematic variations, added LoadingIndicator component using useState for random message selection, added isLoading prop, renders indicator inline after messages
-  - src/frontend/WorldApp.tsx - Added isLoading={isProcessing} prop to StoryPanel
-  - src/frontend/worldStyles.css - Added .loading-indicator and .loading-text styles with loading-pulse keyframe animation (2s ease-in-out infinite, 0.4-1.0 opacity)
-- **Learnings for future iterations:**
-  - useState with initializer function (() => getRandomLoadingMessage()) ensures the random message is selected once on mount, not on every render
-  - The isProcessing state in WorldApp is already used by ActionPanel to disable buttons, so reusing it for loading indicator is consistent
-  - The loading indicator auto-scrolls by including isLoading in the useEffect dependency array for scrollTop
-
----
-
-## 2026-02-14 - US-010
-- What was implemented: Fixed image loading by creating a new world image endpoint that uses dynamic worldState.locations
-- Files changed:
-  - index.ts - Added /api/world/image/:id endpoint that looks up locations in worldState.locations and uses generateWorldImage() for NPC-aware image generation with proper caching
-  - src/frontend/ImagePanel.tsx - Updated to fetch from /api/world/image/:id instead of /api/game/image/:id
-- **Learnings for future iterations:**
-  - The old /api/game/image/:id endpoint used getLocation() from gameEngine.ts which only looks up static locations in gameData.ts
-  - Dynamic world locations are stored in worldState.locations, not the static gameData
-  - The generateWorldImage() function from imageService.ts properly handles NPC-aware image generation with state hash caching
-  - Always check whether an endpoint uses worldState (dynamic) vs gameData (static) when debugging world system issues
-
----
-
-## 2026-02-14 - US-011
-- What was implemented: Added enhanced image loading states with parchment placeholder, error handling with retry, and graceful fallbacks
-- Files changed:
-  - src/frontend/ImagePanel.tsx - Added parchment-style loading state with thematic messages ("Revealing...", "The scene unfolds...", etc.), error state with retry button, graceful fallback placeholder with terrain icons, and onError handler for broken image URLs
-  - src/frontend/worldStyles.css - Added CSS for parchment-loading, parchment-placeholder, image-error state, loading animations (quill-pulse, reveal-text-fade), and terrain icons styling
-- **Learnings for future iterations:**
-  - The ImagePanel already had isLoading state - enhanced it rather than replacing
-  - useCallback for loadImage allows retry functionality to call the same loading logic
-  - onError handler on <img> catches broken image URLs and shows error state
-  - Parchment texture uses multiple layered linear-gradients for aged paper effect
-  - getTerrainIcon helper maps terrain types to emoji icons for placeholder display
-
----
-
-## 2026-02-14 - US-012
-- What was implemented: Created parchment/aged paper background texture for the map canvas
-- Files changed:
-  - src/frontend/MapPanel.tsx - Added PARCHMENT_COLORS palette, drawParchmentBackground() for aged paper with fiber texture/stains/foxing, drawParchmentEdges() for worn/torn edges, updated grid lines to ink-colored dashed style, enhanced location markers with shadows
-  - src/frontend/worldStyles.css - Updated .map-canvas-wrapper with parchment gradient and shadow, styled .map-tooltip and .map-legend with parchment colors and borders
-- **Learnings for future iterations:**
-  - Canvas 2D API supports gradients (createLinearGradient, createRadialGradient), shadows, and dashed lines (setLineDash)
-  - Use ctx.save()/ctx.restore() to isolate context state changes like shadows
-  - Parchment texture uses multiple overlapping elements: base gradient, paper fiber ellipses, coffee stain gradients, age spot circles
-  - Torn edge effect uses irregular triangle shapes along borders
-  - Map visual elements (tooltip, legend) should use matching parchment colors to maintain theme consistency
-
----
-
-## 2026-02-14 - US-013
-- What was implemented: Added hand-drawn terrain icons to the map for all terrain types plus a distinctive player position marker
-- Files changed:
-  - src/frontend/MapPanel.tsx - Added 15 terrain-specific icon drawing functions (drawVillageIcon, drawForestIcon, drawMountainsIcon, drawPlainsIcon, drawRoadIcon, drawSwampIcon, drawWaterIcon, drawDungeonIcon, drawCaveIcon, drawRuinsIcon, drawDesertIcon, drawTavernIcon, drawShopIcon, drawCastleIcon, drawTempleIcon), drawGenericMarker fallback, drawTerrainIcon dispatcher, drawPlayerMarker compass rose, LegendIcon and LegendPlayerIcon components
-  - src/frontend/worldStyles.css - Added .legend-icon-canvas styling
-  - ralph/prd.json - Updated passes to true with implementation notes
-- **Learnings for future iterations:**
-  - Canvas drawing functions should use ctx.save()/ctx.restore() to isolate state changes
-  - Use a scale factor (s = size / 24) to make icons size-independent
-  - strokeStyle with lineCap="round" and lineJoin="round" creates hand-drawn appearance
-  - Player marker uses shadow effects (ctx.shadowColor, ctx.shadowBlur) for depth
-  - LegendIcon components use small dedicated canvases (24x24) to render icons for the legend
-  - The drawTerrainIcon function maps terrain types to specific drawing functions with a fallback to generic marker
-
----
-
-
-## 2026-02-14 - US-014
-- What was implemented: Added fog of war to the map with soft blending edges for unexplored tiles
-- Files changed:
-  - src/world/mapService.ts - Added ExploredCoordinate type, MapData interface, calculateExploredTiles function (1-tile radius), addTilesAroundCoordinate helper, updated getMapData to return both locations and exploredTiles
-  - src/frontend/MapPanel.tsx - Added MapData interface, drawFogOfWar function with distance-based opacity gradients, cloud/mist texture effects, and "?" symbols in heavily fogged tiles
-- **Learnings for future iterations:**
-  - Fog of war uses Set<string> for O(1) lookup of explored tile coordinates ("x,y" format)
-  - Distance-based opacity creates soft edges: immediate neighbors get light fog (0.35), 1-2 tiles get medium (0.6), distant tiles get full (0.85)
-  - Canvas radial gradients and random cloud circles create natural-looking fog texture
-  - The exploredTiles are calculated from player.knowledge.locations - each visited location reveals 9 tiles (3x3 area)
-
----
-
-## 2026-02-14 - US-015
-- What was implemented: Added streaming GPT responses to backend with SSE endpoints for progressive narrative delivery
-- Files changed:
-  - src/world/gptService.ts - Added callGPTStreaming async generator using OpenAI stream:true, resolveActionStreaming for streaming action narratives (2-phase: stream narrative then get structured JSON), handleConversationStreaming for streaming dialog, ACTION_RESULT_STREAMING_SCHEMA and CONVERSATION_STREAMING_SCHEMA for second-phase structured data
-  - index.ts - Added /api/world/freeform/stream and /api/world/talk/stream SSE endpoints that stream narrative text chunks then return complete structured data
-- **Learnings for future iterations:**
-  - OpenAI streaming with JSON schema is not directly supported - use 2-phase approach: stream plain text narrative first, then call GPT again for structured data
-  - Async generators in TypeScript: when iterating with for-await-of, the return value is lost. Use manual iteration with `.next()` and check `iteratorResult.done` to capture the return value
-  - SSE format: `data: ${JSON.stringify(payload)}\n\n` - requires double newline after each message
-  - Use `type` field in SSE messages to distinguish: "narrative" for streamed chunks, "complete" for final structured data, "error" for failures
-  - ReadableStream with async start() function allows streaming from async generators
-  - Frontend will need to use EventSource or fetch with readable stream to consume SSE
-
----
-
-## 2026-02-14 - US-016
-- What was implemented: Added streaming response support to frontend with progressive text rendering
-- Files changed:
-  - src/frontend/WorldApp.tsx - Added streamingMessageId state, appendToMessage and updateMessageText helpers, updated handleFreeformSubmit and handleConversationMessage to use SSE streaming endpoints with fetch ReadableStream
-  - src/frontend/StoryPanel.tsx - Added streamingMessageId prop, streaming cursor (▍) display, conditional streaming class, hide loading indicator during streaming
-  - src/frontend/worldStyles.css - Added .streaming-cursor with blink animation, .story-message.streaming with gold border styling
-- **Learnings for future iterations:**
-  - Use fetch with ReadableStream for SSE instead of EventSource - gives more control over POST requests and headers
-  - SSE parsing: split buffer by "\n\n" to get complete events, keep incomplete event in buffer
-  - addStoryMessage returns the message ID to enable tracking which message is being streamed
-  - Use appendToMessage for chunk-by-chunk updates rather than setting full text each time
-  - Hide loading indicator during streaming (streamingMessageId check) since cursor provides visual feedback
-  - Streaming cursor blink animation creates typewriter-like effect users expect from AI responses
-
----
