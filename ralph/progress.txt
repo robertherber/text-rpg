@@ -116,3 +116,31 @@
   - URL.revokeObjectURL should be called when audio is done playing or skipped
 ---
 
+## 2026-02-15 - US-008: Create Audio Playback Component
+- Created NarrationPlayer.tsx UI component for narration controls
+- Component uses useNarration hook to access isPlaying, currentText, skipCurrent
+- Shows skip button with speaker icon when audio is playing
+- Skip button calls skipCurrent() to stop current audio and move to next in queue
+- Component returns null when no audio is playing (doesn't render)
+- Added CSS styles with animation for smooth slide-up entrance
+- Added NarrationPlayer to WorldApp.tsx below BackgroundMusic component
+- Files changed: src/frontend/NarrationPlayer.tsx (created), src/frontend/WorldApp.tsx, src/frontend/worldStyles.css
+- **Learnings for future iterations:**
+  - NarrationContext already handles all playback logic (fetching, queueing, cleanup)
+  - NarrationPlayer is purely a UI component that displays controls
+  - Fixed positioning with transform translateX(-50%) centers component horizontally
+  - No dev-browser skill available - manual browser verification needed for UI changes
+---
+
+## 2026-02-15 - US-009: Integrate Narrator Voice with Personality
+- Verified that NARRATOR_VOICE and NARRATOR_INSTRUCTIONS were already added in US-001
+- NARRATOR_VOICE is 'fable' - reserved for narrator only
+- NARRATOR_INSTRUCTIONS contains chaotic trickster personality guidance
+- Both constants are properly exported from ttsService.ts for frontend use
+- No code changes needed - story was proactively implemented during US-001
+- Files unchanged (already complete): src/world/ttsService.ts
+- **Learnings for future iterations:**
+  - Check existing code before implementing - features may be proactively added
+  - ttsService.ts exports NARRATOR_VOICE, NARRATOR_INSTRUCTIONS, and NPC_VOICE_POOL for frontend use
+---
+
