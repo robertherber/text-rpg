@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import "./worldStyles.css";
 import StoryPanel, { type StoryMessage } from "./StoryPanel";
 import ActionPanel, { type SuggestedAction } from "./ActionPanel";
@@ -10,6 +10,9 @@ import InventoryPanel, { type InventoryItem } from "./InventoryPanel";
 import CharacterCreation, { type CharacterCreationResponse } from "./CharacterCreation";
 import DeathScreen, { type DeceasedHeroDisplay } from "./DeathScreen";
 import BackgroundMusic from "./BackgroundMusic";
+import NarrationPlayer from "./NarrationPlayer";
+import { useAutoNarration } from "./useAutoNarration";
+import { useNarration } from "./NarrationContext";
 
 // Types for world state data
 interface WorldLocation {
@@ -31,6 +34,7 @@ interface NPC {
   attitude: number;
   isCompanion: boolean;
   isAnimal: boolean;
+  voice?: string; // TTS voice for NPC dialogue
 }
 
 interface PlayerStats {
@@ -93,7 +97,7 @@ export default function WorldApp() {
   const [isLoading, setIsLoading] = useState(true);
   const [isProcessing, setIsProcessing] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [activePanel, setActivePanel] = useState<"story" | "map" | "journal">("story");
+  const [activePanel, setActivePanel] = useState<"story" | "map" | "journal" | "inventory">("story");
   const [conversationState, setConversationState] = useState<ConversationState | null>(null);
   const [needsCharacterCreation, setNeedsCharacterCreation] = useState(false);
   const [deathState, setDeathState] = useState<DeathState | null>(null);
@@ -101,6 +105,20 @@ export default function WorldApp() {
   const [lastAction, setLastAction] = useState<LastAction>(null);
   const [streamingMessageId, setStreamingMessageId] = useState<number | null>(null);
   const messageIdRef = useRef(0);
+
+  // Auto-narration hook - plays TTS for new narrative messages (narrator and NPC dialogue)
+  useAutoNarration(storyMessages, streamingMessageId, worldState?.presentNpcs);
+
+  // Get setMusicVolume from narration context for background music ducking
+  const { setMusicVolume } = useNarration();
+
+  // Handle volume control registration from BackgroundMusic
+  const handleVolumeControl = useCallback(
+    (registerCallback: (multiplier: number) => void) => {
+      setMusicVolume(registerCallback);
+    },
+    [setMusicVolume]
+  );
 
   // Fetch initial world state
   useEffect(() => {
@@ -633,10 +651,19 @@ export default function WorldApp() {
     return null;
   }
 
+  const hasNpcs = worldState.presentNpcs.length > 0;
+
   return (
     <div className="world-container">
-      {/* Background music */}
-      <BackgroundMusic src="/audio/Emerald Sky Citadel.mp3" defaultVolume={0.3} />
+      {/* Background music with volume ducking during narration */}
+      <BackgroundMusic
+        src="/audio/Emerald Sky Citadel.mp3"
+        defaultVolume={0.3}
+        onVolumeControl={handleVolumeControl}
+      />
+
+      {/* Narration player - shows skip button when audio is playing */}
+      <NarrationPlayer />
 
       {/* Header with player stats */}
       <StatsPanel
@@ -653,7 +680,7 @@ export default function WorldApp() {
       />
 
       {/* Main content area */}
-      <main className="world-main">
+      <main className={`world-main ${hasNpcs ? '' : 'no-right-column'}`}>
         {/* Left column - Image panel */}
         <ImagePanel location={worldState.currentLocation} />
 
@@ -679,17 +706,34 @@ export default function WorldApp() {
             >
               Journal
             </button>
+            <button
+              className={`tab ${activePanel === "inventory" ? "active" : ""}`}
+              onClick={() => setActivePanel("inventory")}
+            >
+              Inventory
+            </button>
           </div>
 
-          {/* Story panel */}
+          {/* Story panel with actions below */}
           {activePanel === "story" && (
-            <StoryPanel
-              messages={storyMessages}
-              actionError={actionError}
-              onRetry={handleRetry}
-              isLoading={isProcessing}
-              streamingMessageId={streamingMessageId}
-            />
+            <>
+              <StoryPanel
+                messages={storyMessages}
+                actionError={actionError}
+                onRetry={handleRetry}
+                isLoading={isProcessing}
+                streamingMessageId={streamingMessageId}
+              />
+              <ActionPanel
+                actions={worldState.suggestedActions}
+                onActionSelect={handleAction}
+                onFreeformSubmit={handleFreeformSubmit}
+                isProcessing={isProcessing}
+                conversationMode={conversationState}
+                onConversationMessage={handleConversationMessage}
+                onEndConversation={handleEndConversation}
+              />
+            </>
           )}
 
           {/* Map panel */}
@@ -701,12 +745,20 @@ export default function WorldApp() {
           {activePanel === "journal" && (
             <JournalPanel />
           )}
+
+          {/* Inventory panel */}
+          {activePanel === "inventory" && (
+            <InventoryPanel
+              items={worldState.playerStats.inventory}
+              onUseItem={handleUseItem}
+              isProcessing={isProcessing}
+            />
+          )}
         </section>
 
-        {/* Right column - Actions and NPCs */}
-        <section className="actions-panel">
-          {/* Present NPCs */}
-          {worldState.presentNpcs.length > 0 && (
+        {/* Right column - Present NPCs (hidden when no NPCs) */}
+        {hasNpcs && (
+          <section className="actions-panel">
             <div className="npcs-section">
               <h3>Present</h3>
               <ul className="npc-list">
@@ -718,26 +770,8 @@ export default function WorldApp() {
                 ))}
               </ul>
             </div>
-          )}
-
-          {/* Suggested actions with free-form input */}
-          <ActionPanel
-            actions={worldState.suggestedActions}
-            onActionSelect={handleAction}
-            onFreeformSubmit={handleFreeformSubmit}
-            isProcessing={isProcessing}
-            conversationMode={conversationState}
-            onConversationMessage={handleConversationMessage}
-            onEndConversation={handleEndConversation}
-          />
-
-          {/* Inventory panel */}
-          <InventoryPanel
-            items={worldState.playerStats.inventory}
-            onUseItem={handleUseItem}
-            isProcessing={isProcessing}
-          />
-        </section>
+          </section>
+        )}
       </main>
     </div>
   );

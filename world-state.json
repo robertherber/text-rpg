@@ -1,16 +1,19 @@
 {
   "version": 1,
-  "actionCounter": 20,
+  "actionCounter": 35,
   "player": {
     "name": "rob",
     "physicalDescription": "Rob stands tall and broad-shouldered, with a weathered complexion that speaks of years under sun and steel. His hair is a wild tangle of chestnut brown, peppered with strands of gray that betray his age. A neatly trimmed beard frames his strong jaw, giving him a rugged inkling of nobility. Clad in simple, yet sturdy, earth-toned garb with a faded tunic and rugged leather boots, he bears the scars of war both on his body and in his gaze. His piercing green eyes, like shards of emerald in the twilight, hold the weight of a thousand unspoken tales.",
     "hiddenBackstory": "Haunted by dreams of a battle that never unfolded, Rob wrestles with ghosts of the unknown; visions of comrades who never entered the fray, their faces forever etched in shadows. Once, at the cusp of a fateful engagement, he turned his back on war— to protect a secret that could unravel the very threads of loyalty. Long days spent with pen and parchment reveal another truth: a letter tucked away, bearing whispers of betrayal involving a trusted general and the very lands he fought to defend. Will the shards of his past drive him to seek redemption, or will they consume him?",
     "revealedBackstory": [
       "You stand on a windswept battlefield, surrounded by the cries of both friend and foe. The scent of blood mingles with the earthy aroma of churned soil. Your heart pounds in your chest as you grip your longsword tightly, a sense of unease clawing at you. Though you aim to strike, memories of faces—lost, yet familiar—haunt you. Friends you never met, battles never fought. Their specters linger over the glinting blade, whispering bygone tales of loyalty and betrayal. The moment hangs thick with possibility, and then, like smoke, it dissipates into nothingness, leaving you shaken yet empowered. \nYou resolve to understand the depths of this sword’s legacy, its true worth still hidden beneath layers of time and choice, waiting for the right moment to surface.",
-      "A distant memory flickers within your mind, of standing before an ancient stone altar. The air crackles with untamed magic as you trace your fingers along strange runes, feeling a surge of power that promises knowledge—if you dare seek it. Shadows of the past linger, urging you to remember the significance of sacrifice and wisdom intertwined in the quest for understanding."
+      "A distant memory flickers within your mind, of standing before an ancient stone altar. The air crackles with untamed magic as you trace your fingers along strange runes, feeling a surge of power that promises knowledge—if you dare seek it. Shadows of the past linger, urging you to remember the significance of sacrifice and wisdom intertwined in the quest for understanding.",
+      "You find yourself standing in an ancient war tent, papers strewn across a table, a plan for battle drawn with hastened strokes. The tension fills the air as commanders argue—faces are fierce, but you can see the shadows of doubt lurking. You scribble a note, a warning of betrayal, trying to protect those you hold dear; the weight of this secret nearly crushes your heart. Suddenly, a sense of resolve washes over you—loyalty is often a double-edged sword, and you hold it tightly, though it burns your grip.",
+      "You stand before a group of warriors, their faces stern yet proud, as they prepare to march into a legendary battle. You clutch the hilt of your sword, a fire igniting within your chest, fueled by the hopes and dreams of those who came before you. The clash of steel and the cries of comrades fill your ears, and you feel as if their spirits intertwine with your own, urging you onward and reminding you of the weight of legacy.",
+      "You recall standing in a misty grove where laughter echoed among trees, a circle of friends congregating under twilight hues as they inscribed runes into the earth, using their newfound knowledge to weave spells of protection and growth. This was a time before shadows engulfed your heart, where magic felt pure and friendships were untainted by betrayal."
     ],
     "origin": "Rob hails from the weary lands of Rivermarch, a village nestled near the tumultuous borders of warring factions. After a lifetime spent retreating from battlefields and the incessant clamor of swords clashing, he now finds himself in Millbrook, seeking solace—or perhaps merely avoiding the shades of the past that whisper amidst the rustling leaves.",
-    "currentLocationId": "loc_north_1771078337110_yyr92h",
+    "currentLocationId": "loc_north_1771165518680_6x6unz",
     "health": 100,
     "maxHealth": 100,
     "strength": 10,
@@ -49,6 +52,13 @@
         "description": "A small, glowing fragment said to have absorbed ancient magic from the battlefield.",
         "type": "misc",
         "value": 50
+      },
+      {
+        "id": "stone_of_runes",
+        "name": "Mysterious Rune Stone",
+        "description": "An unusual stone marked with ancient runes, pulsing softly with an enigmatic energy.",
+        "type": "misc",
+        "value": 10
       }
     ],
     "companionIds": [],
@@ -73,15 +83,17 @@
       "recipes": [],
       "skills": {
         "swordsmanship": "apprentice",
-        "arcane understanding": "apprentice"
+        "arcane understanding": "apprentice",
+        "loyalty": "apprentice",
+        "magery": "novice"
       }
     },
     "behaviorPatterns": {
       "combat": 2,
       "diplomacy": 0,
-      "exploration": 5,
+      "exploration": 16,
       "social": 3,
-      "stealth": 0,
+      "stealth": 2,
       "magic": 2
     },
     "transformations": [],
@@ -212,6 +224,108 @@
         "y": 2
       },
       "terrain": "mountain",
+      "dangerLevel": 3,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
+    },
+    "loc_north_1771153827918_smiz5e": {
+      "id": "loc_north_1771153827918_smiz5e",
+      "name": "The Bard's Vale",
+      "description": "Nestled just north of the Shattered Bluffs, The Bard's Vale flows with lush greenery and vibrant wildflowers, the air thick with sweet melodies of nature. A gentle brook winds through the vale, its sparkling waters reflecting sunlight like a dancer's twirl, while crumbling stone ruins, remnants of an ancient bardic guild, tell tales of long-lost songs and forgotten lore. Travelers can hear the faint echo of distant harmonies, a lingering reminder of the power of music to stir the very soul.",
+      "imagePrompt": "A serene valley filled with wildflowers and a gentle brook flowing through, sunlight streaming down, illuminating ancient stone ruins covered in vines. Soft, warm lighting accentuates a tranquil atmosphere, with vibrant colors and the hint of musical notes in the air, creating an enchanting scene.",
+      "coordinates": {
+        "x": 1,
+        "y": 3
+      },
+      "terrain": "forest",
+      "dangerLevel": 2,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
+    },
+    "loc_west_1771154489656_3h894c": {
+      "id": "loc_west_1771154489656_3h894c",
+      "name": "The Vale of Echoes",
+      "description": "West of The Bard's Vale, the Vale of Echoes unfolds beneath the shadow of the Shattered Bluffs, where the whispers of bygone battles mingle with the rustle of leaves. Rugged hills cradle a serene, reflective pond, its surface a perfect mirror to both the sky and the secrets held within the vale. Patches of wildflowers punctuate the gently sloping hills, inviting wandering eyes to linger and discover the stories embedded in each bloom. The air is thick with a palpable energy, as if the echoes of ancient warriors linger just beyond the grasp of memory.",
+      "imagePrompt": "A tranquil vale beneath towering, jagged mountains, with a large, reflective pond at the center mirroring the sky. Lush patches of wildflowers bloom vibrantly among gently sloping hills, while a faint shimmering mist rises from the pond. The atmosphere is serene yet charged with a sense of ancient energy, as rays of sunlight pierce through scattered clouds, casting playful shadows across the landscape.",
+      "coordinates": {
+        "x": 0,
+        "y": 3
+      },
+      "terrain": "plains",
+      "dangerLevel": 3,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
+    },
+    "loc_west_1771154512106_n5vvit": {
+      "id": "loc_west_1771154512106_n5vvit",
+      "name": "The Riven Hollow",
+      "description": "Beyond the undulating hills of the Vale of Echoes, you descend into The Riven Hollow, a treacherous gorge where the earth has split asunder. Gnarled trees cling desperately to the rocky outcrops, their twisted roots casting long shadows over the moss-clad stone, while the whispers of forgotten warriors seem to echo within its depths. The air is charged with an electric anticipation, the chill of the depths meeting the warmth of the sun, inviting the curious yet cautioning the unwary.",
+      "imagePrompt": "A dramatic gorge with sharp cliffs and gnarled trees, shadows stretching across moss-covered rocks under a bright blue sky. The sun casts dappled light throughout the hollow, highlighting the intricate textures of the stone. Ethereal wisps dart between the trees, hinting at the presence of lingering spirits, as an adventurer cautiously explores the rugged terrain.",
+      "coordinates": {
+        "x": -1,
+        "y": 3
+      },
+      "terrain": "mountain",
+      "dangerLevel": 5,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
+    },
+    "loc_west_1771154545621_hz0chg": {
+      "id": "loc_west_1771154545621_hz0chg",
+      "name": "The Crestfallen Meadow",
+      "description": "Just beyond The Riven Hollow, a serene meadow unfolds, bright and inviting yet haunted by the bittersweet echoes of battles long past. Wildflowers sway gently in the breeze, concealing scars of ancient skirmishes beneath their vibrant splendor, while the distant silhouette of the mountains looms like a solemn guardian. A serene stream winds through the grass, whispering tales of courage and loss as it glimmers in the sunlight, beckoning adventurers towards its tranquil embrace.",
+      "imagePrompt": "A tranquil meadow under a bright blue sky, dotted with colorful wildflowers and a gently winding stream, reflecting sunlight. In the background, the dark silhouettes of distant mountains loom ominously. Subtle signs of past battles can be seen among the flowers, such as a rusted sword hilt peeking through the grass and broken shield fragments.",
+      "coordinates": {
+        "x": -2,
+        "y": 3
+      },
+      "terrain": "plains",
+      "dangerLevel": 3,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
+    },
+    "loc_west_1771154630340_hr7xai": {
+      "id": "loc_west_1771154630340_hr7xai",
+      "name": "The Whispering Ire",
+      "description": "As you traverse westward, the serene plains yield to The Whispering Ire, where the spirit of ancient battles seeps into the cracks of gnarled trees. Shadows stretch and intertwine beneath a canopy thick with leaves that seem to hum with memories of valor and sorrow. The air vibrates with a spectral energy, as if the very ground yearns to recount the tales of fallen warriors. Amidst the flickering sunlight, eerie stone formations rise like solemn sentinels, watching over secrets both old and new.",
+      "imagePrompt": "A lush forest with gnarled trees intertwining above, casting dappled shadows on the forest floor. Ethereal stone formations peek through foliage, hinting at ancient battles. Soft sunlight filters through leaves, creating a serene yet eerie atmosphere. Wisps of mist curl around the roots of trees, suggesting hidden secrets and memories.",
+      "coordinates": {
+        "x": -3,
+        "y": 3
+      },
+      "terrain": "forest",
+      "dangerLevel": 4,
+      "presentNpcIds": [],
+      "items": [],
+      "structures": [],
+      "notes": [],
+      "isCanonical": false
+    },
+    "loc_north_1771165518680_6x6unz": {
+      "id": "loc_north_1771165518680_6x6unz",
+      "name": "The Eldritch Clearing",
+      "description": "Emerging from the dense shadows of The Whispering Ire, you find yourself in The Eldritch Clearing, a wide expanse where wildflowers bloom in defiance of the dark woods beyond. Here, ancient rune-inscribed stones lie scattered amidst the vibrant flora, whispering secrets of lost civilizations to those who dare to listen. A gentle breeze carries the faint resonance of ancient incantations, while the distant sound of a babbling brook echoes like a soft lullaby to restless souls. This place, luminous under a filter of sunlight, is both serene and haunting, offering an unsettling sense of peace in its wild beauty.",
+      "imagePrompt": "A sunlit clearing surrounded by thick, dark trees, with colorful wildflowers carpeting the ground, stone ruins adorned with ancient runes placed sporadically. A gentle brook flows in the background, reflecting the dappled light of the forest, lending an air of magic. The scene has an ethereal, almost otherworldly mood, evoking both tranquility and mystery.",
+      "coordinates": {
+        "x": -3,
+        "y": 4
+      },
+      "terrain": "plains",
       "dangerLevel": 3,
       "presentNpcIds": [],
       "items": [],
@@ -486,6 +600,33 @@
       "type": "discovery",
       "involvedNpcIds": [],
       "locationId": "loc_north_1771078337110_yyr92h",
+      "isSignificant": true
+    },
+    {
+      "id": "event_flashback_28_1771154708575",
+      "actionNumber": 28,
+      "description": "A memory from the past was revealed: You find yourself standing in an ancient war tent, papers strewn across a table, a plan for battle d...",
+      "type": "discovery",
+      "involvedNpcIds": [],
+      "locationId": "loc_west_1771154630340_hr7xai",
+      "isSignificant": true
+    },
+    {
+      "id": "event_flashback_29_1771154744752",
+      "actionNumber": 29,
+      "description": "A memory from the past was revealed: You stand before a group of warriors, their faces stern yet proud, as they prepare to march into a l...",
+      "type": "discovery",
+      "involvedNpcIds": [],
+      "locationId": "loc_west_1771154630340_hr7xai",
+      "isSignificant": true
+    },
+    {
+      "id": "event_flashback_31_1771165605830",
+      "actionNumber": 31,
+      "description": "A memory from the past was revealed: You recall standing in a misty grove where laughter echoed among trees, a circle of friends congrega...",
+      "type": "discovery",
+      "involvedNpcIds": [],
+      "locationId": "loc_north_1771165518680_6x6unz",
       "isSignificant": true
     }
   ],
