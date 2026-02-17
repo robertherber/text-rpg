@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useCallback, useRef } from "react";
-import type { TTSVoice } from "../world/ttsService";
+import type { TTSVoice } from "../shared/ttsTypes";
 
 // Queue item for narration requests
 interface NarrationQueueItem {

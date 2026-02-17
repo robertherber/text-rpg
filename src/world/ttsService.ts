@@ -1,6 +1,12 @@
 // Text-to-Speech Service for AI-generated narration
 import OpenAI from "openai";
 
+// Re-export types and constants from shared file for convenience
+export type { TTSVoice } from "../shared/ttsTypes";
+export { NARRATOR_VOICE, NARRATOR_INSTRUCTIONS, NPC_VOICE_POOL } from "../shared/ttsTypes";
+
+import { type TTSVoice, NPC_VOICE_POOL } from "../shared/ttsTypes";
+
 // Initialize OpenAI client
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
@@ -8,38 +14,6 @@ const openai = new OpenAI({
 
 // TTS Model configuration
 const TTS_MODEL = "gpt-4o-mini-tts";
-
-// Available voices for TTS
-export type TTSVoice =
-  | "alloy"
-  | "ash"
-  | "ballad"
-  | "coral"
-  | "echo"
-  | "fable"
-  | "onyx"
-  | "nova"
-  | "sage"
-  | "shimmer"
-  | "verse";
-
-// Narrator configuration
-export const NARRATOR_VOICE: TTSVoice = "fable";
-export const NARRATOR_INSTRUCTIONS = "Speak with playful, mischievous energy. You are a chaotic trickster narrator - witty, theatrical, occasionally breaking the fourth wall. Vary your pacing for dramatic effect.";
-
-// Voice pool for NPCs (excludes fable which is reserved for narrator)
-export const NPC_VOICE_POOL: TTSVoice[] = [
-  "alloy",
-  "ash",
-  "ballad",
-  "coral",
-  "echo",
-  "onyx",
-  "nova",
-  "sage",
-  "shimmer",
-  "verse",
-];
 
 /**
  * Assigns a random voice from the NPC voice pool.

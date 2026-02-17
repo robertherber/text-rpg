@@ -2,7 +2,7 @@ import { useEffect, useRef } from "react";
 import { useNarration } from "./NarrationContext";
 import { parseNarrativeText } from "./StoryPanel";
 import type { StoryMessage } from "./StoryPanel";
-import { NARRATOR_VOICE, NARRATOR_INSTRUCTIONS, type TTSVoice } from "../world/ttsService";
+import { NARRATOR_VOICE, NARRATOR_INSTRUCTIONS, type TTSVoice } from "../shared/ttsTypes";
 
 /**
  * NPC info for TTS voice lookup
